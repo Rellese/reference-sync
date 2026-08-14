@@ -1,0 +1,324 @@
+/* ============================================================
+   ReferenceSync — прогресс-бар (блок 4)
+   Значения перенесены из Full_design/Scale * без изменений.
+   ============================================================ */
+
+/* ------------------------------------------------------------
+   Контейнер. В Figma: padding 15px 20px; gap 15px;
+   background #161616; border 1px solid #212121; radius 15px;
+   ширина 1132px = 1092 контента + 2*20 padding.
+   ------------------------------------------------------------ */
+.rs-progress {
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  padding: 15px 20px;
+  gap: 15px;
+  width: 100%;
+  background: #161616;
+  border: 1px solid #212121;
+  border-radius: 15px;
+}
+
+/* Info: колонка с gap 8px */
+.rs-progress__info {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  padding: 0;
+  gap: 8px;
+  width: 100%;
+}
+
+/* Process Info / Found and displayed — ряд с разносом по краям */
+.rs-progress__row {
+  display: flex;
+  flex-direction: row;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0;
+  gap: 20px;
+  width: 100%;
+  height: 13px;
+}
+
+/* Подписи: IBM Plex Mono 400 10/13, letter-spacing .1em, uppercase */
+.rs-progress__label {
+  flex: none;
+  font-family: var(--font-mono);
+  font-style: normal;
+  font-weight: 400;
+  font-size: 10px;
+  line-height: 13px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: #707070;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* «Connection lost» — красная подпись в состоянии 5 */
+.rs-progress[data-mode='offline'] .rs-progress__row > .rs-progress__label:last-child {
+  color: #FF333A;
+}
+
+/* Management and Percentage: процент и кнопки, оба margin: 0 auto */
+.rs-progress__manage {
+  display: flex;
+  flex-direction: row;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0;
+  gap: 8px;
+  width: 100%;
+  height: 36px;
+}
+
+/* Interest: CommitMono 400 24/26 uppercase #B4B4B4 */
+.rs-progress__interest {
+  margin: 0 auto;
+  flex: none;
+  font-family: var(--font-table);
+  font-style: normal;
+  font-weight: 400;
+  font-size: 24px;
+  line-height: 26px;
+  text-transform: uppercase;
+  color: #B4B4B4;
+  font-variant-numeric: tabular-nums;
+}
+
+/* В состоянии 2 (complete) процента-кнопок нет, а Interest
+   растягивается на всю ширину — по макету Scale Download complete */
+.rs-progress[data-mode='complete'] .rs-progress__manage {
+  height: 26px;
+}
+.rs-progress[data-mode='complete'] .rs-progress__interest {
+  margin: 0;
+  width: 100%;
+}
+
+/* Controls: 3 кнопки, gap 10px, ширина 128px, margin 0 auto */
+.rs-progress__controls {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  padding: 0;
+  gap: 10px;
+  margin: 0 auto;
+  width: 128px;
+  height: 36px;
+  flex: none;
+}
+
+/* Publication info: два блока по краям */
+.rs-progress__publication {
+  display: flex;
+  flex-direction: row;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0;
+  gap: 20px;
+  width: 100%;
+  height: 13px;
+}
+.rs-progress__found {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  padding: 0;
+  gap: 20px;
+  flex: none;
+}
+
+/* ============================================================
+   Шкала: 219 ячеек, 2×16px, gap 3px
+   ============================================================ */
+.rs-scale {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  padding: 0;
+  gap: 3px;
+  width: 100%;
+  height: 16px;
+}
+
+.rs-scale__cell {
+  position: relative;
+  flex: 1 1 2px;
+  min-width: 0;
+  height: 16px;
+  border-radius: 100px;
+  /* Тень задаётся из JS — она разная по состояниям и появляется
+     мгновенно на 100% у ведущей ячейки (см. Instruction) */
+}
+
+/* Нижний слой: rgba(255,255,255,0.1). В Figma он лежит под
+   цветным слоем у ячеек, залитых не на 100% — специально,
+   чтобы полупрозрачный оранжевый не выглядел грязно.
+   У пустых ячеек слой скрыт. */
+.rs-scale__under {
+  position: absolute;
+  inset: 0;
+  border-radius: 100px;
+  background: rgba(255, 255, 255, 0.1);
+  opacity: 0;
+}
+.rs-scale__cell.is-lit .rs-scale__under {
+  opacity: 1;
+}
+
+/* Верхний цветной слой. Цвет и альфа ставятся из JS. */
+.rs-scale__fill {
+  position: absolute;
+  inset: 0;
+  border-radius: 100px;
+  background: #353535;
+}
+
+/* ============================================================
+   Кнопки плеера (Full_design/Player buttons + controls)
+
+   Внешний контейнер 36×36 меняет padding, из-за чего кнопка
+   «продавливается»: Enable padding 0, Hovered 0 0 2px,
+   Pressed 2px 0 0.
+   ============================================================ */
+.rs-player {
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: row;
+  justify-content: center;
+  align-items: center;
+  padding: 0;
+  gap: 10px;
+  width: 36px;
+  height: 36px;
+  flex: none;
+  cursor: default;
+  transition: padding 150ms ease;
+}
+.rs-player.is-on {
+  cursor: pointer;
+}
+
+.rs-player__button {
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: row;
+  justify-content: center;
+  align-items: center;
+  padding: 10px;
+  gap: 10px;
+  width: 36px;
+  height: 36px;
+  background: rgba(38, 38, 38, 0.2);
+  border-radius: 5px;
+  transition: background 150ms ease, box-shadow 150ms ease;
+}
+
+/* Hovered — только у активной (On) кнопки */
+.rs-player.is-on:hover {
+  padding: 0 0 2px;
+}
+.rs-player.is-on:hover .rs-player__button {
+  background: rgba(38, 38, 38, 0.8);
+  box-shadow: 0 1px 0 1px rgba(0, 0, 0, 0.1);
+}
+.rs-player.is-on:hover .rs-player__icon {
+  box-shadow: 0 1px 8px 1px rgba(0, 0, 0, 0.65);
+}
+
+/* Pressed — уходим из состояния мгновенно (В целом советы) */
+.rs-player.is-on:active {
+  padding: 2px 0 0;
+  transition: none;
+}
+.rs-player.is-on:active .rs-player__button {
+  background: #151515;
+  box-shadow: inset 0 2px 0 1px rgba(0, 0, 0, 0.1);
+  transition: none;
+}
+/* Pressed: иконка гаснет до Off-градиента без обводки */
+.rs-player.is-on:active .rs-player__icon {
+  background: radial-gradient(95.47% 100% at 50% 100%,
+    rgba(109, 109, 109, 0.5) 0%, rgba(109, 109, 109, 0.1) 100%);
+  border-color: transparent;
+  box-shadow: none;
+  transition: none;
+}
+
+/* controls — контейнер иконок 15×15, gap 3px у пары */
+.rs-player__icons {
+  position: relative;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  padding: 0;
+  gap: 3px;
+  width: 15px;
+  height: 15px;
+  flex: none;
+}
+
+/* Icon, состояние Off: один радиальный градиент, без обводки */
+.rs-player__icon {
+  box-sizing: border-box;
+  flex: none;
+  border: 1px solid transparent;
+  background: radial-gradient(95.47% 100% at 50% 100%,
+    rgba(109, 109, 109, 0.5) 0%, rgba(109, 109, 109, 0.1) 100%);
+  transition: background 150ms ease, border-color 150ms ease, box-shadow 150ms ease;
+}
+
+/* Icon, состояние On: два градиента + #D9D9D9 подложка + обводка */
+.rs-player.is-on .rs-player__icon {
+  background:
+    radial-gradient(62.92% 65.91% at 50% 0%, #6D6D6D 0%,
+      rgba(109, 109, 109, 0.2) 64.39%, rgba(109, 109, 109, 0) 100%),
+    radial-gradient(60.89% 100% at 50% 0%, #3B3B3B 16.64%,
+      #222222 90.26%, #222222 100%),
+    #D9D9D9;
+  border: 1px solid rgba(180, 180, 180, 0.5);
+}
+
+/* Пауза: две полоски 6×15, radius 5px */
+.rs-player__icon--bar {
+  width: 6px;
+  height: 15px;
+  border-radius: 5px;
+}
+
+/* Стоп: квадрат 15×15, radius 3px */
+.rs-player__icon--stop {
+  width: 15px;
+  height: 15px;
+  border-radius: 3px;
+}
+/* У Stop в состоянии On подложки #D9D9D9 нет — только градиенты */
+.rs-player.is-on .rs-player__icon--stop {
+  background:
+    radial-gradient(62.92% 65.91% at 50% 0%, #6D6D6D 0%,
+      rgba(109, 109, 109, 0.2) 64.39%, rgba(109, 109, 109, 0) 100%),
+    radial-gradient(60.89% 100% at 50% 0%, #3B3B3B 16.64%,
+      #222222 90.26%, #222222 100%);
+}
+
+/* Плэй: треугольник 15×15. В Figma это фигура с закруглениями,
+   повторяем через clip-path — градиенты остаются те же. */
+.rs-player__icon--play {
+  width: 15px;
+  height: 15px;
+  clip-path: polygon(12% 4%, 96% 50%, 12% 96%);
+  border: none;
+}
+.rs-player.is-on .rs-player__icon--play {
+  border: none;
+}
+
+/* Отключённая кнопка не реагирует на курсор */
+.rs-player:not(.is-on) {
+  pointer-events: none;
+}
