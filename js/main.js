@@ -31,7 +31,6 @@ import {
 } from './eagle-import.js';
 
 import {
-  fullyImportedPostIds,
   loadImportRecords,
   reconcileImportRecords,
   recordCreatedEagleItems,
@@ -56,6 +55,15 @@ import {
   throwIfAborted,
 } from './job-control.js';
 
+import {
+  cleanupOrphanedStaging,
+  clearRecoveryState,
+  loadRecoveryState,
+  saveRecoveryState,
+  shouldRecoverJob,
+  stagingExists,
+} from './job-recovery.js';
+
 /* Текущая фаза: idle | searching | ready | importing */
 let phase = 'idle';
 
@@ -63,6 +71,12 @@ let ui = {};
 
 /* Управление текущей длительной задачей (пауза/стоп/связь) */
 let control = null;
+
+/* Последнее сохранённое состояние аварийного восстановления */
+let recoveryState = null;
+
+/* Скачанные файлы, восстановленные после аварии */
+let recoveredDownloaded = null;
 
 const BROWSER_DISPLAY_NAMES = {
   chrome: 'Chrome',
@@ -115,6 +129,218 @@ async function refreshImportRegistry() {
   }
 }
 
+function recoveryDownloadSnapshot(downloaded) {
+  return (downloaded || []).map((entry) => ({
+    postId: entry.post.postId,
+    files: [...entry.files],
+  }));
+}
+
+function restoreDownloadedEntries(snapshot) {
+  if (
+    !nodeApi.available ||
+    !Array.isArray(snapshot) ||
+    !snapshot.length
+  ) {
+    return null;
+  }
+
+  const postsById = new Map(
+    state.posts.map((post) => [post.postId, post]),
+  );
+
+  const restored = [];
+
+  for (const entry of snapshot) {
+    const post = postsById.get(entry.postId);
+    const files = Array.isArray(entry.files)
+      ? entry.files
+      : [];
+
+    if (
+      !post ||
+      !files.length ||
+      files.some((file) => !nodeApi.fs.existsSync(file))
+    ) {
+      return null;
+    }
+
+    restored.push({
+      post,
+      files,
+      error: null,
+    });
+  }
+
+  return restored;
+}
+
+function checkpointRecovery(phaseName, extra = {}) {
+  const previous = recoveryState || {};
+
+  recoveryState = {
+    ...previous,
+    version: 1,
+    jobId:
+      previous.jobId ||
+      `job-${Date.now()}-${Math.random()
+        .toString(16)
+        .slice(2)}`,
+    phase: phaseName,
+    settings: { ...state.settings },
+    posts: state.posts,
+    selectedPostIds: [...state.selected],
+    completedPostIds: [...state.knownPostIds],
+    stagingRoot:
+      extra.stagingRoot ??
+      previous.stagingRoot ??
+      '',
+    downloaded:
+      extra.downloaded ??
+      previous.downloaded ??
+      [],
+    createdEagleItems:
+      extra.createdEagleItems ??
+      previous.createdEagleItems ??
+      [],
+    startedAt:
+      previous.startedAt ||
+      Date.now(),
+    ...extra,
+  };
+
+  saveRecoveryState(recoveryState);
+}
+
+function discardRecovery() {
+  const stagingRoot =
+    recoveryState?.stagingRoot || '';
+
+  clearRecoveryState({
+    stagingRoot,
+    removeStaging: true,
+  });
+
+  recoveryState = null;
+  recoveredDownloaded = null;
+}
+
+async function restoreInterruptedJob() {
+  const stored = loadRecoveryState();
+
+  const recoverable = shouldRecoverJob(stored, {
+    stagingExists: stored?.stagingRoot
+      ? stagingExists(stored.stagingRoot)
+      : false,
+    closedGracefully: false,
+  });
+
+  cleanupOrphanedStaging({
+    activeStagingRoot:
+      recoverable
+        ? stored?.stagingRoot || ''
+        : '',
+  });
+
+  if (!recoverable) {
+    if (stored) {
+      clearRecoveryState({
+        stagingRoot: stored.stagingRoot,
+        removeStaging: true,
+      });
+    }
+    return false;
+  }
+
+  recoveryState = stored;
+
+  if (
+    stored.settings &&
+    typeof stored.settings === 'object'
+  ) {
+    Object.assign(
+      state.settings,
+      stored.settings,
+    );
+  }
+
+  if (Array.isArray(stored.posts)) {
+    state.posts = stored.posts;
+  }
+
+  state.selected = new Set(
+    stored.selectedPostIds || [],
+  );
+
+  if (state.posts.length) {
+    resetAllEdits();
+    refreshNames();
+    renderTable();
+
+    recoveredDownloaded = restoreDownloadedEntries(
+      stored.downloaded,
+    );
+
+    phase = 'ready';
+
+    ui.footer.action.setLabel(
+      'Скачать и добавить в Eagle',
+    );
+
+    ui.status.set(
+      'Восстановлено незавершённое задание',
+      recoveredDownloaded
+        ? 'Скачанные файлы сохранены — можно продолжить импорт'
+        : 'Результаты поиска восстановлены — можно продолжить',
+    );
+
+    ui.log.add(
+      recoveredDownloaded
+        ? 'После аварии восстановлены таблица и скачанные файлы.'
+        : 'После аварии восстановены найденные публикации.',
+      'warn',
+    );
+
+    return true;
+  }
+
+  /* Оборванный discovery нельзя продолжить с сетевого байта.
+     Параметры сохраняются, но сам поиск запускается заново. */
+  phase = 'idle';
+
+  ui.footer.action.setLabel('Начать поиск');
+
+  ui.status.set(
+    'Предыдущий поиск был прерван',
+    'Параметры сохранены — нажмите «Начать поиск» ещё раз',
+  );
+
+  ui.log.add(
+    'Оборванный поиск можно безопасно запустить повторно.',
+    'warn',
+  );
+
+  return true;
+}
+
+async function closeGracefully() {
+  if (state.abortController) {
+    state.abortController.abort();
+  }
+
+  if (control) {
+    control.stop();
+  }
+
+  discardRecovery();
+
+  if (eagleApi?.window?.hide) {
+    await eagleApi.window.hide();
+  } else {
+    window.close();
+  }
+}
+
 /* ------------------------------------------------------------
    Запуск
    ------------------------------------------------------------ */
@@ -127,10 +353,7 @@ async function boot() {
   app.id = 'reference-sync';
 
   ui.titlebar = buildTitlebar({
-    onClose: () => {
-      if (eagleApi?.window?.hide) eagleApi.window.hide();
-      else window.close();
-    },
+    onClose: () => closeGracefully(),
   });
 
   ui.header = buildHeader({
@@ -227,6 +450,7 @@ async function boot() {
   bindShortcuts();
   refreshBrowserProfiles();
   await detectEnvironment();
+  await restoreInterruptedJob();
 }
 
 /* ------------------------------------------------------------
@@ -573,6 +797,9 @@ async function runSearch() {
 
   phase = 'searching';
   state.abortController = new AbortController();
+  recoveryState = null;
+  recoveredDownloaded = null;
+  checkpointRecovery('searching');
   control = createJobControl();
   const operationController = state.abortController;
   ui.footer.action.setLabel('Остановить');
@@ -630,6 +857,7 @@ async function runSearch() {
 
     state.posts = posts;
     state.selected = new Set(posts.map((post) => post.postId));
+    checkpointRecovery('ready');
     resetAllEdits();
     refreshNames();
     renderTable();
@@ -660,6 +888,7 @@ async function runSearch() {
       operationController.signal.aborted ||
       error?.code === STOPPED
     ) {
+      discardRecovery();
       ui.status.showProgress(true);
       ui.status.set(
         'Поиск остановлен',
@@ -718,6 +947,7 @@ async function runImport() {
 
   phase = 'importing';
   state.abortController = new AbortController();
+  checkpointRecovery('importing');
   control = createJobControl();
   ui.footer.action.setLabel('Остановить');
   ui.status.set('Скачивание файлов…', `0 из ${chosen.length}`, true);
@@ -775,6 +1005,9 @@ async function runImport() {
           `Повторная попытка через ${secondsLeft} с`, true);
       },
       onLog: (line) => ui.log.add(redact(line)),
+      onStagingReady: (stagingRoot) => {
+        checkpointRecovery('downloading', { stagingRoot });
+      },
     });
 
     const downloaded = results.filter((entry) => entry.files.length);
