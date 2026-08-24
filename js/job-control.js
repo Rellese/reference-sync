@@ -156,7 +156,7 @@ const OFFLINE_MARKERS = [
   'timed out',
   'network is unreachable',
   'no route to host',
-  'ssl',
+  'ssl error',
   'proxyerror',
   'max retries exceeded',
   'remote end closed connection',
