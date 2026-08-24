@@ -197,13 +197,106 @@ export function collectPostRecords(value, output = []) {
     value.forEach((child) => collectPostRecords(child, output));
     return output;
   }
+
   if (value && typeof value === 'object') {
-    const hasId = value.post_id || value.post_shortcode ||
-      value.shortcode || value.pk;
-    if (hasId) output.push(value);
-    Object.values(value).forEach((child) => collectPostRecords(child, output));
+    if (value.post_id || value.post_shortcode) {
+      output.push(value);
+    }
+
+    Object.values(value).forEach((child) =>
+      collectPostRecords(child, output));
   }
+
   return output;
+}
+
+/* Объединяет отдельные записи компонентов gallery-dl
+   в одну публикацию. Порядок первого появления сохраняется. */
+export function buildPostRecords(records) {
+  const groups = new Map();
+
+  records.forEach((record) => {
+    if (!record || typeof record !== 'object' || Array.isArray(record)) return;
+
+    const postId = textValue(record.post_id, record.external_id);
+    if (!postId) return;
+
+    let group = groups.get(postId);
+
+    if (!group) {
+      group = {
+        base: { ...record, post_id: postId },
+        components: [],
+        mediaIds: new Set(),
+      };
+      groups.set(postId, group);
+    } else {
+      Object.entries(record).forEach(([key, value]) => {
+        const current = group.base[key];
+
+        if (
+          (current === undefined || current === null || current === '') &&
+          value !== undefined &&
+          value !== null &&
+          value !== ''
+        ) {
+          group.base[key] = value;
+        }
+      });
+    }
+
+    const mediaId = textValue(record.media_id);
+    const extension = textValue(record.extension)
+      .toLowerCase()
+      .replace(/^\./, '');
+
+    if (!mediaId || !extension || group.mediaIds.has(mediaId)) return;
+
+    group.mediaIds.add(mediaId);
+
+    const requestedIndex = Number.parseInt(
+      record.num ?? record.component_index,
+      10,
+    );
+
+    const componentIndex = requestedIndex > 0
+      ? requestedIndex
+      : group.components.length + 1;
+
+    let mediaType = 'unknown';
+    if (VIDEO_EXTENSIONS.has(extension)) mediaType = 'video';
+    else if (IMAGE_EXTENSIONS.has(extension)) mediaType = 'image';
+
+    group.components.push({
+      media_id: mediaId,
+      component_index: componentIndex,
+      media_type: mediaType,
+      extension,
+      preview_url: smallestPreview(record),
+      source_url: textValue(
+        record.video_url,
+        record.display_url,
+        record.url,
+      ),
+      preview_width: record.width ?? null,
+      preview_height: record.height ?? null,
+    });
+  });
+
+  return Array.from(groups.values()).map((group) => {
+    const result = { ...group.base };
+
+    const hasEmbeddedComponents =
+      Array.isArray(result.component_items) ||
+      Array.isArray(result.components) ||
+      Array.isArray(result.carousel_media);
+
+    if (!hasEmbeddedComponents && group.components.length) {
+      result.component_items = group.components;
+    }
+
+    return result;
+  });
 }
 
 /* ------------------------------------------------------------
@@ -219,21 +312,42 @@ function textValue(...values) {
 }
 
 function mediaTypeOf(component) {
-  const declared = textValue(component.media_type, component.type).toLowerCase();
-  if (declared.includes('video')) return 'video';
-  if (declared.includes('image') || declared.includes('photo')) return 'image';
+  const extension = textValue(component.extension)
+    .toLowerCase()
+    .replace(/^\./, '');
 
-  const extension = textValue(component.extension).toLowerCase().replace(/^\./, '');
   if (VIDEO_EXTENSIONS.has(extension)) return 'video';
   if (IMAGE_EXTENSIONS.has(extension)) return 'image';
+
+  const declared = textValue(
+    component.media_type,
+    component.type,
+  ).toLowerCase();
+
+  if (declared.includes('video')) return 'video';
+
+  if (
+    declared.includes('image') ||
+    declared.includes('photo')
+  ) {
+    return 'image';
+  }
+
   return 'unknown';
 }
 
 export function canonicalUrl(postId, shortcode, url) {
   const normalized = textValue(url);
-  if (normalized) return `${normalized.replace(/\/+$/, '')}/`;
-  if (shortcode) return `https://www.instagram.com/p/${shortcode}/`;
-  return `https://www.instagram.com/p/id:${postId}/`;
+
+  if (normalized) {
+    return `${normalized.replace(/\/+$/, '')}/`;
+  }
+
+  if (shortcode) {
+    return `https://www.instagram.com/p/${shortcode}/`;
+  }
+
+  return '';
 }
 
 /* Достаёт самый маленький превью-кадр из метаданных Instagram.
@@ -349,7 +463,8 @@ export function normalizePost(record, options = {}) {
   } = options;
 
   const postId = textValue(
-    record.post_id, record.external_id, record.pk, record.id,
+    record.post_id,
+    record.external_id,
   );
   if (!postId) return null;
 
@@ -362,6 +477,8 @@ export function normalizePost(record, options = {}) {
   const shortcode = textValue(record.post_shortcode, record.shortcode, record.code);
   const url = canonicalUrl(postId, shortcode,
     textValue(record.post_url, record.canonical_url));
+    if (!url) return null;
+
 
   const components = normalizeComponents(record, postId);
   const videoCount = components.filter((item) => item.mediaType === 'video').length;
@@ -491,7 +608,7 @@ export async function discoverSaved({
       onStdout: (chunk) => {
         buffer += chunk;
         /* Прогресс по мере поступления записей */
-        const matches = chunk.match(/"post_id"|"shortcode"|"pk"/g);
+        const matches = chunk.match(/"post_id"|"post_shortcode"/g);
         if (matches && onProgress) {
           discovered += matches.length;
           onProgress({
@@ -507,7 +624,10 @@ export async function discoverSaved({
       },
     });
 
-    const records = collectPostRecords(parseJsonStream(buffer));
+   const records = buildPostRecords(
+      collectPostRecords(parseJsonStream(buffer)),
+    );
+
 
     for (const record of records) {
       const post = normalizePost(record, {
@@ -535,11 +655,12 @@ export async function discoverSaved({
     if (stoppedEarly) break;
   }
 
-  /* Хронологический порядок: от старых к новым — так посты
-     ложатся в Eagle в правильной последовательности. */
-  posts.sort((a, b) => (a.takenAt || 0) - (b.takenAt || 0));
+  const outputPosts =
+    searchMode === SEARCH_MODES.RECENT && limit > 0
+      ? posts.slice(0, limit)
+      : posts;
 
-  return { posts, stoppedEarly, savedUrl };
+  return { posts: outputPosts, stoppedEarly, savedUrl };
 }
 
 /* Диагностика ошибок. Перенос classify_failure() */
