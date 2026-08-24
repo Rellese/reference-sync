@@ -19,7 +19,12 @@ import {
   workRoot,
 } from './node-bridge.js';
 import { runGallery, requireToolchain } from './toolchain.js';
-import { looksOffline, RETRY_STEPS } from './job-control.js';
+import {
+  looksOffline,
+  RETRY_STEPS,
+  runPublicationQueue,
+  STOPPED,
+} from './job-control.js';
 
 /* Максимум попыток на одну публикацию при обрыве связи —
    ровно столько, сколько ступеней в лестнице пауз (5…30 с) */
@@ -725,16 +730,14 @@ export async function downloadPosts({
   const cookieSpec = browserCookieSpec(browser);
   const profile = SPEED_PROFILES[speedProfile] || SPEED_PROFILES.safe;
 
-  const results = [];
-
-  for (let index = 0; index < posts.length; index += 1) {
-    if (signal?.aborted) break;
+  const queue = await runPublicationQueue(
+    posts,
+    async (post, index) => {
 
     /* Пауза/остановка проверяются между публикациями: очередь
        не ломается, текущий файл всегда докачивается целиком */
     if (control) await control.checkpoint();
 
-    const post = posts[index];
     const postDir = ensureDir(path.join(stagingRoot, post.postId));
 
     if (onProgress) {
@@ -818,9 +821,58 @@ export async function downloadPosts({
       error = 'gallery-dl не вернул файлов для этой публикации';
     }
 
-    results.push({ post, files, error });
-    if (error && onLog) onLog(`Ошибка: ${post.url} — ${error}`);
-  }
+        if (error) {
+      if (onLog) onLog(`Ошибка: ${post.url} — ${error}`);
 
-  return { stagingRoot, results };
+      const postError = new Error(error);
+      postError.files = files;
+      throw postError;
+    }
+
+    return {
+      post,
+      files,
+      error: null,
+    };
+  },
+  { signal },
+);
+
+if (queue.stopped) {
+  const stopError = new Error('Процесс остановлен пользователем');
+  stopError.code = STOPPED;
+  throw stopError;
+}
+
+const completed = queue.completed.map((entry) => entry.value);
+
+const failed = queue.failed.map((entry) => ({
+  post: entry.item,
+  files: Array.isArray(entry.cause?.files)
+    ? entry.cause.files
+    : [],
+  error: entry.error,
+}));
+
+const resultByPost = new Map();
+
+completed.forEach((result) => {
+  resultByPost.set(result.post, result);
+});
+
+failed.forEach((result) => {
+  resultByPost.set(result.post, result);
+});
+
+const results = posts
+  .map((post) => resultByPost.get(post))
+  .filter(Boolean);
+
+return {
+  stagingRoot,
+  results,
+  completed,
+  failed,
+  stopped: false,
+};
 }

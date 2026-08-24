@@ -137,6 +137,48 @@ export function createJobControl({ onStateChange } = {}) {
     },
   };
 }
+/* ------------------------------------------------------------
+   Последовательная обработка публикаций.
+
+   Ошибка одной публикации сохраняется отдельно и не останавливает
+   следующие элементы. Полная остановка применяется только по
+   запросу пользователя.
+   ------------------------------------------------------------ */
+export async function runPublicationQueue(
+  items,
+  worker,
+  { signal } = {},
+) {
+  const completed = [];
+  const failed = [];
+  let stopped = false;
+
+  for (const [index, item] of items.entries()) {
+    if (signal?.aborted) {
+      stopped = true;
+      break;
+    }
+
+    try {
+      const value = await worker(item, index);
+      completed.push({ item, value });
+    } catch (error) {
+      if (signal?.aborted || error?.code === STOPPED) {
+        stopped = true;
+        break;
+      }
+
+      failed.push({
+        item,
+        error: String(error?.message || error || 'Unknown error'),
+        cause: error,
+      });
+    }
+  }
+
+  return { completed, failed, stopped };
+}
+
 
 /* ------------------------------------------------------------
    Признаки обрыва связи в выводе gallery-dl.
