@@ -27,7 +27,17 @@ import {
 
 import {
   checkEagle, importToEagle, buildNames, listFolders,
+  findEagleItemsByIds,
 } from './eagle-import.js';
+
+import {
+  fullyImportedPostIds,
+  loadImportRecords,
+  reconcileImportRecords,
+  recordCreatedEagleItems,
+  saveImportRecords,
+  selectImportablePosts,
+} from './import-registry.js';
 
 import { nodeApi, eagleApi } from './node-bridge.js';
 
@@ -40,7 +50,11 @@ import {
   versionString, describeToolchainError,
 } from './toolchain.js';
 
-import { createJobControl, STOPPED } from './job-control.js';
+import {
+  createJobControl,
+  STOPPED,
+  throwIfAborted,
+} from './job-control.js';
 
 /* Текущая фаза: idle | searching | ready | importing */
 let phase = 'idle';
@@ -63,11 +77,50 @@ function browserDisplayName(browser) {
   return BROWSER_DISPLAY_NAMES[key] || browser || 'браузера';
 }
 
+async function refreshImportRegistry() {
+  const eagleIds = [];
+
+  for (const record of state.importRecords.values()) {
+    for (const eagleId of record.components.values()) {
+      if (eagleId) eagleIds.push(eagleId);
+    }
+  }
+
+  if (!eagleIds.length) {
+    state.knownPostIds = new Set();
+    state.missingComponents = new Map();
+    saveImportRecords(state.importRecords);
+    return;
+  }
+
+  const eagleItems = await findEagleItemsByIds(eagleIds);
+
+  const reconciled = reconcileImportRecords(
+    state.importRecords,
+    eagleItems,
+  );
+
+  state.importRecords = reconciled.records;
+  state.knownPostIds = reconciled.knownPostIds;
+  state.missingComponents = reconciled.missingComponents;
+
+  saveImportRecords(state.importRecords);
+
+  if (reconciled.missingComponents.size) {
+    ui.log?.add(
+      `Удалённых публикаций или компонентов найдено: ` +
+      `${reconciled.missingComponents.size}`,
+      'warn',
+    );
+  }
+}
+
 /* ------------------------------------------------------------
    Запуск
    ------------------------------------------------------------ */
 async function boot() {
   loadSettings();
+  state.importRecords = loadImportRecords();
   await loadIcons();
 
   const app = el('div', 'rs-app');
@@ -414,7 +467,7 @@ function publicationInfo() {
   };
 }
 
-async function requireMatchingInstagramSession(settings) {
+async function requireMatchingInstagramSession(settings, signal) {
   const browserName = browserDisplayName(settings.browser);
 
   ui.status.set(
@@ -425,9 +478,10 @@ async function requireMatchingInstagramSession(settings) {
   const session = await verifyInstagramSession({
     browser: settings.browser,
     browserProfile: settings.browserProfile,
-    signal: control?.signal,
+    signal,
     onLog: (line) => ui.log.add(line),
   });
+  throwIfAborted(signal);
 
   ui.settings.setInstagramProfileHint(
     session.username,
@@ -484,7 +538,12 @@ async function requireMatchingInstagramSession(settings) {
 
 /* ---------- Поиск ---------- */
 async function runSearch() {
-  const s = state.settings;
+  /* Настройки фиксируются на момент нажатия «Поиск».
+   Изменения формы во время операции не должны менять уже
+   запущенный профиль браузера или лимит. */
+  await refreshImportRegistry();
+  const s = { ...state.settings };
+
 
   if (s.platform !== 'instagram') {
     ui.log.add(`Платформа ${s.platform} ещё не подключена.`, 'warn');
@@ -514,6 +573,8 @@ async function runSearch() {
 
   phase = 'searching';
   state.abortController = new AbortController();
+  control = createJobControl();
+  const operationController = state.abortController;
   ui.footer.action.setLabel('Остановить');
   ui.status.set('Поиск публикаций…', 'Идёт обращение к Instagram', true);
   ui.log.add(`Поиск: @${s.username}, режим ${s.searchMode}`);
@@ -528,7 +589,10 @@ async function runSearch() {
   });
 
   try {
-    await requireMatchingInstagramSession(s);
+    await requireMatchingInstagramSession(
+      s,
+      operationController.signal
+    );
     const { posts, stoppedEarly } = await discoverSaved({
       username: s.username,
       browser: s.browser,
@@ -538,7 +602,7 @@ async function runSearch() {
       speedProfile: s.speed,
       collections: s.folderSearch ? state.collections : [],
       knownPostIds: state.knownPostIds,
-      signal: state.abortController.signal,
+      signal: operationController.signal,
       onProgress: (progress) => {
         if (progress.stage === 'discover') {
           ui.status.set(
@@ -591,10 +655,32 @@ async function runSearch() {
   } catch (error) {
     phase = 'idle';
     ui.footer.action.setLabel('Начать поиск');
-    ui.status.showProgress(false);
-    reportRunError('Ошибка поиска', error);
+
+    if (
+      operationController.signal.aborted ||
+      error?.code === STOPPED
+    ) {
+      ui.status.showProgress(true);
+      ui.status.set(
+        'Поиск остановлен',
+        'Можно изменить параметры и запустить поиск снова',
+      );
+      ui.status.progress.update({
+        mode: 'stopped',
+        lead: 'Процесс остановлен',
+        trail: 'Поиск публикаций отменён',
+      });
+      ui.log.add('Поиск остановлен пользователем.', 'warn');
+    } else {
+      ui.status.showProgress(false);
+      reportRunError('Ошибка поиска', error);
+    }
   } finally {
-    state.abortController = null;
+    if (state.abortController === operationController) {
+      state.abortController = null;
+    }
+
+   control = null;
   }
 }
 
@@ -614,8 +700,14 @@ function nextFrames(count = 1) {
 
 /* ---------- Скачивание и импорт ---------- */
 async function runImport() {
-  const s = state.settings;
-  const chosen = visiblePosts().filter((post) => state.selected.has(post.postId));
+  const s = { ...state.settings };
+
+  const chosen = selectImportablePosts(
+    visiblePosts(),
+    state.selected,
+    state.knownPostIds,
+  );
+
 
   if (!chosen.length) {
     ui.status.set('Нечего импортировать', 'Отметьте публикации в таблице');
@@ -717,6 +809,9 @@ async function runImport() {
           annotation,
           tags: ['instagram', entry.post.plainUsername].filter(Boolean),
           postId: entry.post.postId,
+          component: String(index),
+          componentCount:
+            entry.post.componentCount || entry.files.length,
         });
       });
     });
@@ -745,7 +840,38 @@ async function runImport() {
       onLog: (line) => ui.log.add(line),
     });
 
-    created.forEach((entry) => state.knownPostIds.add(entry.item.postId));
+    const knownBeforeImport = new Set(
+      state.knownPostIds,
+    );
+
+    state.importRecords = recordCreatedEagleItems(
+      state.importRecords,
+      created,
+    );
+
+    await refreshImportRegistry();
+
+    const importedPostIds = new Set(
+      [...state.knownPostIds].filter(
+        (postId) => !knownBeforeImport.has(postId),
+      ),
+    );
+
+    importedPostIds.forEach((postId) => {
+      state.selected.delete(postId);
+    });
+
+    if (created.length) {
+      renderTable();
+
+      ui.log.add(
+        `Создано элементов Eagle: ${created.length}. ` +
+        `Полностью импортировано публикаций: ` +
+        `${importedPostIds.size}`,
+        'ok',
+      );
+    }
+
 
     phase = 'ready';
     ui.footer.action.setLabel('Скачать и добавить в Eagle');
@@ -945,8 +1071,17 @@ function renderTable() {
 
 function renderRow(post) {
   const row = el('div', 'rs-row');
+  const isKnown = state.knownPostIds.has(post.postId);
+
+  row.classList.toggle('is-imported', isKnown);
+
+  if (isKnown) {
+    row.title = 'Эта публикация уже добавлена в Eagle';
+  }
   const grid = el('div', 'rs-table__grid');
-  const isSelected = state.selected.has(post.postId);
+  const isSelected =
+    !isKnown &&
+    state.selected.has(post.postId);
   row.classList.toggle('is-selected', isSelected);
 
   /* 1 колонка: чекбокс + миниатюра */
@@ -962,6 +1097,11 @@ function renderRow(post) {
       renderTable();
     },
   });
+  if (isKnown) {
+  checkbox.node.classList.add('is-disabled');
+  checkbox.node.setAttribute('aria-disabled', 'true');
+  checkbox.node.setAttribute('tabindex', '-1');
+}
 
   const thumb = el('div', 'rs-thumb');
   if (state.settings.thumbnails && post.previewUrl) {
@@ -1048,7 +1188,13 @@ function startEdit(node, postId, field, multiline = false) {
 
 function toggleAll(value) {
   const posts = visiblePosts();
-  if (value) posts.forEach((post) => state.selected.add(post.postId));
+  if (value) {
+    posts.forEach((post) => {
+      if (!state.knownPostIds.has(post.postId)) {
+        state.selected.add(post.postId);
+      }
+    });
+  }
   else posts.forEach((post) => state.selected.delete(post.postId));
   refreshNames();
   renderTable();

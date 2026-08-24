@@ -1128,3 +1128,15 @@
   font-weight: 500;
   color: var(--text-primary);
 }
+/* Публикация уже полностью импортирована в Eagle */
+.rs-row.is-imported {
+  opacity: 0.5;
+}
+
+.rs-row.is-imported .rs-check {
+  pointer-events: none;
+}
+
+.rs-row.is-imported .rs-cell {
+  cursor: default;
+}

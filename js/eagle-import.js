@@ -46,6 +46,77 @@ export async function checkEagle() {
 }
 
 /* ------------------------------------------------------------
+   Проверка только тех Eagle ID, которые записал ReferenceSync.
+   Полная библиотека не сканируется.
+   ------------------------------------------------------------ */
+export async function findEagleItemsByIds(itemIds) {
+  const ids = [...new Set(
+    (itemIds || [])
+      .map((id) => String(id || '').trim())
+      .filter(Boolean),
+  )];
+
+  if (!ids.length) return [];
+
+  if (eagleApi?.item?.get) {
+    try {
+      const items = await eagleApi.item.get({
+        ids,
+        fields: ['id', 'isDeleted'],
+      });
+
+      return (items || []).map((item) => ({
+        id: String(item.id),
+        isDeleted: item.isDeleted === true,
+      }));
+    } catch (_) {
+      /* Пробуем следующий API Eagle. */
+    }
+  }
+
+  if (eagleApi?.item?.getByIds) {
+    try {
+      const items = await eagleApi.item.getByIds(ids);
+
+      return (items || []).map((item) => ({
+        id: String(item.id),
+        isDeleted: item.isDeleted === true,
+      }));
+    } catch (_) {
+      /* Пробуем HTTP API. */
+    }
+  }
+
+  const results = await Promise.all(
+    ids.map(async (id) => {
+      try {
+        const response = await fetch(
+          `${API_URL}/api/item/info?id=${encodeURIComponent(id)}`,
+        );
+
+        if (!response.ok) return null;
+
+        const payload = await response.json();
+        const item = payload?.data;
+
+        if (payload?.status !== 'success' || !item?.id) {
+          return null;
+        }
+
+        return {
+          id: String(item.id),
+          isDeleted: item.isDeleted === true,
+        };
+      } catch (_) {
+        return null;
+      }
+    }),
+  );
+
+  return results.filter(Boolean);
+}
+
+/* ------------------------------------------------------------
    Список папок библиотеки
    ------------------------------------------------------------ */
 export async function listFolders() {
@@ -138,6 +209,7 @@ export async function importToEagle({
   folderIds = [],
   onProgress,
   onLog,
+  onCreated,
   signal,
 } = {}) {
   const created = [];
@@ -176,7 +248,12 @@ export async function importToEagle({
         tags: item.tags,
         folders: folderIds,
       });
-      created.push({ item, id });
+      const createdEntry = { item, id };
+      created.push(createdEntry);
+
+      if (onCreated) {
+        await onCreated(createdEntry, created.length);
+      }
       if (onLog) onLog(`Добавлено в Eagle: ${item.name}`);
     } catch (error) {
       /* Неоднозначная ошибка записи: останавливаемся, чтобы не

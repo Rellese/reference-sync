@@ -25,6 +25,18 @@ export const RETRY_STEPS = [5, 10, 15, 20, 25, 30];
 /* Особая причина остановки — её ловит вызывающий код */
 export const STOPPED = 'JOB_STOPPED';
 
+export function makeStopError() {
+  const error = new Error('Процесс остановлен пользователем');
+  error.code = STOPPED;
+  return error;
+}
+
+export function throwIfAborted(signal) {
+  if (signal?.aborted) {
+    throw makeStopError();
+  }
+}
+
 export function createJobControl({ onStateChange } = {}) {
   let paused = false;
   let stopped = false;
@@ -54,12 +66,6 @@ export function createJobControl({ onStateChange } = {}) {
     if (!paused) return;
     await new Promise((resolve) => { resumeWaiters.push(resolve); });
     if (stopped) throw makeStopError();
-  }
-
-  function makeStopError() {
-    const error = new Error('Процесс остановлен пользователем');
-    error.code = STOPPED;
-    return error;
   }
 
   /* Ожидание восстановления связи.
@@ -154,9 +160,11 @@ export async function runPublicationQueue(
   let stopped = false;
 
   for (const [index, item] of items.entries()) {
-    if (signal?.aborted) {
+    try {
+      throwIfAborted(signal);
+      } catch (_) {
       stopped = true;
-      break;
+      break; 
     }
 
     try {
