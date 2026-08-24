@@ -344,30 +344,40 @@ export function createField({
 /* ------------------------------------------------------------
    Select — то же поле, но со выпадающим списком
    ------------------------------------------------------------ */
-export function createSelect({ options, value, onChange } = {}) {
+export function createSelect({ options = [], value, onChange } = {}) {
   const field = createField({ chevron: true, readOnly: true });
   field.node.classList.add('is-select');
 
   const menu = el('div', 'rs-select-menu');
   document.body.appendChild(menu);
 
-  let current = value ?? options[0]?.value;
+  let items = Array.isArray(options) ? [...options] : [];
+  let current = value ?? items[0]?.value ?? '';
 
   const labelOf = (key) =>
-    options.find((option) => option.value === key)?.label ?? '';
+    items.find((option) => option.value === key)?.label ?? '';
 
   const render = () => {
-    field.set(labelOf(current));
+    const label = labelOf(current);
+    field.set(label);
+    field.input.title = label;
+
     clear(menu);
-    options.forEach((option) => {
+    items.forEach((option) => {
       const item = el('button', 'rs-select-menu__item', option.label);
-      if (option.value === current) item.classList.add('is-active');
+      item.title = option.label;
+
+      if (option.value === current) {
+        item.classList.add('is-active');
+      }
+
       item.addEventListener('click', () => {
         current = option.value;
         render();
         close();
         if (onChange) onChange(current);
       });
+
       menu.appendChild(item);
     });
   };
@@ -378,27 +388,35 @@ export function createSelect({ options, value, onChange } = {}) {
   };
 
   const outside = (event) => {
-    if (!menu.contains(event.target) && !field.node.contains(event.target)) {
+    if (!menu.contains(event.target) &&
+        !field.node.contains(event.target)) {
       close();
     }
   };
 
   const open = () => {
+    if (!items.length) return;
+
     const box = field.node.getBoundingClientRect();
     menu.style.minWidth = `${box.width}px`;
     menu.classList.add('is-open');
+
     const menuBox = menu.getBoundingClientRect();
     let top = box.bottom + 4;
+
     if (top + menuBox.height > window.innerHeight - 10) {
       top = box.top - menuBox.height - 4;
     }
+
     menu.style.left = `${box.left}px`;
     menu.style.top = `${Math.max(10, top)}px`;
+
     document.addEventListener('mousedown', outside, true);
   };
 
   field.node.addEventListener('click', () => {
     if (field.node.classList.contains('is-disabled')) return;
+
     if (menu.classList.contains('is-open')) close();
     else open();
   });
@@ -407,9 +425,35 @@ export function createSelect({ options, value, onChange } = {}) {
 
   return {
     node: field.node,
-    get value() { return current; },
-    set(next) { current = next; render(); },
-    setDisabled(state) { field.setDisabled(state); },
+    input: field.input,
+
+    get value() {
+      return current;
+    },
+
+    set(next) {
+      current = next ?? '';
+      render();
+    },
+
+    setOptions(nextOptions, nextValue) {
+      items = Array.isArray(nextOptions) ? [...nextOptions] : [];
+
+      const requested = nextValue ?? current;
+      const requestedExists = items.some(
+        (option) => option.value === requested,
+      );
+
+      current = requestedExists
+        ? requested
+        : items[0]?.value ?? '';
+
+      render();
+    },
+
+    setDisabled(state) {
+      field.setDisabled(state);
+    },
   };
 }
 

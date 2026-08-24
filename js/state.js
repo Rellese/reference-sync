@@ -11,6 +11,7 @@ export const defaultSettings = {
   source: 'browser',          // browser | meta
   username: '',
   browser: 'chrome',
+  browserProfile: '',
   speed: 'safe',
   searchMode: SEARCH_MODES.SMART,
   recentLimit: 50,

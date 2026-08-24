@@ -9,7 +9,7 @@ import { el, clear, createCheckbox, createEditButton } from './ui.js';
 import {
   loadIcons, buildTitlebar, buildHeader, buildSocial, buildSettings,
   buildStatus, buildResults, buildNaming, buildFooter, buildLog,
-  buildCollectionModal,
+  buildCollectionModal, buildMessageModal,
 } from './panels.js';
 
 import {
@@ -18,7 +18,11 @@ import {
 } from './state.js';
 
 import {
-  discoverSaved, downloadPosts, SEARCH_MODES, redact,
+  discoverSaved,
+  downloadPosts,
+  verifyInstagramSession,
+  SEARCH_MODES,
+  redact,
 } from './instagram.js';
 
 import {
@@ -26,6 +30,10 @@ import {
 } from './eagle-import.js';
 
 import { nodeApi, eagleApi } from './node-bridge.js';
+
+import {
+  discoverBrowserProfiles,
+} from './browser-profiles.js';
 
 import {
   toolchain, detectToolchain, installToolchain, updateToolchain,
@@ -41,6 +49,19 @@ let ui = {};
 
 /* Управление текущей длительной задачей (пауза/стоп/связь) */
 let control = null;
+
+const BROWSER_DISPLAY_NAMES = {
+  chrome: 'Chrome',
+  yandex: 'Yandex',
+  edge: 'Edge',
+  firefox: 'Firefox',
+  safari: 'Safari',
+};
+
+function browserDisplayName(browser) {
+  const key = String(browser || '').trim().toLowerCase();
+  return BROWSER_DISPLAY_NAMES[key] || browser || 'браузера';
+}
 
 /* ------------------------------------------------------------
    Запуск
@@ -75,6 +96,10 @@ async function boot() {
 
   ui.settings = buildSettings({
     onChange: (key) => {
+      if (key === 'browser') {
+        refreshBrowserProfiles();
+      }
+
       if (key === 'extraFilters' || key.startsWith('filter') ||
           key.startsWith('author')) {
         renderTable();
@@ -124,6 +149,8 @@ async function boot() {
     onCancel: () => closeCollectionModal(true),
   });
 
+  ui.messageModal = buildMessageModal();
+
   /* Рабочая область: левая панель + правая колонка */
   const work = el('div', 'rs-work');
   const right = el('div', 'rs-right');
@@ -131,15 +158,64 @@ async function boot() {
   work.append(ui.settings.node, right);
 
   app.append(
-    ui.titlebar, ui.header, ui.social, work, ui.footer.node,
-    ui.log.node, ui.modal.node,
+    ui.titlebar,
+    ui.header,
+    ui.social,
+    work,
+    ui.footer.node,
+    ui.log.node,
+    ui.modal.node,
+    ui.messageModal.node,
   );
 
   document.body.appendChild(app);
 
   renderTable();
   bindShortcuts();
+  refreshBrowserProfiles();
   await detectEnvironment();
+}
+
+/* ------------------------------------------------------------
+   Профили выбранного браузера
+   ------------------------------------------------------------ */
+function refreshBrowserProfiles() {
+  const browser = state.settings.browser;
+  const profiles = discoverBrowserProfiles(browser);
+
+  let selectedId = state.settings.browserProfile;
+
+  if (!profiles.some((profile) => profile.id === selectedId)) {
+    selectedId = profiles[0]?.id || '';
+  }
+
+  setSetting('browserProfile', selectedId);
+  ui.settings.setBrowserProfiles(profiles, selectedId);
+
+  if (!profiles.length) {
+    ui.log?.add(
+      `Профили браузера ${browser} не обнаружены — ` +
+      'будет использован стандартный профиль.',
+      'warn',
+    );
+    return;
+  }
+
+  const selected = profiles.find(
+    (profile) => profile.id === selectedId,
+  );
+
+  if (profiles.length === 1) {
+    ui.log?.add(
+      `Автоматически выбран профиль браузера: ${selected?.label}`,
+    );
+    return;
+  }
+
+  ui.log?.add(
+    `Найдено профилей браузера: ${profiles.length}. ` +
+    `Выбран: ${selected?.label}`,
+  );
 }
 
 /* ------------------------------------------------------------
@@ -338,6 +414,74 @@ function publicationInfo() {
   };
 }
 
+async function requireMatchingInstagramSession(settings) {
+  const browserName = browserDisplayName(settings.browser);
+
+  ui.status.set(
+    'Проверка аккаунта Instagram…',
+    'ReferenceSync проверяет выбранный профиль браузера',
+  );
+
+  const session = await verifyInstagramSession({
+    browser: settings.browser,
+    browserProfile: settings.browserProfile,
+    signal: control?.signal,
+    onLog: (line) => ui.log.add(line),
+  });
+
+  ui.settings.setInstagramProfileHint(
+    session.username,
+    browserName,
+  );
+
+  if (!session.authenticated) {
+    const error = new Error(
+      session.error ||
+      `В выбранном профиле ${browserName} вход в Instagram не выполнен.`,
+    );
+
+    error.code = 'INSTAGRAM_SESSION_INVALID';
+    throw error;
+  }
+
+  const expected = String(settings.username || '')
+    .trim()
+    .replace(/^@/, '')
+    .toLowerCase();
+
+  const actual = String(session.username || '')
+    .trim()
+    .replace(/^@/, '')
+    .toLowerCase();
+
+  if (expected && actual !== expected) {
+    const profiles = discoverBrowserProfiles(settings.browser);
+    const selected = profiles.find(
+      (profile) => profile.id === settings.browserProfile,
+    );
+
+    const selectedName = selected?.label
+      ? ` «${selected.label}»`
+      : '';
+
+    const error = new Error(
+      `В профиле ${browserName}${selectedName} в Instagram авторизован ` +
+      `@${session.username}, а для поиска указан @${expected}. ` +
+      'Выберите профиль браузера с нужным аккаунтом Instagram ' +
+      'либо войдите в нужный аккаунт и повторите проверку.',
+    );
+
+    error.code = 'INSTAGRAM_ACCOUNT_MISMATCH';
+    throw error;
+  }
+
+  ui.log.add(
+    `Проверен Instagram-аккаунт: @${session.username}`,
+  );
+
+  return session;
+}
+
 /* ---------- Поиск ---------- */
 async function runSearch() {
   const s = state.settings;
@@ -384,9 +528,11 @@ async function runSearch() {
   });
 
   try {
+    await requireMatchingInstagramSession(s);
     const { posts, stoppedEarly } = await discoverSaved({
       username: s.username,
       browser: s.browser,
+      browserProfile: s.browserProfile,
       searchMode: s.searchMode,
       limit: s.recentLimit,
       speedProfile: s.speed,
@@ -505,6 +651,7 @@ async function runImport() {
     const { results } = await downloadPosts({
       posts: chosen,
       browser: s.browser,
+      browserProfile: s.browserProfile,
       speedProfile: s.speed,
       signal: state.abortController.signal,
       control,
@@ -653,6 +800,29 @@ async function runImport() {
    Отсутствие движка показывается как понятная подсказка
    с кнопкой, а не как технический текст. */
 function reportRunError(title, error) {
+    if (
+    error?.code === 'INSTAGRAM_ACCOUNT_MISMATCH' ||
+    error?.code === 'INSTAGRAM_SESSION_INVALID'
+  ) {
+    const modalTitle = error.code === 'INSTAGRAM_ACCOUNT_MISMATCH'
+      ? 'Выбран другой Instagram-аккаунт'
+      : 'Необходимо войти в Instagram';
+
+    /* В статусе оставляем только короткий текст — длинное
+       объяснение находится в отдельном окне. */
+    ui.status.set(
+      modalTitle,
+      'Поиск публикаций не запущен',
+    );
+
+    ui.messageModal.open({
+      title: modalTitle,
+      text: error.message,
+    });
+
+    ui.log.add(`Ошибка: ${error.message}`, 'err');
+    return;
+  }
   if (error?.code === 'TOOLCHAIN_MISSING' ||
       error?.message === 'TOOLCHAIN_MISSING') {
     const info = describeToolchainError(error);

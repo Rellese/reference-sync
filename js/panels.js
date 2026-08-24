@@ -53,6 +53,13 @@ const TIP_BROWSER =
   'ReferenceSync читает cookies выбранного браузера. **В нём должен быть ' +
   'выполнен вход в Instagram**. Браузер лучше закрыть перед поиском.';
 
+const TIP_BROWSER_PROFILE =
+  'Проверка Instagram будет выполнена перед поиском. ' +
+  'Название профиля и почта берутся из настроек браузера. ' +
+  'ReferenceSync использует cookies именно этого профиля. ' +
+  'Если в браузере открыто несколько аккаунтов, выберите имя или почту, ' +
+  'которые указаны в нужном окне Chrome.';
+
 const TIP_NUMBERING =
   'К имени файла добавляется сквозной номер. Он задаёт порядок публикаций ' +
   'в Eagle, поэтому **нумерация продолжается между запусками**.';
@@ -273,10 +280,32 @@ export function buildSettings({ onChange, onFolderSearch }) {
     value: s.browser,
     onChange: (value) => {
       setSetting('browser', value);
+      setSetting('browserProfile', '');
       if (onChange) onChange('browser', value);
     },
   });
   browserRow.append(browserLabel, browserSelect.node);
+    /* Профиль браузера показывается только при нескольких
+     найденных аккаунтах. Технические Profile 1 / Profile 6
+     используются только как внутренние значения. */
+  const profileRow = el('div', 'rs-step__row');
+  profileRow.style.display = 'none';
+
+  const profileLabel = createLabelWithInfo(
+    'Профиль браузера',
+    TIP_BROWSER_PROFILE,
+  );
+
+  const profileSelect = createSelect({
+    options: [],
+    value: s.browserProfile,
+    onChange: (value) => {
+      setSetting('browserProfile', value);
+      if (onChange) onChange('browserProfile', value);
+    },
+  });
+
+  profileRow.append(profileLabel.node, profileSelect.node);
   const browserHint = el('div', 'rs-hint',
     'ReferenceSync использует существующий вход в браузере. ' +
     'Пароль Instagram не запрашивается.');
@@ -299,7 +328,13 @@ export function buildSettings({ onChange, onFolderSearch }) {
   });
   speedRow.append(speedLabel, speedSelect.node);
 
-  browserBlock.append(accountRow, browserRow, browserHint, speedRow);
+  browserBlock.append(
+    accountRow,
+    browserRow,
+    profileRow,
+    browserHint,
+    speedRow,
+  );
 
   /* ---------- Шаг 2: тип поиска ---------- */
   const step2 = el('div', 'rs-step');
@@ -472,7 +507,44 @@ export function buildSettings({ onChange, onFolderSearch }) {
 
   return {
     node: root,
-    setUsername(value) { accountField.set(value); },
+
+    setUsername(value) {
+      accountField.set(value);
+    },
+
+    setBrowserProfiles(profiles, selectedId) {
+      const list = Array.isArray(profiles) ? profiles : [];
+
+      profileSelect.setOptions(
+        list.map((profile) => ({
+          value: profile.id,
+          label: profile.label,
+        })),
+        selectedId,
+      );
+
+      /* При одном профиле выбор не нужен: ReferenceSync
+         использует его автоматически. */
+      profileRow.style.display = list.length > 1 ? '' : 'none';
+    },
+
+    setInstagramProfileHint(username, browserName = 'Chrome') {
+      const nickname = String(username || '')
+        .trim()
+        .replace(/^@/, '');
+
+      const firstLine = nickname
+        ? `В выбранном профиле ${browserName} в Instagram авторизован ` +
+          `**@${nickname}**.`
+        : `В выбранном профиле ${browserName} вход в Instagram не выполнен.`;
+
+      profileLabel.info?.setText(
+        firstLine + ' Название профиля и почта берутся из настроек браузера. ' +
+        'ReferenceSync использует cookies именно этого профиля. ' +
+        'Если в браузере открыто несколько аккаунтов, выберите имя или почту, ' +
+        'которые указаны в нужном окне Chrome.',
+      );
+    },
   };
 }
 
@@ -905,4 +977,58 @@ export function buildCollectionModal({ onConfirm, onCancel }) {
   root.appendChild(box);
 
   return { node: root, list, title, confirm };
+}
+
+/* ------------------------------------------------------------
+   Модальное предупреждение
+
+   Используется для ошибок, которые требуют действия пользователя:
+   неправильный аккаунт, отсутствие входа, просроченная сессия.
+   Длинный текст не попадает в строку статуса и не растягивает UI.
+   ------------------------------------------------------------ */
+export function buildMessageModal() {
+  const root = el('div', 'rs-modal');
+  const box = el('div', 'rs-modal__box');
+  const title = el('div', 'rs-modal__title');
+  const message = el('div', 'rs-modal__message');
+  const foot = el('div', 'rs-modal__foot');
+
+  message.style.whiteSpace = 'normal';
+  message.style.overflowWrap = 'anywhere';
+  message.style.wordBreak = 'normal';
+  message.style.lineHeight = '1.5';
+
+  const closeButton = createGhostButton({
+    label: 'Закрыть',
+    onClick: () => {
+      root.classList.remove('is-open');
+    },
+  });
+
+  foot.appendChild(closeButton.node);
+  box.append(title, message, foot);
+  root.appendChild(box);
+
+  root.addEventListener('click', (event) => {
+    if (event.target === root) {
+      root.classList.remove('is-open');
+    }
+  });
+
+  return {
+    node: root,
+
+    open({
+      title: nextTitle = 'Требуется действие',
+      text = '',
+    } = {}) {
+      title.textContent = nextTitle;
+      message.textContent = text;
+      root.classList.add('is-open');
+    },
+
+    close() {
+      root.classList.remove('is-open');
+    },
+  };
 }

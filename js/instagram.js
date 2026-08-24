@@ -18,6 +18,9 @@ import {
   ensureDir,
   workRoot,
 } from './node-bridge.js';
+import {
+  browserCookieSpecForProfile,
+} from './browser-profiles.js';
 import { runGallery, requireToolchain } from './toolchain.js';
 import {
   looksOffline,
@@ -58,27 +61,260 @@ function paceArgs(profile) {
     : [];
 }
 
+/* Cookies всегда берутся из явно выбранного профиля.
+   При пустом profileId сохраняется совместимость с браузерами,
+   где отдельный профиль не обнаружен. */
+export function browserCookieSpec(browser, profileId = '') {
+  return browserCookieSpecForProfile(browser, profileId);
+}
+
 /* ------------------------------------------------------------
-   Cookies из браузера. Перенос browser_cookie_source.py:
-   Яндекс.Браузер выдаётся gallery-dl как chromium-профиль,
-   потому что напрямую он не поддерживается.
+   Проверка Instagram-аккаунта выбранного браузерного профиля
+
+   gallery-dl временно экспортирует cookies в служебный файл.
+   Из него читается только ds_user_id и наличие sessionid.
+   Файл удаляется в finally и никогда не сохраняется в настройках.
    ------------------------------------------------------------ */
-export function browserCookieSpec(browser) {
-  const name = String(browser || '').trim().toLowerCase();
 
-  const aliases = {
-    'google chrome': 'chrome',
-    'google-chrome': 'chrome',
-    'яндекс': 'yandex',
-    'яндекс.браузер': 'yandex',
-    'yandex browser': 'yandex',
+export function parseInstagramCookieExport(
+  text,
+  nowSeconds = Math.floor(Date.now() / 1000),
+) {
+  let userId = '';
+  let hasValidSession = false;
+
+  String(text || '').split(/\r?\n/).forEach((sourceLine) => {
+    let line = sourceLine.trim();
+    if (!line) return;
+
+    /* Netscape сохраняет HttpOnly-cookie с таким префиксом.
+       Это cookie-строка, а не обычный комментарий. */
+    if (line.startsWith('#HttpOnly_')) {
+      line = line.slice('#HttpOnly_'.length);
+    } else if (line.startsWith('#')) {
+      return;
+    }
+
+    const columns = line.split('\t');
+    if (columns.length < 7) return;
+
+    const domain = String(columns[0] || '').toLowerCase();
+    if (!domain.endsWith('instagram.com')) return;
+
+    const expires = Number(columns[4] || 0);
+    const name = String(columns[5] || '').trim();
+    const value = String(columns[6] || '').trim();
+
+    if (name === 'ds_user_id') userId = value;
+
+    if (name === 'sessionid' && value) {
+      /* Значение 0 означает session-cookie без фиксированной даты.
+         Остальные cookies должны иметь будущий срок действия. */
+      const isValid = !Number.isFinite(expires) ||
+        expires === 0 ||
+        expires > nowSeconds;
+
+      if (isValid) hasValidSession = true;
+    }
+  });
+
+  return {
+    authenticated: Boolean(hasValidSession && userId),
+    userId: hasValidSession ? userId : '',
   };
-  const normalized = aliases[name] || name;
+}
 
-  if (normalized !== 'yandex') return normalized;
+export function findInstagramUsername(value, userId) {
+  const expectedId = String(userId || '').trim();
+  if (!expectedId) return '';
 
-  const profile = findYandexProfile();
-  return profile ? `chrome:${profile}` : 'chrome';
+  if (Array.isArray(value)) {
+    for (const child of value) {
+      const username = findInstagramUsername(child, expectedId);
+      if (username) return username;
+    }
+    return '';
+  }
+
+  if (!value || typeof value !== 'object') return '';
+
+  const candidateId = String(
+    value.pk ?? value.id ?? value.user_id ?? '',
+  ).trim();
+
+  const candidateUsername = String(
+    value.username ?? '',
+  ).trim().replace(/^@/, '');
+
+  if (
+    candidateId === expectedId &&
+    candidateUsername &&
+    /^[A-Za-z0-9._]+$/.test(candidateUsername)
+  ) {
+    return candidateUsername;
+  }
+
+  for (const child of Object.values(value)) {
+    const username = findInstagramUsername(child, expectedId);
+    if (username) return username;
+  }
+
+  return '';
+}
+
+function removeTemporaryFile(file) {
+  if (!nodeApi.available || !file) return;
+
+  try {
+    if (nodeApi.fs.existsSync(file)) {
+      nodeApi.fs.unlinkSync(file);
+    }
+  } catch (_) {
+    /* Временный файл также находится внутри workRoot,
+       но ошибка удаления не должна скрывать основной результат. */
+  }
+}
+
+export async function verifyInstagramSession({
+  browser = 'chrome',
+  browserProfile = '',
+  signal,
+  onLog,
+} = {}) {
+  if (!nodeApi.available) {
+    throw new Error(
+      'Проверка Instagram доступна только внутри Eagle',
+    );
+  }
+
+  requireToolchain();
+
+  const cookieSpec = browserCookieSpec(
+    browser,
+    browserProfile,
+  );
+
+  const sessionRoot = ensureDir(
+    nodeApi.path.join(workRoot(), 'session-check'),
+  );
+
+  const cookieFile = nodeApi.path.join(
+    sessionRoot,
+    `cookies-${Date.now()}-${Math.random()
+      .toString(16)
+      .slice(2)}.txt`,
+  );
+
+  try {
+    /* Сначала gallery-dl безопасно расшифровывает cookies
+       выбранного профиля штатным браузерным адаптером. */
+    const exportResult = await runGallery([
+      '--config-ignore',
+      '--no-input',
+      '--cookies-from-browser', cookieSpec,
+      '--cookies-export', cookieFile,
+      '--no-download',
+      'http://0/file.jpg',
+    ], {
+      signal,
+      onStderr: (chunk) => {
+        const line = redact(chunk).trim();
+        if (line && onLog) onLog(line);
+      },
+    });
+
+    if (
+      exportResult.code !== 0 ||
+      !nodeApi.fs.existsSync(cookieFile)
+    ) {
+      return {
+        authenticated: false,
+        username: '',
+        userId: '',
+        error:
+          'Не удалось прочитать cookies выбранного профиля браузера.',
+      };
+    }
+
+    /* Ограничиваем доступ к временному файлу текущим пользователем. */
+    try {
+      nodeApi.fs.chmodSync(cookieFile, 0o600);
+    } catch (_) {
+      /* На некоторых системах chmod для этого файла недоступен. */
+    }
+
+    const cookieText = nodeApi.fs.readFileSync(
+      cookieFile,
+      'utf8',
+    );
+
+    const session = parseInstagramCookieExport(cookieText);
+
+    if (!session.authenticated) {
+      return {
+        authenticated: false,
+        username: '',
+        userId: '',
+        error:
+          'В выбранном профиле браузера вход в Instagram не выполнен.',
+      };
+    }
+
+    /* Запрашиваем информацию именно по ds_user_id из cookies.
+       Поэтому нельзя случайно принять имя автора Saved-публикации
+       за имя владельца текущей сессии. */
+    const infoUrl =
+      `https://www.instagram.com/id:${session.userId}/info/`;
+
+    let buffer = '';
+
+    const infoResult = await runGallery([
+      '--config-ignore',
+      '--no-input',
+      '--cookies-from-browser', cookieSpec,
+      '--simulate',
+      '--dump-json',
+      '-o', 'extractor.instagram.metadata=true',
+      '--retries', '1',
+      '--http-timeout', '30',
+      infoUrl,
+    ], {
+      signal,
+      onStdout: (chunk) => {
+        buffer += chunk;
+      },
+      onStderr: (chunk) => {
+        const line = redact(chunk).trim();
+        if (line && onLog) onLog(line);
+      },
+    });
+
+    const values = parseJsonStream(buffer);
+    const username = findInstagramUsername(
+      values,
+      session.userId,
+    );
+
+    if (infoResult.code !== 0 || !username) {
+      return {
+        authenticated: false,
+        username: '',
+        userId: session.userId,
+        error:
+          'Instagram-сессия найдена, но имя аккаунта определить не удалось. ' +
+          'Откройте Instagram в выбранном профиле и обновите страницу.',
+      };
+    }
+
+    return {
+      authenticated: true,
+      username,
+      userId: session.userId,
+      error: '',
+    };
+  } finally {
+    removeTemporaryFile(cookieFile);
+  }
 }
 
 function findYandexProfile() {
@@ -540,6 +776,7 @@ export function normalizePost(record, options = {}) {
 export async function discoverSaved({
   username,
   browser = 'chrome',
+  browserProfile = '',
   searchMode = SEARCH_MODES.SMART,
   limit = 50,
   speedProfile = 'safe',
@@ -559,7 +796,7 @@ export async function discoverSaved({
      см. js/toolchain.js. Пользователь терминал не открывает. */
   requireToolchain();
 
-  const cookieSpec = browserCookieSpec(browser);
+  const cookieSpec = browserCookieSpec(browser, browserProfile)
   const profile = SPEED_PROFILES[speedProfile] || SPEED_PROFILES.safe;
 
   /* Целевые адреса: общая лента или выбранные коллекции.
@@ -708,6 +945,7 @@ export function redact(text) {
 export async function downloadPosts({
   posts,
   browser = 'chrome',
+  browserProfile = '',
   speedProfile = 'safe',
   onProgress,
   onLog,
@@ -727,7 +965,7 @@ export async function downloadPosts({
   const stagingRoot = ensureDir(path.join(workRoot(), 'staging',
     `job-${Date.now()}`));
 
-  const cookieSpec = browserCookieSpec(browser);
+  const cookieSpec = browserCookieSpec(browser, browserProfile)
   const profile = SPEED_PROFILES[speedProfile] || SPEED_PROFILES.safe;
 
   const queue = await runPublicationQueue(
