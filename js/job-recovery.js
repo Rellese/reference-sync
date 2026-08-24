@@ -75,6 +75,7 @@ export function shouldRecoverJob(
     'searching',
     'ready',
     'downloading',
+    'downloaded',
     'importing',
   ]);
 

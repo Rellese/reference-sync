@@ -874,6 +874,7 @@ async function runSearch() {
       ui.status.set('Ничего не найдено',
         'Проверьте вход в Instagram в выбранном браузере');
       ui.log.add('Публикаций не найдено.', 'warn');
+      discardRecovery();
       return;
     }
 
@@ -906,6 +907,7 @@ async function runSearch() {
       });
       ui.log.add('Поиск остановлен пользователем.', 'warn');
     } else {
+      discardRecovery();
       ui.status.showProgress(false);
       reportRunError('Ошибка поиска', error);
     }
@@ -935,6 +937,8 @@ function nextFrames(count = 1) {
 /* ---------- Скачивание и импорт ---------- */
 async function runImport() {
   const s = { ...state.settings };
+
+  await refreshImportRegistry();
 
   const chosen = selectImportablePosts(
     visiblePosts(),
