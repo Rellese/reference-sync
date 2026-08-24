@@ -970,8 +970,25 @@ async function runImport() {
   });
 
   try {
-    const { results } = await downloadPosts({
-      posts: chosen,
+        const restoredResults = Array.isArray(recoveredDownloaded)
+      ? recoveredDownloaded
+      : [];
+
+    const restoredPostIds = new Set(
+      restoredResults
+        .map((entry) => String(entry?.post?.postId || ''))
+        .filter(Boolean),
+    );
+
+    const postsToDownload = chosen.filter(
+      (post) => !restoredPostIds.has(String(post.postId)),
+    );
+
+    const completedDownloads = [...restoredResults];
+
+    const { results: newResults } = await downloadPosts({
+      posts: postsToDownload,
+      stagingRoot: recoveryState?.stagingRoot || '',
       browser: s.browser,
       browserProfile: s.browserProfile,
       speedProfile: s.speed,
@@ -1008,6 +1025,24 @@ async function runImport() {
       onStagingReady: (stagingRoot) => {
         checkpointRecovery('downloading', { stagingRoot });
       },
+      onCompleted: (completedEntry) => {
+        completedDownloads.push(completedEntry);
+
+        checkpointRecovery('downloading', {
+          downloaded: recoveryDownloadSnapshot(completedDownloads),
+        });
+      },
+    });
+
+        const results = [
+      ...restoredResults,
+      ...newResults,
+    ];
+
+    recoveredDownloaded = null;
+
+    checkpointRecovery('downloaded', {
+      downloaded: recoveryDownloadSnapshot(results),
     });
 
     const downloaded = results.filter((entry) => entry.files.length);
@@ -1071,6 +1106,21 @@ async function runImport() {
         });
       },
       onLog: (line) => ui.log.add(line),
+      onCreated: async (createdEntry) => {
+        state.importRecords = recordCreatedEagleItems(
+          state.importRecords,
+          [createdEntry],
+        );
+
+        saveImportRecords(state.importRecords);
+
+        checkpointRecovery('importing', {
+          createdEagleItems: [
+            ...(recoveryState?.createdEagleItems || []),
+            createdEntry,
+          ],
+        });
+      },
     });
 
     const knownBeforeImport = new Set(

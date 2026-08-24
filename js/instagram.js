@@ -909,11 +909,13 @@ export async function downloadPosts({
   posts,
   browser = 'chrome',
   browserProfile = '',
+  stagingRoot: existingStagingRoot = '',
   speedProfile = 'safe',
   onProgress,
   onLog,
   signal,
   onStagingReady,
+  onCompleted,
   /* Управление паузой/остановкой и ожиданием связи.
      Передаётся из main.js, см. js/job-control.js */
   control = null,
@@ -926,8 +928,13 @@ export async function downloadPosts({
   requireToolchain();
 
   const { path, fs } = nodeApi;
-  const stagingRoot = ensureDir(path.join(workRoot(), 'staging',
-    `job-${Date.now()}`));
+  const stagingRoot = existingStagingRoot
+    ? ensureDir(existingStagingRoot)
+    : ensureDir(nodeApi.path.join(
+      workRoot(),
+      'staging',
+      `job-${Date.now()}`,
+    ));
 
     if (onStagingReady) {
       onStagingReady(stagingRoot);
@@ -1035,11 +1042,17 @@ export async function downloadPosts({
       throw postError;
     }
 
-    return {
-      post,
-      files,
-      error: null,
-    };
+const completedEntry = {
+  post,
+  files,
+  error: null,
+};
+
+if (onCompleted) {
+  onCompleted(completedEntry);
+}
+
+return completedEntry;
   },
   { signal },
 );
