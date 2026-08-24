@@ -450,6 +450,11 @@ async function boot() {
   bindShortcuts();
   refreshBrowserProfiles();
   await detectEnvironment();
+
+  if (state.eagleAvailable) {
+    await refreshImportRegistry();
+  }
+
   await restoreInterruptedJob();
 }
 
@@ -1068,7 +1073,18 @@ async function runImport() {
       const annotation = descOverride ?? names?.description ?? '';
       const componentNames = names?.componentNames || [baseName];
 
+      const missingComponents = state.missingComponents.get(
+        entry.post.postId,
+      );
+
       entry.files.forEach((file, index) => {
+        if (
+          missingComponents &&
+          !missingComponents.has(String(index))
+        ) {
+          return;
+        }
+
         const lines = String(baseName).split('\n');
         items.push({
           path: file,
@@ -1182,12 +1198,17 @@ async function runImport() {
       });
       ui.log.add(`Импорт завершён: ${created.length} элементов.`, 'ok');
     }
+    if (!stopReason) {
+      discardRecovery();
+    }
+
   } catch (error) {
     phase = 'ready';
     ui.footer.action.setLabel('Скачать и добавить в Eagle');
 
     /* Остановка по кнопке «стоп» — не ошибка, а состояние 4 */
     if (error?.code === STOPPED) {
+      discardRecovery();
       ui.status.set('Процесс остановлен', 'Часть файлов уже скачана');
       ui.status.progress.update({
         mode: 'stopped',
