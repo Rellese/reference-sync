@@ -317,60 +317,6 @@ export async function verifyInstagramSession({
   }
 }
 
-function findYandexProfile() {
-  if (!nodeApi.available) return null;
-  const { fs, path, os } = nodeApi;
-
-  let root;
-  if (process.platform === 'darwin') {
-    root = path.join(os.homedir(), 'Library', 'Application Support',
-      'Yandex', 'YandexBrowser');
-  } else if (process.platform === 'win32') {
-    const localAppData = process.env.LOCALAPPDATA;
-    if (!localAppData) return null;
-    root = path.join(localAppData, 'Yandex', 'YandexBrowser', 'User Data');
-  } else {
-    root = path.join(os.homedir(), '.config', 'yandex-browser');
-  }
-
-  if (!fs.existsSync(root)) return null;
-
-  const hasCookies = (dir) =>
-    fs.existsSync(path.join(dir, 'Cookies')) ||
-    fs.existsSync(path.join(dir, 'Network', 'Cookies'));
-
-  const candidates = [];
-  const defaultProfile = path.join(root, 'Default');
-  if (fs.existsSync(defaultProfile)) candidates.push(defaultProfile);
-
-  try {
-    fs.readdirSync(root, { withFileTypes: true }).forEach((entry) => {
-      if (!entry.isDirectory() || entry.name === 'Default') return;
-      const dir = path.join(root, entry.name);
-      if (entry.name.startsWith('Profile ') ||
-          fs.existsSync(path.join(dir, 'Preferences'))) {
-        candidates.push(dir);
-      }
-    });
-  } catch (_) { /* каталог недоступен */ }
-
-  const withCookies = candidates.filter(hasCookies);
-  if (!withCookies.length) return null;
-
-  /* Берём профиль с самой свежей базой cookies */
-  return withCookies
-    .map((dir) => {
-      let mtime = 0;
-      [path.join(dir, 'Cookies'), path.join(dir, 'Network', 'Cookies')]
-        .forEach((file) => {
-          try { mtime = Math.max(mtime, fs.statSync(file).mtimeMs); }
-          catch (_) { /* нет файла */ }
-        });
-      return { dir, mtime };
-    })
-    .sort((a, b) => b.mtime - a.mtime)[0].dir;
-}
-
 /* ------------------------------------------------------------
    Разбор потока JSON от gallery-dl.
    Перенос parse_json_stream() + collect_metadata():

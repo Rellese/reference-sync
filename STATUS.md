@@ -28,7 +28,7 @@
 
 Последний проверенный commit:
 
-`74d7a99bd1d6d7373d5e39434331701d2605974b`
+`1938cd0cbe414522ef06c4bb4bd3ec8c12a2e31d`
 
 Рабочая ветка:
 
@@ -40,7 +40,7 @@ Production-репозиторий:
 
 Автоматические тесты:
 
-`passed — local tests 25/25; GitHub Actions для M1-T05A ожидается`
+`passed — local tests 25/25; GitHub Actions run 32745171790`
 
 ---
 
@@ -387,7 +387,7 @@ Production-код менять только после regression test.
 
 # M1-T05A — результат
 
-Статус: `completed-awaiting-ci`
+Статус: `completed`
 
 Реализовано:
 
