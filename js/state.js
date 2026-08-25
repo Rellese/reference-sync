@@ -53,6 +53,10 @@ export const state = {
   collections: [],
   /* Уже импортированные ранее publikacii (для режима «только новые») */
   knownPostIds: new Set(),
+  /* postId → componentCount и Eagle ID компонентов */
+  importRecords: new Map(),
+  /* Компоненты, удалённые из Eagle и доступные повторно */
+  missingComponents: new Map(),
   /* Текущая операция */
   busy: false,
   abortController: null,

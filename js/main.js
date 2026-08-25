@@ -27,7 +27,21 @@ import {
 
 import {
   checkEagle, importToEagle, buildNames, listFolders,
+  findEagleItemsByIds,
 } from './eagle-import.js';
+
+import {
+  loadImportRecords,
+  reconcileImportRecords,
+  recordCreatedEagleItems,
+  saveImportRecords,
+  selectImportablePosts,
+} from './import-registry.js';
+
+import {
+  allPostsImported,
+  buildImportSummary,
+} from './import-summary.js';
 
 import { nodeApi, eagleApi } from './node-bridge.js';
 
@@ -40,7 +54,20 @@ import {
   versionString, describeToolchainError,
 } from './toolchain.js';
 
-import { createJobControl, STOPPED } from './job-control.js';
+import {
+  createJobControl,
+  STOPPED,
+  throwIfAborted,
+} from './job-control.js';
+
+import {
+  cleanupOrphanedStaging,
+  clearRecoveryState,
+  loadRecoveryState,
+  saveRecoveryState,
+  shouldRecoverJob,
+  stagingExists,
+} from './job-recovery.js';
 
 /* Текущая фаза: idle | searching | ready | importing */
 let phase = 'idle';
@@ -49,6 +76,12 @@ let ui = {};
 
 /* Управление текущей длительной задачей (пауза/стоп/связь) */
 let control = null;
+
+/* Последнее сохранённое состояние аварийного восстановления */
+let recoveryState = null;
+
+/* Скачанные файлы, восстановленные после аварии */
+let recoveredDownloaded = null;
 
 const BROWSER_DISPLAY_NAMES = {
   chrome: 'Chrome',
@@ -63,21 +96,269 @@ function browserDisplayName(browser) {
   return BROWSER_DISPLAY_NAMES[key] || browser || 'браузера';
 }
 
+async function refreshImportRegistry() {
+  const eagleIds = [];
+
+  for (const record of state.importRecords.values()) {
+    for (const eagleId of record.components.values()) {
+      if (eagleId) eagleIds.push(eagleId);
+    }
+  }
+
+  if (!eagleIds.length) {
+    state.knownPostIds = new Set();
+    state.missingComponents = new Map();
+    saveImportRecords(state.importRecords);
+    return;
+  }
+
+  const eagleItems = await findEagleItemsByIds(eagleIds);
+
+  const reconciled = reconcileImportRecords(
+    state.importRecords,
+    eagleItems,
+  );
+
+  state.importRecords = reconciled.records;
+  state.knownPostIds = reconciled.knownPostIds;
+  state.missingComponents = reconciled.missingComponents;
+
+  saveImportRecords(state.importRecords);
+
+  if (reconciled.missingComponents.size) {
+    ui.log?.add(
+      `Удалённых публикаций или компонентов найдено: ` +
+      `${reconciled.missingComponents.size}`,
+      'warn',
+    );
+  }
+}
+
+function recoveryDownloadSnapshot(downloaded) {
+  return (downloaded || []).map((entry) => ({
+    postId: entry.post.postId,
+    files: [...entry.files],
+  }));
+}
+
+function restoreDownloadedEntries(snapshot) {
+  if (
+    !nodeApi.available ||
+    !Array.isArray(snapshot) ||
+    !snapshot.length
+  ) {
+    return null;
+  }
+
+  const postsById = new Map(
+    state.posts.map((post) => [post.postId, post]),
+  );
+
+  const restored = [];
+
+  for (const entry of snapshot) {
+    const post = postsById.get(entry.postId);
+    const files = Array.isArray(entry.files)
+      ? entry.files
+      : [];
+
+    if (
+      !post ||
+      !files.length ||
+      files.some((file) => !nodeApi.fs.existsSync(file))
+    ) {
+      return null;
+    }
+
+    restored.push({
+      post,
+      files,
+      error: null,
+    });
+  }
+
+  return restored;
+}
+
+function checkpointRecovery(phaseName, extra = {}) {
+  const previous = recoveryState || {};
+
+  recoveryState = {
+    ...previous,
+    version: 1,
+    jobId:
+      previous.jobId ||
+      `job-${Date.now()}-${Math.random()
+        .toString(16)
+        .slice(2)}`,
+    phase: phaseName,
+    settings: { ...state.settings },
+    posts: state.posts,
+    selectedPostIds: [...state.selected],
+    completedPostIds: [...state.knownPostIds],
+    stagingRoot:
+      extra.stagingRoot ??
+      previous.stagingRoot ??
+      '',
+    downloaded:
+      extra.downloaded ??
+      previous.downloaded ??
+      [],
+    createdEagleItems:
+      extra.createdEagleItems ??
+      previous.createdEagleItems ??
+      [],
+    startedAt:
+      previous.startedAt ||
+      Date.now(),
+    ...extra,
+  };
+
+  saveRecoveryState(recoveryState);
+}
+
+function discardRecovery() {
+  const stagingRoot =
+    recoveryState?.stagingRoot || '';
+
+  clearRecoveryState({
+    stagingRoot,
+    removeStaging: true,
+  });
+
+  recoveryState = null;
+  recoveredDownloaded = null;
+}
+
+async function restoreInterruptedJob() {
+  const stored = loadRecoveryState();
+
+  const recoverable = shouldRecoverJob(stored, {
+    stagingExists: stored?.stagingRoot
+      ? stagingExists(stored.stagingRoot)
+      : false,
+    closedGracefully: false,
+  });
+
+  cleanupOrphanedStaging({
+    activeStagingRoot:
+      recoverable
+        ? stored?.stagingRoot || ''
+        : '',
+  });
+
+  if (!recoverable) {
+    if (stored) {
+      clearRecoveryState({
+        stagingRoot: stored.stagingRoot,
+        removeStaging: true,
+      });
+    }
+    return false;
+  }
+
+  recoveryState = stored;
+
+  if (
+    stored.settings &&
+    typeof stored.settings === 'object'
+  ) {
+    Object.assign(
+      state.settings,
+      stored.settings,
+    );
+  }
+
+  if (Array.isArray(stored.posts)) {
+    state.posts = stored.posts;
+  }
+
+  state.selected = new Set(
+    stored.selectedPostIds || [],
+  );
+
+  if (state.posts.length) {
+    resetAllEdits();
+    refreshNames();
+    renderTable();
+
+    recoveredDownloaded = restoreDownloadedEntries(
+      stored.downloaded,
+    );
+
+    phase = 'ready';
+
+    ui.footer.action.setLabel(
+      'Скачать и добавить в Eagle',
+    );
+
+    ui.status.set(
+      'Восстановлено незавершённое задание',
+      recoveredDownloaded
+        ? 'Скачанные файлы сохранены — можно продолжить импорт'
+        : 'Результаты поиска восстановлены — можно продолжить',
+    );
+
+    ui.log.add(
+      recoveredDownloaded
+        ? 'После аварии восстановлены таблица и скачанные файлы.'
+        : 'После аварии восстановены найденные публикации.',
+      'warn',
+    );
+
+    return true;
+  }
+
+  /* Оборванный discovery нельзя продолжить с сетевого байта.
+     Параметры сохраняются, но сам поиск запускается заново. */
+  phase = 'idle';
+
+  ui.footer.action.setLabel('Начать поиск');
+
+  ui.status.set(
+    'Предыдущий поиск был прерван',
+    'Параметры сохранены — нажмите «Начать поиск» ещё раз',
+  );
+
+  ui.log.add(
+    'Оборванный поиск можно безопасно запустить повторно.',
+    'warn',
+  );
+
+  return true;
+}
+
+async function closeGracefully() {
+  if (state.abortController) {
+    state.abortController.abort();
+  }
+
+  if (control) {
+    control.stop();
+  }
+
+  discardRecovery();
+
+  if (eagleApi?.window?.hide) {
+    await eagleApi.window.hide();
+  } else {
+    window.close();
+  }
+}
+
 /* ------------------------------------------------------------
    Запуск
    ------------------------------------------------------------ */
 async function boot() {
   loadSettings();
+  state.importRecords = loadImportRecords();
   await loadIcons();
 
   const app = el('div', 'rs-app');
   app.id = 'reference-sync';
 
   ui.titlebar = buildTitlebar({
-    onClose: () => {
-      if (eagleApi?.window?.hide) eagleApi.window.hide();
-      else window.close();
-    },
+    onClose: () => closeGracefully(),
   });
 
   ui.header = buildHeader({
@@ -174,6 +455,12 @@ async function boot() {
   bindShortcuts();
   refreshBrowserProfiles();
   await detectEnvironment();
+
+  if (state.eagleAvailable) {
+    await refreshImportRegistry();
+  }
+
+  await restoreInterruptedJob();
 }
 
 /* ------------------------------------------------------------
@@ -414,7 +701,7 @@ function publicationInfo() {
   };
 }
 
-async function requireMatchingInstagramSession(settings) {
+async function requireMatchingInstagramSession(settings, signal) {
   const browserName = browserDisplayName(settings.browser);
 
   ui.status.set(
@@ -425,9 +712,10 @@ async function requireMatchingInstagramSession(settings) {
   const session = await verifyInstagramSession({
     browser: settings.browser,
     browserProfile: settings.browserProfile,
-    signal: control?.signal,
+    signal,
     onLog: (line) => ui.log.add(line),
   });
+  throwIfAborted(signal);
 
   ui.settings.setInstagramProfileHint(
     session.username,
@@ -484,7 +772,12 @@ async function requireMatchingInstagramSession(settings) {
 
 /* ---------- Поиск ---------- */
 async function runSearch() {
-  const s = state.settings;
+  /* Настройки фиксируются на момент нажатия «Поиск».
+   Изменения формы во время операции не должны менять уже
+   запущенный профиль браузера или лимит. */
+  await refreshImportRegistry();
+  const s = { ...state.settings };
+
 
   if (s.platform !== 'instagram') {
     ui.log.add(`Платформа ${s.platform} ещё не подключена.`, 'warn');
@@ -514,6 +807,11 @@ async function runSearch() {
 
   phase = 'searching';
   state.abortController = new AbortController();
+  recoveryState = null;
+  recoveredDownloaded = null;
+  checkpointRecovery('searching');
+  control = createJobControl();
+  const operationController = state.abortController;
   ui.footer.action.setLabel('Остановить');
   ui.status.set('Поиск публикаций…', 'Идёт обращение к Instagram', true);
   ui.log.add(`Поиск: @${s.username}, режим ${s.searchMode}`);
@@ -528,7 +826,10 @@ async function runSearch() {
   });
 
   try {
-    await requireMatchingInstagramSession(s);
+    await requireMatchingInstagramSession(
+      s,
+      operationController.signal
+    );
     const { posts, stoppedEarly } = await discoverSaved({
       username: s.username,
       browser: s.browser,
@@ -538,7 +839,7 @@ async function runSearch() {
       speedProfile: s.speed,
       collections: s.folderSearch ? state.collections : [],
       knownPostIds: state.knownPostIds,
-      signal: state.abortController.signal,
+      signal: operationController.signal,
       onProgress: (progress) => {
         if (progress.stage === 'discover') {
           ui.status.set(
@@ -566,6 +867,7 @@ async function runSearch() {
 
     state.posts = posts;
     state.selected = new Set(posts.map((post) => post.postId));
+    checkpointRecovery('ready');
     resetAllEdits();
     refreshNames();
     renderTable();
@@ -574,9 +876,16 @@ async function runSearch() {
       phase = 'idle';
       ui.footer.action.setLabel('Начать поиск');
       ui.status.showProgress(false);
-      ui.status.set('Ничего не найдено',
-        'Проверьте вход в Instagram в выбранном браузере');
-      ui.log.add('Публикаций не найдено.', 'warn');
+      ui.status.set(
+        'Новых публикаций для импорта нет',
+        'Все найденные публикации уже добавлены в Eagle',
+      );
+
+      ui.log.add(
+        'Все найденные публикации уже добавлены в Eagle.',
+        'ok',
+      );
+      discardRecovery();
       return;
     }
 
@@ -591,10 +900,34 @@ async function runSearch() {
   } catch (error) {
     phase = 'idle';
     ui.footer.action.setLabel('Начать поиск');
-    ui.status.showProgress(false);
-    reportRunError('Ошибка поиска', error);
+
+    if (
+      operationController.signal.aborted ||
+      error?.code === STOPPED
+    ) {
+      discardRecovery();
+      ui.status.showProgress(true);
+      ui.status.set(
+        'Поиск остановлен',
+        'Можно изменить параметры и запустить поиск снова',
+      );
+      ui.status.progress.update({
+        mode: 'stopped',
+        lead: 'Процесс остановлен',
+        trail: 'Поиск публикаций отменён',
+      });
+      ui.log.add('Поиск остановлен пользователем.', 'warn');
+    } else {
+      discardRecovery();
+      ui.status.showProgress(false);
+      reportRunError('Ошибка поиска', error);
+    }
   } finally {
-    state.abortController = null;
+    if (state.abortController === operationController) {
+      state.abortController = null;
+    }
+
+   control = null;
   }
 }
 
@@ -614,8 +947,16 @@ function nextFrames(count = 1) {
 
 /* ---------- Скачивание и импорт ---------- */
 async function runImport() {
-  const s = state.settings;
-  const chosen = visiblePosts().filter((post) => state.selected.has(post.postId));
+  const s = { ...state.settings };
+
+  await refreshImportRegistry();
+
+  const chosen = selectImportablePosts(
+    visiblePosts(),
+    state.selected,
+    state.knownPostIds,
+  );
+
 
   if (!chosen.length) {
     ui.status.set('Нечего импортировать', 'Отметьте публикации в таблице');
@@ -626,6 +967,7 @@ async function runImport() {
 
   phase = 'importing';
   state.abortController = new AbortController();
+  checkpointRecovery('importing');
   control = createJobControl();
   ui.footer.action.setLabel('Остановить');
   ui.status.set('Скачивание файлов…', `0 из ${chosen.length}`, true);
@@ -648,8 +990,25 @@ async function runImport() {
   });
 
   try {
-    const { results } = await downloadPosts({
-      posts: chosen,
+        const restoredResults = Array.isArray(recoveredDownloaded)
+      ? recoveredDownloaded
+      : [];
+
+    const restoredPostIds = new Set(
+      restoredResults
+        .map((entry) => String(entry?.post?.postId || ''))
+        .filter(Boolean),
+    );
+
+    const postsToDownload = chosen.filter(
+      (post) => !restoredPostIds.has(String(post.postId)),
+    );
+
+    const completedDownloads = [...restoredResults];
+
+    const { results: newResults } = await downloadPosts({
+      posts: postsToDownload,
+      stagingRoot: recoveryState?.stagingRoot || '',
       browser: s.browser,
       browserProfile: s.browserProfile,
       speedProfile: s.speed,
@@ -683,6 +1042,27 @@ async function runImport() {
           `Повторная попытка через ${secondsLeft} с`, true);
       },
       onLog: (line) => ui.log.add(redact(line)),
+      onStagingReady: (stagingRoot) => {
+        checkpointRecovery('downloading', { stagingRoot });
+      },
+      onCompleted: (completedEntry) => {
+        completedDownloads.push(completedEntry);
+
+        checkpointRecovery('downloading', {
+          downloaded: recoveryDownloadSnapshot(completedDownloads),
+        });
+      },
+    });
+
+        const results = [
+      ...restoredResults,
+      ...newResults,
+    ];
+
+    recoveredDownloaded = null;
+
+    checkpointRecovery('downloaded', {
+      downloaded: recoveryDownloadSnapshot(results),
     });
 
     const downloaded = results.filter((entry) => entry.files.length);
@@ -708,7 +1088,18 @@ async function runImport() {
       const annotation = descOverride ?? names?.description ?? '';
       const componentNames = names?.componentNames || [baseName];
 
+      const missingComponents = state.missingComponents.get(
+        entry.post.postId,
+      );
+
       entry.files.forEach((file, index) => {
+        if (
+          missingComponents &&
+          !missingComponents.has(String(index))
+        ) {
+          return;
+        }
+
         const lines = String(baseName).split('\n');
         items.push({
           path: file,
@@ -717,6 +1108,9 @@ async function runImport() {
           annotation,
           tags: ['instagram', entry.post.plainUsername].filter(Boolean),
           postId: entry.post.postId,
+          component: String(index),
+          componentCount:
+            entry.post.componentCount || entry.files.length,
         });
       });
     });
@@ -743,12 +1137,75 @@ async function runImport() {
         });
       },
       onLog: (line) => ui.log.add(line),
+      onCreated: async (createdEntry) => {
+        state.importRecords = recordCreatedEagleItems(
+          state.importRecords,
+          [createdEntry],
+        );
+
+        saveImportRecords(state.importRecords);
+
+        checkpointRecovery('importing', {
+          createdEagleItems: [
+            ...(recoveryState?.createdEagleItems || []),
+            createdEntry,
+          ],
+        });
+      },
     });
 
-    created.forEach((entry) => state.knownPostIds.add(entry.item.postId));
+    const knownBeforeImport = new Set(
+      state.knownPostIds,
+    );
+
+    state.importRecords = recordCreatedEagleItems(
+      state.importRecords,
+      created,
+    );
+
+    await refreshImportRegistry();
+
+    const importedPostIds = new Set(
+      [...state.knownPostIds].filter(
+        (postId) => !knownBeforeImport.has(postId),
+      ),
+    );
+
+    importedPostIds.forEach((postId) => {
+      state.selected.delete(postId);
+    });
+
+    if (created.length) {
+      renderTable();
+
+      ui.log.add(
+        `Создано элементов Eagle: ${created.length}. ` +
+        `Полностью импортировано публикаций: ` +
+        `${importedPostIds.size}`,
+        'ok',
+      );
+    }
+
+
+    const importSummary = buildImportSummary({
+      postCount: importedPostIds.size,
+      elementCount: created.length,
+    });
+
+    const currentSearchCompleted = allPostsImported(
+      state.posts,
+      state.knownPostIds,
+    );
 
     phase = 'ready';
-    ui.footer.action.setLabel('Скачать и добавить в Eagle');
+
+    ui.footer.action.setLabel(
+      'Скачать и добавить в Eagle',
+    );
+
+    ui.footer.action.setDisabled(
+      currentSearchCompleted,
+    );
 
     if (stopReason) {
       ui.status.set(`Импортировано: ${created.length}`, stopReason);
@@ -761,24 +1218,38 @@ async function runImport() {
       });
       ui.log.add(stopReason, 'err');
     } else {
-      ui.status.set(`Импортировано в Eagle: ${created.length}`,
-        failed.length ? `Не удалось: ${failed.length}` : 'Готово');
+      ui.status.set(
+        importSummary.status,
+        failed.length
+          ? `${importSummary.detail} · Не удалось: ${failed.length}`
+          : importSummary.detail,
+      );
+
       /* Состояние 2 — зелёная шкала, только когда импорт
          в Eagle действительно завершён */
       ui.status.progress.update({
         mode: 'complete',
         lead: 'Импорт завершён',
-        trail: `Всего добавлено: ${created.length}`,
-        interest: `${created.length} ЭЛ.`,
+        trail: importSummary.trail,
+        interest: importSummary.interest,
       });
-      ui.log.add(`Импорт завершён: ${created.length} элементов.`, 'ok');
+
+      ui.log.add(
+        `Импорт завершён: ${importSummary.detail}.`,
+        'ok',
+      );
     }
+    if (!stopReason) {
+      discardRecovery();
+    }
+
   } catch (error) {
     phase = 'ready';
     ui.footer.action.setLabel('Скачать и добавить в Eagle');
 
     /* Остановка по кнопке «стоп» — не ошибка, а состояние 4 */
     if (error?.code === STOPPED) {
+      discardRecovery();
       ui.status.set('Процесс остановлен', 'Часть файлов уже скачана');
       ui.status.progress.update({
         mode: 'stopped',
@@ -945,8 +1416,17 @@ function renderTable() {
 
 function renderRow(post) {
   const row = el('div', 'rs-row');
+  const isKnown = state.knownPostIds.has(post.postId);
+
+  row.classList.toggle('is-imported', isKnown);
+
+  if (isKnown) {
+    row.title = 'Эта публикация уже добавлена в Eagle';
+  }
   const grid = el('div', 'rs-table__grid');
-  const isSelected = state.selected.has(post.postId);
+  const isSelected =
+    !isKnown &&
+    state.selected.has(post.postId);
   row.classList.toggle('is-selected', isSelected);
 
   /* 1 колонка: чекбокс + миниатюра */
@@ -962,6 +1442,11 @@ function renderRow(post) {
       renderTable();
     },
   });
+  if (isKnown) {
+  checkbox.node.classList.add('is-disabled');
+  checkbox.node.setAttribute('aria-disabled', 'true');
+  checkbox.node.setAttribute('tabindex', '-1');
+}
 
   const thumb = el('div', 'rs-thumb');
   if (state.settings.thumbnails && post.previewUrl) {
@@ -1048,7 +1533,13 @@ function startEdit(node, postId, field, multiline = false) {
 
 function toggleAll(value) {
   const posts = visiblePosts();
-  if (value) posts.forEach((post) => state.selected.add(post.postId));
+  if (value) {
+    posts.forEach((post) => {
+      if (!state.knownPostIds.has(post.postId)) {
+        state.selected.add(post.postId);
+      }
+    });
+  }
   else posts.forEach((post) => state.selected.delete(post.postId));
   refreshNames();
   renderTable();
@@ -1061,6 +1552,7 @@ function clearResults() {
   resetAllEdits();
   phase = 'idle';
   ui.footer.action.setLabel('Начать поиск');
+  ui.footer.action.setDisabled(false);
   ui.status.set('Список очищен', 'Заполните шаг 1 и нажмите «Начать поиск»');
   renderTable();
 }

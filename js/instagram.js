@@ -27,6 +27,7 @@ import {
   RETRY_STEPS,
   runPublicationQueue,
   STOPPED,
+  throwIfAborted,
 } from './job-control.js';
 
 /* Максимум попыток на одну публикацию при обрыве связи —
@@ -189,6 +190,8 @@ export async function verifyInstagramSession({
 
   requireToolchain();
 
+  throwIfAborted(signal);
+
   const cookieSpec = browserCookieSpec(
     browser,
     browserProfile,
@@ -206,6 +209,8 @@ export async function verifyInstagramSession({
   );
 
   try {
+    throwIfAborted(signal);
+
     /* Сначала gallery-dl безопасно расшифровывает cookies
        выбранного профиля штатным браузерным адаптером. */
     const exportResult = await runGallery([
@@ -222,6 +227,8 @@ export async function verifyInstagramSession({
         if (line && onLog) onLog(line);
       },
     });
+
+    throwIfAborted(signal);
 
     if (
       exportResult.code !== 0 ||
@@ -288,6 +295,8 @@ export async function verifyInstagramSession({
         if (line && onLog) onLog(line);
       },
     });
+
+    throwIfAborted(signal);
 
     const values = parseJsonStream(buffer);
     const username = findInstagramUsername(
@@ -741,6 +750,7 @@ export async function discoverSaved({
   /* Движок ищется и при необходимости ставится плагином,
      см. js/toolchain.js. Пользователь терминал не открывает. */
   requireToolchain();
+  throwIfAborted(signal);
 
   const cookieSpec = browserCookieSpec(browser, browserProfile)
   const profile = SPEED_PROFILES[speedProfile] || SPEED_PROFILES.safe;
@@ -763,7 +773,7 @@ export async function discoverSaved({
   let stoppedEarly = false;
 
   for (const target of targets) {
-    if (signal?.aborted) break;
+    throwIfAborted(signal);
 
     const args = [
       '--config-ignore',
@@ -811,6 +821,7 @@ export async function discoverSaved({
         if (line && onLog) onLog(line);
       },
     });
+    throwIfAborted(signal);
 
    const records = buildPostRecords(
       collectPostRecords(parseJsonStream(buffer)),
@@ -828,11 +839,17 @@ export async function discoverSaved({
 
       /* Режим «только новые»: останавливаемся на первой
          уже известной публикации (перенос smart-логики). */
-      if (searchMode === SEARCH_MODES.SMART && knownPostIds.has(post.postId)) {
-        stoppedEarly = true;
-        break;
-      }
+      if (knownPostIds.has(post.postId)) {
+        if (searchMode === SEARCH_MODES.SMART) {
+          stoppedEarly = true;
+          break;
+        }
 
+        /* В Recent и Full известная публикация пропускается,
+        но не останавливает просмотр следующих результатов. */
+        continue;
+      }
+      
       seenIds.add(post.postId);
       posts.push(post);
     }
@@ -892,10 +909,13 @@ export async function downloadPosts({
   posts,
   browser = 'chrome',
   browserProfile = '',
+  stagingRoot: existingStagingRoot = '',
   speedProfile = 'safe',
   onProgress,
   onLog,
   signal,
+  onStagingReady,
+  onCompleted,
   /* Управление паузой/остановкой и ожиданием связи.
      Передаётся из main.js, см. js/job-control.js */
   control = null,
@@ -908,11 +928,20 @@ export async function downloadPosts({
   requireToolchain();
 
   const { path, fs } = nodeApi;
-  const stagingRoot = ensureDir(path.join(workRoot(), 'staging',
-    `job-${Date.now()}`));
+  const stagingRoot = existingStagingRoot
+    ? ensureDir(existingStagingRoot)
+    : ensureDir(nodeApi.path.join(
+      workRoot(),
+      'staging',
+      `job-${Date.now()}`,
+    ));
 
+    if (onStagingReady) {
+      onStagingReady(stagingRoot);
+    }
   const cookieSpec = browserCookieSpec(browser, browserProfile)
   const profile = SPEED_PROFILES[speedProfile] || SPEED_PROFILES.safe;
+  
 
   const queue = await runPublicationQueue(
     posts,
@@ -1013,11 +1042,17 @@ export async function downloadPosts({
       throw postError;
     }
 
-    return {
-      post,
-      files,
-      error: null,
-    };
+const completedEntry = {
+  post,
+  files,
+  error: null,
+};
+
+if (onCompleted) {
+  onCompleted(completedEntry);
+}
+
+return completedEntry;
   },
   { signal },
 );
