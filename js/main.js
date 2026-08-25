@@ -38,6 +38,11 @@ import {
   selectImportablePosts,
 } from './import-registry.js';
 
+import {
+  allPostsImported,
+  buildImportSummary,
+} from './import-summary.js';
+
 import { nodeApi, eagleApi } from './node-bridge.js';
 
 import {
@@ -871,9 +876,15 @@ async function runSearch() {
       phase = 'idle';
       ui.footer.action.setLabel('Начать поиск');
       ui.status.showProgress(false);
-      ui.status.set('Ничего не найдено',
-        'Проверьте вход в Instagram в выбранном браузере');
-      ui.log.add('Публикаций не найдено.', 'warn');
+      ui.status.set(
+        'Новых публикаций для импорта нет',
+        'Все найденные публикации уже добавлены в Eagle',
+      );
+
+      ui.log.add(
+        'Все найденные публикации уже добавлены в Eagle.',
+        'ok',
+      );
       discardRecovery();
       return;
     }
@@ -1176,8 +1187,25 @@ async function runImport() {
     }
 
 
+    const importSummary = buildImportSummary({
+      postCount: importedPostIds.size,
+      elementCount: created.length,
+    });
+
+    const currentSearchCompleted = allPostsImported(
+      state.posts,
+      state.knownPostIds,
+    );
+
     phase = 'ready';
-    ui.footer.action.setLabel('Скачать и добавить в Eagle');
+
+    ui.footer.action.setLabel(
+      'Скачать и добавить в Eagle',
+    );
+
+    ui.footer.action.setDisabled(
+      currentSearchCompleted,
+    );
 
     if (stopReason) {
       ui.status.set(`Импортировано: ${created.length}`, stopReason);
@@ -1190,17 +1218,26 @@ async function runImport() {
       });
       ui.log.add(stopReason, 'err');
     } else {
-      ui.status.set(`Импортировано в Eagle: ${created.length}`,
-        failed.length ? `Не удалось: ${failed.length}` : 'Готово');
+      ui.status.set(
+        importSummary.status,
+        failed.length
+          ? `${importSummary.detail} · Не удалось: ${failed.length}`
+          : importSummary.detail,
+      );
+
       /* Состояние 2 — зелёная шкала, только когда импорт
          в Eagle действительно завершён */
       ui.status.progress.update({
         mode: 'complete',
         lead: 'Импорт завершён',
-        trail: `Всего добавлено: ${created.length}`,
-        interest: `${created.length} ЭЛ.`,
+        trail: importSummary.trail,
+        interest: importSummary.interest,
       });
-      ui.log.add(`Импорт завершён: ${created.length} элементов.`, 'ok');
+
+      ui.log.add(
+        `Импорт завершён: ${importSummary.detail}.`,
+        'ok',
+      );
     }
     if (!stopReason) {
       discardRecovery();
@@ -1515,6 +1552,7 @@ function clearResults() {
   resetAllEdits();
   phase = 'idle';
   ui.footer.action.setLabel('Начать поиск');
+  ui.footer.action.setDisabled(false);
   ui.status.set('Список очищен', 'Заполните шаг 1 и нажмите «Начать поиск»');
   renderTable();
 }
