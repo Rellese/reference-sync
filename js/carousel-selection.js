@@ -172,6 +172,121 @@ export function componentDisplay(component, position) {
   };
 }
 
+/* ------------------------------------------------------------
+   Состояние компонентов частично импортированной карусели
+
+   Реестр Eagle хранит компоненты как нулевые позиции:
+   "0", "1", "2"...
+   ------------------------------------------------------------ */
+
+function normalizePositions(values) {
+  const source = values instanceof Set
+    ? [...values]
+    : Array.isArray(values)
+      ? values
+      : values
+        ? [...values]
+        : [];
+
+  return new Set(
+    source
+      .map(Number)
+      .filter((value) => (
+        Number.isInteger(value) &&
+        value >= 0
+      )),
+  );
+}
+
+export function importedComponentPositions(record) {
+  if (!(record?.components instanceof Map)) {
+    return new Set();
+  }
+
+  return normalizePositions(
+    record.components.keys(),
+  );
+}
+
+export function availableComponentPositions(
+  post,
+  importedPositions = new Set(),
+) {
+  const available = selectAll(post);
+  const imported = normalizePositions(importedPositions);
+
+  imported.forEach((position) => {
+    available.delete(position);
+  });
+
+  return available;
+}
+
+export function selectableSelection(
+  post,
+  selection,
+  importedPositions = new Set(),
+) {
+  const selected = normalizeSelection(post, selection);
+  const imported = normalizePositions(importedPositions);
+
+  imported.forEach((position) => {
+    selected.delete(position);
+  });
+
+  return selected;
+}
+
+export function carouselSelectionState(
+  post,
+  selection,
+  importedPositions = new Set(),
+) {
+  const all = selectAll(post);
+
+  const imported = new Set(
+    [...normalizePositions(importedPositions)]
+      .filter((position) => all.has(position)),
+  );
+
+  const available = availableComponentPositions(
+    post,
+    imported,
+  );
+
+  const selected = selectableSelection(
+    post,
+    selection,
+    imported,
+  );
+
+  const total = all.size;
+  const selectedCount = selected.size;
+
+  return {
+    total,
+    imported,
+    importedCount: imported.size,
+    available,
+    availableCount: available.size,
+    selected,
+    selectedCount,
+
+    /* Если часть исходной карусели уже находится в Eagle,
+       выбор всех оставшихся компонентов остаётся mixed. */
+    checked:
+      total > 0 &&
+      selectedCount === total,
+
+    mixed:
+      selectedCount > 0 &&
+      selectedCount < total,
+
+    disabled:
+      available.size === 0,
+  };
+}
+
 export function selectedDownloadedFiles(entry, selection) {
   if (!entry || !Array.isArray(entry.files)) {
     return [];

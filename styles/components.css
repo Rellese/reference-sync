@@ -554,8 +554,53 @@
 
 .rs-carousel-modal__media {
   overflow: hidden;
+  margin-left: -4px;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+/* Уже импортированный компонент карусели */
+.rs-carousel-modal__row.is-imported {
+  cursor: default;
+}
+
+.rs-carousel-modal__row.is-imported .rs-check {
+  opacity: 0.35;
+  pointer-events: none;
+}
+
+.rs-carousel-modal__row.is-imported
+  .rs-carousel-modal__thumbnail {
+  opacity: 0.35;
+  filter: grayscale(1);
+}
+
+.rs-carousel-modal__row.is-imported
+  .rs-carousel-modal__position,
+.rs-carousel-modal__row.is-imported
+  .rs-carousel-modal__media {
+  color: #707070;
+}
+
+.rs-carousel-modal__row.is-imported
+  .rs-carousel-modal__media {
+  text-decoration: none;
+}
+
+.rs-carousel-modal__imported {
+  display: inline-flex;
+  align-items: center;
+  flex: none;
+  margin-left: -4px;
+  color: #E85935;
+  white-space: nowrap;
+}
+
+.rs-carousel-modal__imported::before {
+  content: '·';
+  display: inline-block;
+  margin: 0 6px;
+  color: #E85935;
 }
 
 .rs-carousel-modal__summary-row {
@@ -1497,5 +1542,17 @@
 }
 
 .rs-row.is-imported .rs-cell {
+  cursor: default;
+}
+
+.rs-row.is-imported .rs-cell--name,
+.rs-row.is-imported .rs-cell--desc {
+  pointer-events: none;
+  cursor: default;
+  color: var(--text-muted);
+}
+
+.rs-row.is-imported .rs-desc__text {
+  color: var(--text-muted);
   cursor: default;
 }

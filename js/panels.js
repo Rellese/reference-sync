@@ -1099,20 +1099,53 @@ export function buildCarouselModal() {
 
   let currentPost = null;
   let currentSelection = new Set();
+  let currentImported = new Set();
   let currentThumbnails = true;
   let onConfirmCallback = null;
   let onCancelCallback = null;
 
+  function selectablePositions(positions) {
+    const source = positions instanceof Set
+      ? positions
+      : new Set(positions || []);
+
+    const componentTotal = Array.isArray(currentPost?.components)
+      ? currentPost.components.length
+      : Number(currentPost?.componentCount) || 0;
+
+    return new Set(
+      [...source]
+        .map(Number)
+        .filter((position) => (
+          Number.isInteger(position) &&
+          position >= 0 &&
+          position < componentTotal &&
+          !currentImported.has(position)
+        )),
+    );
+  }
+
   function updateSummary() {
-    const total = Number(currentPost?.componentCount) || 0;
+    const componentTotal = Array.isArray(currentPost?.components)
+    ? currentPost.components.length
+    : Number(currentPost?.componentCount) || 0;
+
+    const availableTotal = Math.max(
+      0,
+      componentTotal - currentImported.size,
+    );
+
     const selected = currentSelection.size;
 
     summary.textContent =
-      `Выбрано файлов: ${selected} из ${total}`;
+    `Выбрано файлов: ${selected} из ${availableTotal}`;
   }
 
   function updateSelection(nextSelection) {
-    currentSelection = new Set(nextSelection);
+    currentSelection = selectablePositions(
+      nextSelection,
+    );
+
     renderList();
     updateSummary();
   }
@@ -1121,7 +1154,9 @@ export function buildCarouselModal() {
     label: 'ВЫБРАТЬ ВСЁ',
     onClick: () => {
       if (!currentPost) return;
-      updateSelection(selectAll(currentPost));
+      updateSelection(
+        selectablePositions(selectAll(currentPost)),
+      );
     },
   });
 
@@ -1136,7 +1171,9 @@ export function buildCarouselModal() {
     label: 'ЛИШЬ ИЗОБРАЖЕНИЯ',
     onClick: () => {
       if (!currentPost) return;
-      updateSelection(imagesOnly(currentPost));
+      updateSelection(
+        selectablePositions(imagesOnly(currentPost)),
+      );
     },
   });
 
@@ -1144,7 +1181,9 @@ export function buildCarouselModal() {
     label: 'ЛИШЬ ВИДЕО',
     onClick: () => {
       if (!currentPost) return;
-      updateSelection(videosOnly(currentPost));
+      updateSelection(
+        selectablePositions(videosOnly(currentPost)),
+      );
     },
   });
 
@@ -1216,6 +1255,19 @@ export function buildCarouselModal() {
           'rs-carousel-modal__row',
         );
 
+        const isImported =
+        currentImported.has(componentIndex);
+
+        row.classList.toggle(
+          'is-imported',
+          isImported,
+        );
+
+        if (isImported) {
+         row.setAttribute('aria-disabled', 'true');
+          row.title = 'Этот файл уже импортирован в Eagle';
+        }
+
         const hasThumbnail = Boolean(
           currentThumbnails && component.previewUrl,
         );
@@ -1226,9 +1278,13 @@ export function buildCarouselModal() {
         );
 
         const checkbox = createCheckbox({
-          checked: currentSelection.has(componentIndex),
+          checked:
+          !isImported &&
+          currentSelection.has(componentIndex),
 
           onChange: (checked) => {
+            if (isImported) return;
+
             if (checked) {
               currentSelection.add(componentIndex);
             } else {
@@ -1238,6 +1294,18 @@ export function buildCarouselModal() {
             updateSummary();
           },
         });
+
+        if (isImported) {
+          checkbox.node.classList.add('is-disabled');
+          checkbox.node.setAttribute(
+            'aria-disabled',
+            'true'
+          );
+          checkbox.node.setAttribute(
+            'tabindex',
+            '-1'
+          );
+        }
 
         row.appendChild(checkbox.node);
 
@@ -1284,10 +1352,22 @@ export function buildCarouselModal() {
         );
 
         label.append(position, media);
+
+        if (isImported) {
+          label.appendChild(
+            el(
+              'span',
+              'rs-carousel-modal__imported',
+              'Уже в Eagle',
+            ),
+          );
+        }
+
         row.appendChild(label);
 
         row.addEventListener('click', (event) => {
           if (
+            isImported ||
             event.target === checkbox.node ||
             checkbox.node.contains(event.target)
           ) {
@@ -1347,6 +1427,7 @@ export function buildCarouselModal() {
     open({
       post = null,
       selection,
+      importedPositions = new Set(),
       thumbnails = true,
       onConfirm = null,
       onCancel = null,
@@ -1360,19 +1441,40 @@ export function buildCarouselModal() {
       }
 
       currentPost = post;
-      currentSelection = normalizeSelection(
-        post,
-        selection,
+
+      const componentTotal = Array.isArray(currentPost.components)
+      ? currentPost.components.length
+      : Number(currentPost.componentCount) || 0;
+
+      const importedSource =
+      importedPositions instanceof Set
+      ? importedPositions
+      : new Set(importedPositions || []);
+
+      currentImported = new Set(
+        [...importedSource]
+        .map(Number)
+        .filter((position) => (
+          Number.isInteger(position) &&
+          position >= 0 &&
+          position < componentTotal
+        )),
       );
+
+      const initialSelection = selection === undefined
+      ? selectAll(currentPost)
+      : selection;
+
+      currentSelection = selectablePositions(initialSelection);
+
       currentThumbnails = Boolean(thumbnails);
-      onConfirmCallback = onConfirm;
-      onCancelCallback = onCancel;
+      thumbnailsCheckbox.set(currentThumbnails, false);
 
-      thumbnailsCheckbox.set(currentThumbnails);
+      onConfirmCallback =
+      typeof onConfirm === 'function' ? onConfirm : null;
 
-      title.textContent = post.username
-        ? `${post.username} · выберите нужные файлы`
-        : 'Выберите нужные файлы';
+      onCancelCallback =
+      typeof onCancel === 'function' ? onCancel : null;
 
       renderList();
       updateSummary();

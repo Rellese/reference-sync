@@ -281,7 +281,7 @@ export function buildNames({
   numberingEnabled = true,
   marker = 'instpoporder-',
   startNumber = 1,
-  destination = 'name',       // name | description | both
+  destination = 'name', // name | description | both
   extraDescription = '',
 } = {}) {
   const result = new Map();
@@ -290,22 +290,49 @@ export function buildNames({
   posts.forEach((post) => {
     const isSelected = selected.has(post.postId);
 
-    const components = post.selectedComponents?.length
+    /* selectedComponents хранит исходные 1-based номера.
+       Пустой массив означает, что не выбран ни один компонент. */
+    const components = Array.isArray(post.selectedComponents)
       ? post.selectedComponents
       : post.components.map((item) => item.index);
 
-    /* Номер выдаётся только выбранным строкам — как в Python */
-    const postNumber = isSelected ? counter : null;
-    if (isSelected) counter += 1;
+    const componentNumbers = components
+      .map(Number)
+      .filter((value) => Number.isInteger(value) && value > 0);
 
-    let numberingParts = [];
-    if (numberingEnabled && postNumber !== null) {
-      numberingParts = post.componentCount <= 1
-        ? [`${marker}${postNumber}`]
-        : components.map((component) => `${marker}${postNumber}-${component}`);
+    /* Номер публикации получают только выбранные строки. */
+    const postNumber = isSelected ? counter : null;
+
+    if (isSelected) {
+      counter += 1;
     }
 
-    const baseDescription = [post.description, extraDescription]
+    const numberingByComponent = new Map();
+
+    if (numberingEnabled && postNumber !== null) {
+      if (post.componentCount <= 1) {
+        numberingByComponent.set(
+          1,
+          `${marker}${postNumber}`,
+        );
+      } else {
+        componentNumbers.forEach((componentNumber) => {
+          numberingByComponent.set(
+            componentNumber,
+            `${marker}${postNumber}-${componentNumber}`,
+          );
+        });
+      }
+    }
+
+    const numberingParts = [
+      ...numberingByComponent.values(),
+    ];
+
+    const baseDescription = [
+      post.description,
+      extraDescription,
+    ]
       .map((part) => String(part || '').trim())
       .filter(Boolean)
       .join('\n\n');
@@ -317,24 +344,63 @@ export function buildNames({
       const numberingText = numberingParts.join('\n');
 
       if (destination === 'name') {
-        name = numberingParts.map((part) => `${post.username} ${part}`).join('\n');
+        name = numberingParts
+          .map((part) => `${post.username} ${part}`)
+          .join('\n');
       } else if (destination === 'description') {
-        description = [numberingText, baseDescription].filter(Boolean).join('\n\n');
+        description = [
+          numberingText,
+          baseDescription,
+        ].filter(Boolean).join('\n\n');
       } else {
-        name = numberingParts.map((part) => `${post.username} ${part}`).join('\n');
-        description = [numberingText, baseDescription].filter(Boolean).join('\n\n');
+        name = numberingParts
+          .map((part) => `${post.username} ${part}`)
+          .join('\n');
+
+        description = [
+          numberingText,
+          baseDescription,
+        ].filter(Boolean).join('\n\n');
       }
+    }
+
+    /* Массивы намеренно сохраняют исходные позиции карусели.
+       Компонент №3 записывается в позицию 2, даже если №2 не выбран. */
+    const componentNames = [];
+    const componentDescriptions = [];
+
+    if (post.componentCount <= 1) {
+      componentNames[0] = name;
+      componentDescriptions[0] = description;
+    } else {
+      componentNumbers.forEach((componentNumber) => {
+        const componentIndex = componentNumber - 1;
+        const numberingPart =
+          numberingByComponent.get(componentNumber);
+
+        componentNames[componentIndex] =
+          numberingPart &&
+          (destination === 'name' || destination === 'both')
+            ? `${post.username} ${numberingPart}`
+            : post.username;
+
+        componentDescriptions[componentIndex] =
+          numberingPart &&
+          (destination === 'description' || destination === 'both')
+            ? [
+              numberingPart,
+              baseDescription,
+            ].filter(Boolean).join('\n\n')
+            : baseDescription;
+      });
     }
 
     result.set(post.postId, {
       name,
       description,
       postNumber,
-      /* Имена по компонентам — нужны при импорте карусели,
-         где каждый файл становится отдельным элементом Eagle */
-      componentNames: numberingParts.length && post.componentCount > 1
-        ? numberingParts.map((part) => `${post.username} ${part}`)
-        : [name],
+      componentNames,
+      componentDescriptions,
     });
   });
 
