@@ -595,7 +595,7 @@
 }
 
 .rs-carousel-modal__imported::before {
-  content: '·';
+  content: '\00B7';
   display: inline-block;
   margin-right: 4px;
   color: #E85935;
