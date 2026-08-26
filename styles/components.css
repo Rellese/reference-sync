@@ -554,7 +554,6 @@
 
 .rs-carousel-modal__media {
   overflow: hidden;
-  margin-left: -4px;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -591,7 +590,6 @@
   display: inline-flex;
   align-items: center;
   flex: none;
-  margin-left: -4px;
   color: #E85935;
   white-space: nowrap;
 }
@@ -599,7 +597,7 @@
 .rs-carousel-modal__imported::before {
   content: '·';
   display: inline-block;
-  margin: 0 6px;
+  margin-right: 4px;
   color: #E85935;
 }
 
