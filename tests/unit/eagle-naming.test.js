@@ -1,7 +1,10 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import { buildNames } from '../../js/eagle-import.js';
+import {
+  buildNames,
+  resolveComponentName,
+} from '../../js/eagle-import.js';
 
 function makeCarousel(selectedComponents) {
   return {
@@ -91,4 +94,48 @@ test('empty carousel selection does not fall back to all components', () => {
     generated.componentNames,
     [],
   );
+});
+
+test('edited carousel name overrides generated component names', () => {
+  const name = resolveComponentName({
+    nameOverride: 'Custom carousel name',
+    generatedName: '@author instpoporder-1-2',
+    componentNames: [
+      '@author instpoporder-1-1',
+      '@author instpoporder-1-2',
+    ],
+    componentIndex: 1,
+    fallback: '@author',
+  });
+
+  assert.equal(name, 'Custom carousel name');
+});
+
+test('multiline edited names map to carousel components', () => {
+  const name = resolveComponentName({
+    nameOverride: 'First\nSecond\nThird',
+    componentNames: [
+      '@author instpoporder-1-1',
+      '@author instpoporder-1-2',
+      '@author instpoporder-1-3',
+    ],
+    componentIndex: 2,
+    fallback: '@author',
+  });
+
+  assert.equal(name, 'Third');
+});
+
+test('generated component name remains when name is not edited', () => {
+  const name = resolveComponentName({
+    generatedName: '@author instpoporder-1-1',
+    componentNames: [
+      '@author instpoporder-1-1',
+      '@author instpoporder-1-2',
+    ],
+    componentIndex: 1,
+    fallback: '@author',
+  });
+
+  assert.equal(name, '@author instpoporder-1-2');
 });

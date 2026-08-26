@@ -275,6 +275,35 @@ export async function importToEagle({
    Формат: "@user instpoporder-<N>" для одиночной публикации
    и "@user instpoporder-<N>-<K>" для элемента карусели.
    ------------------------------------------------------------ */
+export function resolveComponentName({
+  nameOverride,
+  generatedName,
+  componentNames = [],
+  componentIndex = 0,
+  fallback = '',
+} = {}) {
+  if (nameOverride !== undefined) {
+    const editedLines = String(nameOverride).split('\n');
+
+    return (
+      editedLines[componentIndex] ||
+      editedLines[0] ||
+      fallback
+    );
+  }
+
+  const generatedLines = String(
+    generatedName ?? fallback,
+  ).split('\n');
+
+  return (
+    componentNames[componentIndex] ||
+    generatedLines[componentIndex] ||
+    generatedLines[0] ||
+    fallback
+  );
+}
+
 export function buildNames({
   posts,
   selected,

@@ -36,7 +36,7 @@ import {
 
 import {
   checkEagle, importToEagle, buildNames, listFolders,
-  findEagleItemsByIds,
+  findEagleItemsByIds, resolveComponentName,
 } from './eagle-import.js';
 
 import {
@@ -1103,12 +1103,10 @@ async function runImport() {
       const descOverride =
         state.edits.get(entry.post.postId)?.description;
 
-      const baseName =
-        nameOverride ?? names?.name ?? entry.post.username;
       const annotation =
         descOverride ?? names?.description ?? '';
       const componentNames =
-        names?.componentNames || [baseName];
+        names?.componentNames || [];
 
       const componentDescriptions =
         names?.componentDescriptions || [];
@@ -1136,15 +1134,15 @@ async function runImport() {
           return;
         }
 
-        const lines = String(baseName).split('\n');
-
         items.push({
           path: file,
-          name:
-            componentNames[componentIndex] ||
-            lines[componentIndex] ||
-            lines[0] ||
-            baseName,
+          name: resolveComponentName({
+            nameOverride,
+            generatedName: names?.name,
+            componentNames,
+            componentIndex,
+            fallback: entry.post.username,
+          }),
           website: entry.post.url,
           annotation:
             descOverride ??
