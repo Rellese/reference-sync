@@ -13,6 +13,9 @@ import {
 } from './panels.js';
 
 import {
+  availableComponentPositions,
+  carouselSelectionState,
+  importedComponentPositions,
   normalizeSelection,
   selectedDownloadedFiles,
 } from './carousel-selection.js';
@@ -643,7 +646,9 @@ async function runAction() {
     return;
   }
 
-  if (phase === 'ready' && state.selected.size) {
+  if (phase === 'ready') {
+    if (!state.selected.size) return;
+
     await runImport();
     return;
   }
@@ -1104,6 +1109,9 @@ async function runImport() {
       const componentNames =
         names?.componentNames || [baseName];
 
+      const componentDescriptions =
+        names?.componentDescriptions || [];
+
       const missingComponents = state.missingComponents.get(
         entry.post.postId,
       );
@@ -1137,7 +1145,10 @@ async function runImport() {
             lines[0] ||
             baseName,
           website: entry.post.url,
-          annotation,
+          annotation:
+            descOverride ??
+            componentDescriptions[componentIndex] ??
+            annotation,
           tags: [
             'instagram',
             entry.post.plainUsername,
@@ -1212,12 +1223,43 @@ async function runImport() {
       ),
     );
 
-    importedPostIds.forEach((postId) => {
-      state.selected.delete(postId);
-    });
+  importedPostIds.forEach((postId) => {
+    state.selected.delete(postId);
+  });
 
-    if (created.length) {
-      renderTable();
+  chosen.forEach((post) => {
+    if (
+      state.knownPostIds.has(post.postId) ||
+      Number(post.componentCount) <= 1
+    ) {
+      return;
+    }
+
+    const record = state.importRecords.get(post.postId);
+
+    /* Если для публикации ещё ничего не создано, сохраняем
+       прежний пользовательский выбор. */
+    if (!record) return;
+
+    const imported = importedComponentPositions(record);
+    const available = availableComponentPositions(
+      post,
+      imported,
+    );
+
+    setCarouselPositions(post, available);
+
+    if (available.size) {
+      state.selected.add(post.postId);
+    } else {
+      state.selected.delete(post.postId);
+    }
+  });
+
+  if (created.length) {
+    refreshNames();
+    renderTable();
+
 
       ui.log.add(
         `Создано элементов Eagle: ${created.length}. ` +
@@ -1245,7 +1287,8 @@ async function runImport() {
     );
 
     ui.footer.action.setDisabled(
-      currentSearchCompleted,
+      currentSearchCompleted ||
+      state.selected.size === 0,
     );
 
     if (stopReason) {
@@ -1418,6 +1461,70 @@ function refreshNames() {
   });
 }
 
+function componentNumbersFromPositions(post, positions) {
+  return [...positions]
+    .sort((left, right) => left - right)
+    .map((position) => {
+      const component = post.components?.[position];
+      const componentNumber = Number(component?.index);
+
+      return Number.isInteger(componentNumber) &&
+        componentNumber > 0
+        ? componentNumber
+        : position + 1;
+    });
+}
+
+function componentPositionsFromNumbers(post, componentNumbers) {
+  const selectedNumbers = new Set(
+    [...(componentNumbers || [])]
+      .map(Number)
+      .filter(Number.isInteger),
+  );
+
+  return new Set(
+    (post?.components || [])
+      .map((component, position) => ({
+        number: Number(component?.index),
+        position,
+      }))
+      .filter(({ number }) => selectedNumbers.has(number))
+      .map(({ position }) => position),
+  );
+}
+
+function currentCarouselState(post) {
+  if (
+    Number(post?.componentCount) <= 1 ||
+    !Array.isArray(post?.components)
+  ) {
+    return null;
+  }
+
+  const record = state.importRecords.get(post.postId);
+  const imported = importedComponentPositions(record);
+
+  const saved = Array.isArray(post.selectedComponents)
+  ? componentPositionsFromNumbers(
+    post,
+    post.selectedComponents,
+  )
+  : undefined;
+
+  return carouselSelectionState(
+    post,
+    saved,
+    imported,
+  );
+}
+
+function setCarouselPositions(post, positions) {
+  post.selectedComponents = componentNumbersFromPositions(
+    post,
+    positions,
+  );
+}
+
 /* ------------------------------------------------------------
    Таблица результатов
    ------------------------------------------------------------ */
@@ -1428,6 +1535,11 @@ function renderTable() {
   const posts = visiblePosts();
   ui.results.setTitle(state.selected.size, posts.length);
   ui.results.clearButton.setDisabled(!posts.length);
+  if (phase === 'ready') {
+    ui.footer.action.setDisabled(
+      state.selected.size === 0,
+    );
+  }
   ui.results.resetAllButton.node.style.display = hasEdits() ? '' : 'none';
 
   /* Состояние чекбокса «Выбрать всё» */
@@ -1464,26 +1576,78 @@ function renderRow(post) {
   if (isKnown) {
     row.title = 'Эта публикация уже добавлена в Eagle';
   }
-  const grid = el('div', 'rs-table__grid');
-  const isSelected =
-    !isKnown &&
-    state.selected.has(post.postId);
-  row.classList.toggle('is-selected', isSelected);
+const grid = el('div', 'rs-table__grid');
+const carouselState = currentCarouselState(post);
+const isCarousel = carouselState !== null;
 
-  /* 1 колонка: чекбокс + миниатюра */
-  const lead = el('div', 'rs-row__lead');
-  const checkbox = createCheckbox({
-    checked: isSelected,
-    onChange: (value) => {
-      if (value) state.selected.add(post.postId);
-      else state.selected.delete(post.postId);
-      row.classList.toggle('is-selected', value);
-      /* Нумерация зависит от набора выбранных строк */
-      refreshNames();
-      renderTable();
-    },
-  });
-  if (isKnown) {
+const isSelected =
+  !isKnown &&
+  state.selected.has(post.postId) &&
+  (!isCarousel || carouselState.selectedCount > 0);
+
+const parentChecked = isCarousel
+  ? isSelected && carouselState.checked
+  : isSelected;
+
+const parentMixed = Boolean(
+  isCarousel &&
+  isSelected &&
+  carouselState.mixed,
+);
+
+row.classList.toggle('is-selected', isSelected);
+
+/* 1 колонка: чекбокс + миниатюра */
+const lead = el('div', 'rs-row__lead');
+
+const checkbox = createCheckbox({
+  checked: parentChecked,
+  mixed: parentMixed,
+
+  onChange: (value) => {
+    if (isCarousel) {
+      const allAvailableSelected =
+        carouselState.availableCount > 0 &&
+        carouselState.selectedCount ===
+          carouselState.availableCount;
+
+      /* Частично импортированная карусель визуально всегда mixed,
+         даже если выбраны все оставшиеся компоненты. Повторный
+         щелчок по такому состоянию должен снять выбор. */
+      const shouldClear =
+        !value ||
+        (
+          parentMixed &&
+          allAvailableSelected
+        );
+
+      if (shouldClear) {
+        setCarouselPositions(post, new Set());
+        state.selected.delete(post.postId);
+      } else {
+        setCarouselPositions(
+          post,
+          carouselState.available,
+        );
+
+        if (carouselState.availableCount) {
+          state.selected.add(post.postId);
+        } else {
+          state.selected.delete(post.postId);
+        }
+      }
+    } else if (value) {
+      state.selected.add(post.postId);
+    } else {
+      state.selected.delete(post.postId);
+    }
+
+    refreshNames();
+    renderTable();
+  },
+});
+
+if (isKnown) {
   checkbox.node.classList.add('is-disabled');
   checkbox.node.setAttribute('aria-disabled', 'true');
   checkbox.node.setAttribute('tabindex', '-1');
@@ -1511,16 +1675,10 @@ function renderRow(post) {
   author.title = post.url;
   const type = el('div', 'rs-cell', post.type);
 
-  const saved = Array.isArray(post.selectedComponents)
-    ? post.selectedComponents
-    : undefined;
-
-  const currentSelection = normalizeSelection(post, saved);
-
-  const structureText =
-    post.componentCount > 1 && currentSelection instanceof Set
-      ? `${post.componentCount} элем. · выбрано ${currentSelection.size}`
-      : post.structure;
+  const structureText = carouselState
+    ? `${carouselState.availableCount} элем. · ` +
+      `выбрано ${carouselState.selectedCount}`
+    : post.structure;
 
   const structure = el(
     'div',
@@ -1533,28 +1691,45 @@ function renderRow(post) {
     structure.title = 'Настроить компоненты публикации';
 
     structure.addEventListener('click', () => {
+      const latestState = currentCarouselState(post);
+
       const saved = Array.isArray(post.selectedComponents)
-        ? post.selectedComponents
-        : undefined;
+      ? post.selectedComponents
+      : undefined;
 
-      ui.carouselModal.open({
-        post,
-        selection: saved,
-        thumbnails: state.settings.thumbnails,
+    ui.carouselModal.open({
+      post,
+      selection: saved,
+      thumbnails: state.settings.thumbnails,
+      importedPositions:
+        latestState?.imported || new Set(),
 
-        onConfirm: (selection) => {
-          post.selectedComponents = [...selection]
-            .sort((left, right) => left - right)
-            .map((position) => {
-              const component = post.components[position];
-              const componentIndex = Number(component?.index);
+      onConfirm: (selection) => {
+        const available =
+          latestState?.available ||
+          availableComponentPositions(post);
 
-              return Number.isInteger(componentIndex) &&
-                componentIndex > 0
-                ? componentIndex
-                : position + 1;
-            });
+        const selectedPositions = new Set(
+          [...selection]
+            .map(Number)
+            .filter((position) => (
+              Number.isInteger(position) &&
+              available.has(position)
+            )),
+          );
 
+          setCarouselPositions(
+            post,
+            selectedPositions,
+          );
+
+          if (selectedPositions.size) {
+            state.selected.add(post.postId);
+          } else {
+            state.selected.delete(post.postId);
+          }
+
+          refreshNames();
           renderTable();
         },
 
@@ -1563,26 +1738,102 @@ function renderRow(post) {
     });
   }
 
-  /* Название — редактируемое */
+  /* Название редактируется только до полного импорта */
   const nameCell = el('div', 'rs-cell rs-cell--name');
-  nameCell.classList.toggle('is-edited', isEdited(post.postId, 'name'));
-  nameCell.textContent = cellValue(post.postId, 'name');
-  nameCell.title = 'Двойной щелчок — редактировать';
-  nameCell.addEventListener('dblclick', () =>
-    startEdit(nameCell, post.postId, 'name'));
 
-  /* Описание — прокручиваемая ячейка с кнопкой правки */
-  const descCell = el('div', 'rs-cell rs-cell--desc');
-  const descText = el('div', 'rs-desc__text',
-    cellValue(post.postId, 'description'));
-  if (isEdited(post.postId, 'description')) {
-    descText.style.color = 'var(--text-bright)';
+  nameCell.classList.toggle(
+    'is-edited',
+    !isKnown && isEdited(post.postId, 'name')
+  );
+
+  nameCell.classList.toggle(
+    'is-disabled',
+    isKnown,
+  );
+
+  nameCell.textContent = cellValue(
+    post.postId,
+    'name',
+  );
+
+  if (isKnown) {
+    nameCell.setAttribute(
+      'aria-disabled',
+      'true',
+    );
+  } else {
+    nameCell.title =
+      'Двойной щелчок — редактировать';
+
+    nameCell.addEventListener(
+      'dblclick',
+      () => startEdit(
+        nameCell,
+        post.postId,
+        'name',
+      ),
+    );
   }
+
+  /* Описание редактируется только до полного импорта */
+  const descCell = el(
+    'div',
+    'rs-cell rs-cell--desc',
+  );
+
+  const descText = el(
+    'div',
+    'rs-desc__text',
+    cellValue(post.postId, 'description'),
+  );
+
+  descCell.classList.toggle(
+    'is-edited',
+    !isKnown &&
+    isEdited(post.postId, 'description'),
+  );
+
+  descCell.classList.toggle(
+    'is-disabled',
+    isKnown,
+  );
+
+  if (
+    !isKnown &&
+    isEdited(post.postId, 'description')
+  ) {
+    descText.style.color =
+      'var(--text-bright)';
+  }
+
   descCell.appendChild(descText);
-  descCell.appendChild(createEditButton(() =>
-    startEdit(descText, post.postId, 'description', true)));
-  descText.addEventListener('dblclick', () =>
-    startEdit(descText, post.postId, 'description', true));
+
+  if (isKnown) {
+    descCell.setAttribute(
+      'aria-disabled',
+      'true',
+    );
+  } else {
+    descCell.appendChild(
+      createEditButton(() =>
+        startEdit(
+          descText,
+          post.postId,
+          'description',
+          true,
+        )),
+    );
+
+    descText.addEventListener(
+      'dblclick',
+      () => startEdit(
+        descText,
+        post.postId,
+        'description',
+        true,
+      ),
+    );
+  }
 
   grid.append(lead, author, type, structure, nameCell, descCell);
   row.appendChild(grid);
@@ -1625,14 +1876,43 @@ function startEdit(node, postId, field, multiline = false) {
 
 function toggleAll(value) {
   const posts = visiblePosts();
-  if (value) {
-    posts.forEach((post) => {
-      if (!state.knownPostIds.has(post.postId)) {
-        state.selected.add(post.postId);
+
+  posts.forEach((post) => {
+    if (state.knownPostIds.has(post.postId)) {
+      state.selected.delete(post.postId);
+      return;
+    }
+
+    const carouselState = currentCarouselState(post);
+
+    if (!value) {
+      state.selected.delete(post.postId);
+
+      if (carouselState) {
+        setCarouselPositions(post, new Set());
       }
-    });
-  }
-  else posts.forEach((post) => state.selected.delete(post.postId));
+
+      return;
+    }
+
+    if (carouselState) {
+      setCarouselPositions(
+        post,
+        carouselState.available,
+      );
+
+      if (carouselState.availableCount) {
+        state.selected.add(post.postId);
+      } else {
+        state.selected.delete(post.postId);
+      }
+
+      return;
+    }
+
+    state.selected.add(post.postId);
+  });
+
   refreshNames();
   renderTable();
 }

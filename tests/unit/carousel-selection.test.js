@@ -9,6 +9,10 @@ import {
   videosOnly,
   componentDisplay,
   selectedDownloadedFiles,
+  importedComponentPositions,
+  availableComponentPositions,
+  selectableSelection,
+  carouselSelectionState,
 } from '../../js/carousel-selection.js';
 
 function makePost() {
@@ -148,4 +152,87 @@ test('single publication is not affected by carousel selection', () => {
       },
     ],
   );
+});
+
+test('import registry keys become zero-based imported positions', () => {
+  const record = {
+    componentCount: 4,
+    components: new Map([
+      ['0', 'eagle-a'],
+      ['2', 'eagle-c'],
+    ]),
+  };
+
+  assert.deepEqual(
+    importedComponentPositions(record),
+    new Set([0, 2]),
+  );
+});
+
+test('already imported components are removed from available positions', () => {
+  const post = {
+    componentCount: 4,
+    components: [
+      { index: 1 },
+      { index: 2 },
+      { index: 3 },
+      { index: 4 },
+    ],
+  };
+
+  assert.deepEqual(
+    availableComponentPositions(
+      post,
+      new Set([0, 2]),
+    ),
+    new Set([1, 3]),
+  );
+});
+
+test('already imported components cannot remain selected', () => {
+  const post = {
+    componentCount: 4,
+    components: [
+      { index: 1 },
+      { index: 2 },
+      { index: 3 },
+      { index: 4 },
+    ],
+  };
+
+  assert.deepEqual(
+    selectableSelection(
+      post,
+      [1, 2, 3, 4],
+      new Set([0, 2]),
+    ),
+    new Set([1, 3]),
+  );
+});
+
+test('selecting all remaining components produces mixed parent state', () => {
+  const post = {
+    componentCount: 4,
+    components: [
+      { index: 1 },
+      { index: 2 },
+      { index: 3 },
+      { index: 4 },
+    ],
+  };
+
+  const selection = carouselSelectionState(
+    post,
+    [1, 2, 3, 4],
+    new Set([0, 2]),
+  );
+
+  assert.equal(selection.total, 4);
+  assert.equal(selection.importedCount, 2);
+  assert.equal(selection.availableCount, 2);
+  assert.equal(selection.selectedCount, 2);
+  assert.equal(selection.checked, false);
+  assert.equal(selection.mixed, true);
+  assert.equal(selection.disabled, false);
+  assert.deepEqual(selection.selected, new Set([1, 3]));
 });
