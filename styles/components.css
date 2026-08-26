@@ -1556,3 +1556,33 @@
   color: var(--text-muted);
   cursor: default;
 }
+/* Единый редактор названия и описания */
+.rs-editable {
+  display: block;
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+  margin: 0;
+  padding: 2px 6px;
+  border: 1px solid #4A4A4A;
+  border-radius: 3px;
+  outline: none;
+  background: #181818;
+  box-shadow: none;
+  color: var(--text-bright);
+  font: inherit;
+  line-height: inherit;
+  letter-spacing: inherit;
+  appearance: none;
+}
+
+.rs-editable:focus {
+  border-color: #707070;
+  outline: none;
+  box-shadow: none;
+}
+
+textarea.rs-editable {
+  overflow: auto;
+  resize: none;
+}
