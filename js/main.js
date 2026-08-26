@@ -1475,24 +1475,6 @@ function componentNumbersFromPositions(post, positions) {
     });
 }
 
-function componentPositionsFromNumbers(post, componentNumbers) {
-  const selectedNumbers = new Set(
-    [...(componentNumbers || [])]
-      .map(Number)
-      .filter(Number.isInteger),
-  );
-
-  return new Set(
-    (post?.components || [])
-      .map((component, position) => ({
-        number: Number(component?.index),
-        position,
-      }))
-      .filter(({ number }) => selectedNumbers.has(number))
-      .map(({ position }) => position),
-  );
-}
-
 function currentCarouselState(post) {
   if (
     Number(post?.componentCount) <= 1 ||
@@ -1505,11 +1487,8 @@ function currentCarouselState(post) {
   const imported = importedComponentPositions(record);
 
   const saved = Array.isArray(post.selectedComponents)
-  ? componentPositionsFromNumbers(
-    post,
-    post.selectedComponents,
-  )
-  : undefined;
+    ? post.selectedComponents
+    : undefined;
 
   return carouselSelectionState(
     post,
@@ -1693,13 +1672,9 @@ if (isKnown) {
     structure.addEventListener('click', () => {
       const latestState = currentCarouselState(post);
 
-      const saved = Array.isArray(post.selectedComponents)
-      ? post.selectedComponents
-      : undefined;
-
-    ui.carouselModal.open({
-      post,
-      selection: saved,
+      ui.carouselModal.open({
+        post,
+        selection: latestState?.selected || new Set(),
       thumbnails: state.settings.thumbnails,
       importedPositions:
         latestState?.imported || new Set(),

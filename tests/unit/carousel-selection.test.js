@@ -63,6 +63,19 @@ test('empty saved selection remains empty', () => {
   assert.equal(selection.size, 0);
 });
 
+test('carousel state converts saved numbers to UI positions once', () => {
+  const selection = carouselSelectionState(
+    makePost(),
+    [1, 3],
+  );
+
+  assert.deepEqual(
+    selection.selected,
+    new Set([0, 2]),
+  );
+  assert.equal(selection.selectedCount, 2);
+});
+
 test('selection buttons return correct component positions', () => {
   const post = makePost();
 
