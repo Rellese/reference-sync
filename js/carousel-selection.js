@@ -287,6 +287,21 @@ export function carouselSelectionState(
   };
 }
 
+export function resetSelectionsAfterImport(
+  posts,
+  selectedPostIds,
+) {
+  if (selectedPostIds instanceof Set) {
+    selectedPostIds.clear();
+  }
+
+  (posts || []).forEach((post) => {
+    if (Number(post?.componentCount) > 1) {
+      post.selectedComponents = [];
+    }
+  });
+}
+
 export function selectedDownloadedFiles(entry, selection) {
   if (!entry || !Array.isArray(entry.files)) {
     return [];

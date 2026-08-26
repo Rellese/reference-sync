@@ -17,6 +17,7 @@ import {
   carouselSelectionState,
   importedComponentPositions,
   normalizeSelection,
+  resetSelectionsAfterImport,
   selectedDownloadedFiles,
 } from './carousel-selection.js';
 
@@ -1223,42 +1224,15 @@ async function runImport() {
       ),
     );
 
-  importedPostIds.forEach((postId) => {
-    state.selected.delete(postId);
-  });
+    if (created.length) {
+      resetSelectionsAfterImport(
+        state.posts,
+        state.selected,
+      );
 
-  chosen.forEach((post) => {
-    if (
-      state.knownPostIds.has(post.postId) ||
-      Number(post.componentCount) <= 1
-    ) {
-      return;
-    }
-
-    const record = state.importRecords.get(post.postId);
-
-    /* Если для публикации ещё ничего не создано, сохраняем
-       прежний пользовательский выбор. */
-    if (!record) return;
-
-    const imported = importedComponentPositions(record);
-    const available = availableComponentPositions(
-      post,
-      imported,
-    );
-
-    setCarouselPositions(post, available);
-
-    if (available.size) {
-      state.selected.add(post.postId);
-    } else {
-      state.selected.delete(post.postId);
-    }
-  });
-
-  if (created.length) {
-    refreshNames();
-    renderTable();
+      checkpointRecovery('importing');
+      refreshNames();
+      renderTable();
 
 
       ui.log.add(

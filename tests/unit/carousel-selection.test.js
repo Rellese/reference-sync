@@ -13,6 +13,7 @@ import {
   availableComponentPositions,
   selectableSelection,
   carouselSelectionState,
+  resetSelectionsAfterImport,
 } from '../../js/carousel-selection.js';
 
 function makePost() {
@@ -248,4 +249,31 @@ test('selecting all remaining components produces mixed parent state', () => {
   assert.equal(selection.mixed, true);
   assert.equal(selection.disabled, false);
   assert.deepEqual(selection.selected, new Set([1, 3]));
+});
+
+test('successful import clears all post and carousel selections', () => {
+  const carousel = makePost();
+  carousel.selectedComponents = [1, 3];
+
+  const single = {
+    postId: 'single-1',
+    componentCount: 1,
+  };
+
+  const selectedPostIds = new Set([
+    carousel.postId,
+    single.postId,
+  ]);
+
+  resetSelectionsAfterImport(
+    [carousel, single],
+    selectedPostIds,
+  );
+
+  assert.equal(selectedPostIds.size, 0);
+  assert.deepEqual(carousel.selectedComponents, []);
+  assert.equal(
+    Object.hasOwn(single, 'selectedComponents'),
+    false,
+  );
 });
