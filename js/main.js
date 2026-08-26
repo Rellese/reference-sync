@@ -9,8 +9,13 @@ import { el, clear, createCheckbox, createEditButton } from './ui.js';
 import {
   loadIcons, buildTitlebar, buildHeader, buildSocial, buildSettings,
   buildStatus, buildResults, buildNaming, buildFooter, buildLog,
-  buildCollectionModal, buildMessageModal,
+  buildCollectionModal, buildMessageModal, buildCarouselModal,
 } from './panels.js';
+
+import {
+  normalizeSelection,
+  selectedDownloadedFiles,
+} from './carousel-selection.js';
 
 import {
   state, loadSettings, setSetting, visiblePosts, cellValue, isEdited,
@@ -277,6 +282,7 @@ async function restoreInterruptedJob() {
     stored.selectedPostIds || [],
   );
 
+
   if (state.posts.length) {
     resetAllEdits();
     refreshNames();
@@ -431,6 +437,10 @@ async function boot() {
   });
 
   ui.messageModal = buildMessageModal();
+
+  /* Carousel modal */
+  ui.carouselModal = buildCarouselModal();
+  app.appendChild(ui.carouselModal.node);
 
   /* Рабочая область: левая панель + правая колонка */
   const work = el('div', 'rs-work');
@@ -1079,41 +1089,72 @@ async function runImport() {
     /* Формируем элементы для Eagle: карусель даёт несколько файлов,
        каждый становится отдельным элементом со своим номером. */
     const items = [];
+
     downloaded.forEach((entry) => {
       const names = state.generated.get(entry.post.postId);
-      const nameOverride = state.edits.get(entry.post.postId)?.name;
-      const descOverride = state.edits.get(entry.post.postId)?.description;
+      const nameOverride =
+        state.edits.get(entry.post.postId)?.name;
+      const descOverride =
+        state.edits.get(entry.post.postId)?.description;
 
-      const baseName = nameOverride ?? names?.name ?? entry.post.username;
-      const annotation = descOverride ?? names?.description ?? '';
-      const componentNames = names?.componentNames || [baseName];
+      const baseName =
+        nameOverride ?? names?.name ?? entry.post.username;
+      const annotation =
+        descOverride ?? names?.description ?? '';
+      const componentNames =
+        names?.componentNames || [baseName];
 
       const missingComponents = state.missingComponents.get(
         entry.post.postId,
       );
 
-      entry.files.forEach((file, index) => {
+      const selection = Array.isArray(entry.post.selectedComponents)
+        ? entry.post.selectedComponents
+        : undefined;
+
+      const selectedFiles = selectedDownloadedFiles(entry, selection);
+
+      selectedFiles.forEach(({
+        file,
+        componentIndex,
+      }) => {
+        /* Если запись уже существует, повторно разрешены только
+           компоненты, которые действительно удалены из Eagle. */
         if (
           missingComponents &&
-          !missingComponents.has(String(index))
+          !missingComponents.has(String(componentIndex))
         ) {
           return;
         }
 
         const lines = String(baseName).split('\n');
+
         items.push({
           path: file,
-          name: componentNames[index] || lines[index] || lines[0] || baseName,
+          name:
+            componentNames[componentIndex] ||
+            lines[componentIndex] ||
+            lines[0] ||
+            baseName,
           website: entry.post.url,
           annotation,
-          tags: ['instagram', entry.post.plainUsername].filter(Boolean),
+          tags: [
+            'instagram',
+            entry.post.plainUsername,
+          ].filter(Boolean),
           postId: entry.post.postId,
-          component: String(index),
+          component: String(componentIndex),
           componentCount:
             entry.post.componentCount || entry.files.length,
         });
       });
     });
+
+    if (!items.length) {
+      throw new Error(
+        'В выбранных публикациях нет компонентов для импорта',
+      );
+    }
 
     ui.status.set('Импорт в Eagle…', `0 из ${items.length}`, true);
 
@@ -1469,7 +1510,58 @@ function renderRow(post) {
   const author = el('div', 'rs-cell rs-cell--author', post.username);
   author.title = post.url;
   const type = el('div', 'rs-cell', post.type);
-  const structure = el('div', 'rs-cell', post.structure);
+
+  const saved = Array.isArray(post.selectedComponents)
+    ? post.selectedComponents
+    : undefined;
+
+  const currentSelection = normalizeSelection(post, saved);
+
+  const structureText =
+    post.componentCount > 1 && currentSelection instanceof Set
+      ? `${post.componentCount} элем. · выбрано ${currentSelection.size}`
+      : post.structure;
+
+  const structure = el(
+    'div',
+    'rs-cell',
+    structureText,
+  );
+
+  if (post.componentCount > 1 && !isKnown) {
+    structure.classList.add('is-clickable');
+    structure.title = 'Настроить компоненты публикации';
+
+    structure.addEventListener('click', () => {
+      const saved = Array.isArray(post.selectedComponents)
+        ? post.selectedComponents
+        : undefined;
+
+      ui.carouselModal.open({
+        post,
+        selection: saved,
+        thumbnails: state.settings.thumbnails,
+
+        onConfirm: (selection) => {
+          post.selectedComponents = [...selection]
+            .sort((left, right) => left - right)
+            .map((position) => {
+              const component = post.components[position];
+              const componentIndex = Number(component?.index);
+
+              return Number.isInteger(componentIndex) &&
+                componentIndex > 0
+                ? componentIndex
+                : position + 1;
+            });
+
+          renderTable();
+        },
+
+        onCancel: () => {},
+      });
+    });
+  }
 
   /* Название — редактируемое */
   const nameCell = el('div', 'rs-cell rs-cell--name');

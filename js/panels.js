@@ -21,6 +21,14 @@ import {
 
 import { state, setSetting } from './state.js';
 import { SEARCH_MODES } from './instagram.js';
+import {
+  normalizeSelection,
+  selectAll,
+  clearSelection,
+  imagesOnly,
+  videosOnly,
+  componentDisplay,
+} from './carousel-selection.js';
 import { createProgressBar } from './progress.js';
 import { installSources, listSources } from './sources/index.js';
 
@@ -1030,5 +1038,298 @@ export function buildMessageModal() {
     close() {
       root.classList.remove('is-open');
     },
+  };
+}
+
+/* ============================================================
+   Модальное окно настройки компонентов карусели
+
+   selection использует 0-based позиции компонентов.
+   Отображаемый пользователю номер остаётся 1-based.
+   ============================================================ */
+export function buildCarouselModal() {
+  const root = el('div', 'rs-modal rs-carousel-modal');
+  const box = el(
+    'div',
+    'rs-modal__box rs-carousel-modal__box',
+  );
+
+  const title = el(
+    'div',
+    'rs-modal__title rs-carousel-modal__title',
+    'Настройка компонентов карусели',
+  );
+
+  const content = el(
+    'div',
+    'rs-carousel-modal__content',
+  );
+
+  const controls = el(
+    'div',
+    'rs-carousel-modal__controls',
+  );
+
+  const list = el(
+    'div',
+    'rs-carousel-modal__list rs-scroll',
+  );
+
+  const summary = el(
+    'div',
+    'rs-carousel-modal__summary',
+  );
+
+  const foot = el(
+    'div',
+    'rs-modal__foot rs-carousel-modal__foot',
+  );
+
+  let currentPost = null;
+  let currentSelection = new Set();
+  let currentThumbnails = true;
+  let onConfirmCallback = null;
+  let onCancelCallback = null;
+
+  function updateSummary() {
+    const total = Number(currentPost?.componentCount) || 0;
+    const selected = currentSelection.size;
+
+    summary.textContent = `Выбрано ${selected} из ${total}`;
+  }
+
+  function updateSelection(nextSelection) {
+    currentSelection = new Set(nextSelection);
+    renderList();
+    updateSummary();
+  }
+
+  const selectAllButton = createGhostButton({
+    label: 'ВЫБРАТЬ ВСЕ',
+    onClick: () => {
+      if (!currentPost) return;
+      updateSelection(selectAll(currentPost));
+    },
+  });
+
+  const clearButton = createGhostButton({
+    label: 'СБРОСИТЬ',
+    onClick: () => {
+      updateSelection(clearSelection());
+    },
+  });
+
+  const imagesButton = createGhostButton({
+    label: 'ЛИШЬ ИЗОБРАЖЕНИЯ',
+    onClick: () => {
+      if (!currentPost) return;
+      updateSelection(imagesOnly(currentPost));
+    },
+  });
+
+  const videosButton = createGhostButton({
+    label: 'ЛИШЬ ВИДЕО',
+    onClick: () => {
+      if (!currentPost) return;
+      updateSelection(videosOnly(currentPost));
+    },
+  });
+
+  controls.append(
+    selectAllButton.node,
+    clearButton.node,
+    imagesButton.node,
+    videosButton.node,
+  );
+
+  const cancel = createGhostButton({
+    label: 'ОТМЕНА',
+    onClick: () => cancelModal(),
+  });
+
+  const confirm = createGlassButton({
+    label: 'OK',
+    onClick: () => confirmModal(),
+  });
+
+  foot.append(cancel.node, confirm.node);
+  content.append(controls, list, summary);
+  box.append(title, content, foot);
+  root.appendChild(box);
+
+  function renderList() {
+    clear(list);
+
+    if (!currentPost?.components?.length) {
+      return;
+    }
+
+    currentPost.components.forEach(
+      (component, componentIndex) => {
+        const row = el(
+          'div',
+          'rs-carousel-modal__row',
+        );
+
+        const hasThumbnail = Boolean(
+          currentThumbnails && component.previewUrl,
+        );
+
+        row.classList.toggle(
+          'has-thumbnail',
+          hasThumbnail,
+        );
+
+        const checkbox = createCheckbox({
+          checked: currentSelection.has(componentIndex),
+
+          onChange: (checked) => {
+            if (checked) {
+              currentSelection.add(componentIndex);
+            } else {
+              currentSelection.delete(componentIndex);
+            }
+
+            updateSummary();
+          },
+        });
+
+        row.appendChild(checkbox.node);
+
+        if (hasThumbnail) {
+          const thumbnail = el(
+            'div',
+            'rs-carousel-modal__thumbnail',
+          );
+
+          const image = document.createElement('img');
+          image.loading = 'lazy';
+          image.src = component.previewUrl;
+          image.alt = '';
+
+          image.addEventListener('error', () => {
+            thumbnail.classList.add('is-empty');
+            image.remove();
+          });
+
+          thumbnail.appendChild(image);
+          row.appendChild(thumbnail);
+        }
+
+        const display = componentDisplay(
+          component,
+          componentIndex,
+        );
+
+        const position = el(
+          'span',
+          'rs-carousel-modal__position',
+          `${display.number}`,
+        );
+
+        const media = el(
+          'span',
+          'rs-carousel-modal__media',
+          display.label,
+        );
+
+        const label = el(
+          'div',
+          'rs-carousel-modal__label',
+        );
+
+        label.append(position, media);
+        row.appendChild(label);
+
+        row.addEventListener('click', (event) => {
+          if (event.target === checkbox.node ||
+              checkbox.node.contains(event.target)) {
+            return;
+          }
+
+          checkbox.set(!checkbox.value);
+        });
+
+        list.appendChild(row);
+      },
+    );
+  }
+
+  function close() {
+    root.classList.remove('is-open');
+  }
+
+  function cancelModal() {
+    const callback = onCancelCallback;
+    close();
+
+    if (callback) {
+      callback();
+    }
+  }
+
+  function confirmModal() {
+    const callback = onConfirmCallback;
+    const selection = new Set(currentSelection);
+    close();
+
+    if (callback) {
+      callback(selection);
+    }
+  }
+
+  root.addEventListener('click', (event) => {
+    if (event.target === root) {
+      cancelModal();
+    }
+  });
+
+  root.addEventListener('keydown', (event) => {
+    if (
+      event.key === 'Escape' &&
+      root.classList.contains('is-open')
+    ) {
+      event.preventDefault();
+      cancelModal();
+    }
+  });
+
+  return {
+    node: root,
+
+    open({
+      post = null,
+      selection,
+      thumbnails = true,
+      onConfirm = null,
+      onCancel = null,
+    } = {}) {
+      if (
+        !post ||
+        !Array.isArray(post.components) ||
+        post.components.length <= 1
+      ) {
+        return;
+      }
+
+      currentPost = post;
+      currentSelection = normalizeSelection(
+        post,
+        selection,
+      );
+      currentThumbnails = Boolean(thumbnails);
+      onConfirmCallback = onConfirm;
+      onCancelCallback = onCancel;
+
+      title.textContent = post.username
+        ? `${post.username} · настройка карусели`
+        : 'Настройка компонентов карусели';
+
+      renderList();
+      updateSummary();
+      root.classList.add('is-open');
+    },
+
+    close,
   };
 }
