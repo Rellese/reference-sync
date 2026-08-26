@@ -1528,7 +1528,7 @@ function renderRow(post) {
     structureText,
   );
 
-  if (post.componentCount > 1 && !isKnown) {
+  if (post.componentCount > 1) {
     structure.classList.add('is-clickable');
     structure.title = 'Настроить компоненты публикации';
 

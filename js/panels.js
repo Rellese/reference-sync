@@ -1049,6 +1049,8 @@ export function buildMessageModal() {
    ============================================================ */
 export function buildCarouselModal() {
   const root = el('div', 'rs-modal rs-carousel-modal');
+  root.tabIndex = -1;
+
   const box = el(
     'div',
     'rs-modal__box rs-carousel-modal__box',
@@ -1057,7 +1059,7 @@ export function buildCarouselModal() {
   const title = el(
     'div',
     'rs-modal__title rs-carousel-modal__title',
-    'Настройка компонентов карусели',
+    'Выберите нужные файлы',
   );
 
   const content = el(
@@ -1075,9 +1077,19 @@ export function buildCarouselModal() {
     'rs-carousel-modal__list rs-scroll',
   );
 
+  const summaryRow = el(
+    'div',
+    'rs-carousel-modal__summary-row',
+  );
+
   const summary = el(
     'div',
     'rs-carousel-modal__summary',
+  );
+
+  const thumbnailsControl = el(
+    'div',
+    'rs-carousel-modal__thumbnails',
   );
 
   const foot = el(
@@ -1095,7 +1107,8 @@ export function buildCarouselModal() {
     const total = Number(currentPost?.componentCount) || 0;
     const selected = currentSelection.size;
 
-    summary.textContent = `Выбрано ${selected} из ${total}`;
+    summary.textContent =
+      `Выбрано файлов: ${selected} из ${total}`;
   }
 
   function updateSelection(nextSelection) {
@@ -1105,7 +1118,7 @@ export function buildCarouselModal() {
   }
 
   const selectAllButton = createGhostButton({
-    label: 'ВЫБРАТЬ ВСЕ',
+    label: 'ВЫБРАТЬ ВСЁ',
     onClick: () => {
       if (!currentPost) return;
       updateSelection(selectAll(currentPost));
@@ -1113,7 +1126,7 @@ export function buildCarouselModal() {
   });
 
   const clearButton = createGhostButton({
-    label: 'СБРОСИТЬ',
+    label: 'СНЯТЬ ВСЁ',
     onClick: () => {
       updateSelection(clearSelection());
     },
@@ -1142,8 +1155,40 @@ export function buildCarouselModal() {
     videosButton.node,
   );
 
-  const cancel = createGhostButton({
-    label: 'ОТМЕНА',
+  const thumbnailsCheckbox = createCheckbox({
+    checked: true,
+    onChange: (checked) => {
+      currentThumbnails = checked;
+      renderList();
+    },
+  });
+
+  const thumbnailsLabel = el(
+    'span',
+    'rs-carousel-modal__thumbnails-label',
+    'Миниатюры',
+  );
+
+  thumbnailsControl.append(
+    thumbnailsCheckbox.node,
+    thumbnailsLabel,
+  );
+
+  thumbnailsControl.addEventListener('click', (event) => {
+    if (
+      event.target === thumbnailsCheckbox.node ||
+      thumbnailsCheckbox.node.contains(event.target)
+    ) {
+      return;
+    }
+
+    thumbnailsCheckbox.set(!thumbnailsCheckbox.value);
+  });
+
+  summaryRow.append(summary, thumbnailsControl);
+
+  const cancel = createButton({
+    label: 'Отмена',
     onClick: () => cancelModal(),
   });
 
@@ -1153,7 +1198,7 @@ export function buildCarouselModal() {
   });
 
   foot.append(cancel.node, confirm.node);
-  content.append(controls, list, summary);
+  content.append(controls, list, summaryRow);
   box.append(title, content, foot);
   root.appendChild(box);
 
@@ -1224,7 +1269,7 @@ export function buildCarouselModal() {
         const position = el(
           'span',
           'rs-carousel-modal__position',
-          `${display.number}`,
+          `${display.number}.`,
         );
 
         const media = el(
@@ -1242,8 +1287,10 @@ export function buildCarouselModal() {
         row.appendChild(label);
 
         row.addEventListener('click', (event) => {
-          if (event.target === checkbox.node ||
-              checkbox.node.contains(event.target)) {
+          if (
+            event.target === checkbox.node ||
+            checkbox.node.contains(event.target)
+          ) {
             return;
           }
 
@@ -1321,15 +1368,20 @@ export function buildCarouselModal() {
       onConfirmCallback = onConfirm;
       onCancelCallback = onCancel;
 
+      thumbnailsCheckbox.set(currentThumbnails);
+
       title.textContent = post.username
-        ? `${post.username} · настройка карусели`
-        : 'Настройка компонентов карусели';
+        ? `${post.username} · выберите нужные файлы`
+        : 'Выберите нужные файлы';
 
       renderList();
       updateSummary();
+
       root.classList.add('is-open');
+      root.focus();
     },
 
     close,
   };
 }
+

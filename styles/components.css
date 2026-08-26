@@ -388,9 +388,15 @@
    Configuring a Carousel with Thumbnails
    ============================================================ */
 
+.rs-carousel-modal:focus,
+.rs-carousel-modal:focus-visible {
+  outline: none;
+}
+
 .rs-carousel-modal__box {
   width: 576px;
   height: 352px;
+  max-width: none;
   max-height: none;
   box-sizing: border-box;
   padding: 20px;
@@ -403,18 +409,19 @@
 
 .rs-carousel-modal__title {
   flex: none;
+  align-self: stretch;
   width: 534px;
   height: 16px;
+  overflow: hidden;
   font-family: var(--font-mono);
   font-size: 12px;
   font-weight: 400;
   line-height: 16px;
   letter-spacing: 0.1em;
-  text-transform: none;
-  color: #707070;
-  overflow: hidden;
   text-overflow: ellipsis;
+  text-transform: none;
   white-space: nowrap;
+  color: #707070;
 }
 
 .rs-carousel-modal__content {
@@ -422,6 +429,7 @@
   flex: none;
   flex-direction: column;
   align-items: flex-start;
+  align-self: stretch;
   width: 534px;
   height: 218px;
   gap: 16px;
@@ -435,33 +443,39 @@
   width: 534px;
   height: 30px;
   gap: 10px;
+  overflow: visible;
 }
 
-.rs-carousel-modal__controls .rs-btn-ghost {
-  flex: none;
+.rs-carousel-modal__controls > * {
+  min-width: 0;
   height: 30px;
   box-sizing: border-box;
   padding: 7px 15px;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 16px;
+  letter-spacing: 0.1em;
   white-space: nowrap;
 }
 
-.rs-carousel-modal__controls
-  .rs-btn-ghost:nth-child(1) {
+.rs-carousel-modal__controls > :nth-child(1) {
+  flex: 0 0 122px;
   width: 122px;
 }
 
-.rs-carousel-modal__controls
-  .rs-btn-ghost:nth-child(2) {
+.rs-carousel-modal__controls > :nth-child(2) {
+  flex: 0 0 105px;
   width: 105px;
 }
 
-.rs-carousel-modal__controls
-  .rs-btn-ghost:nth-child(3) {
+.rs-carousel-modal__controls > :nth-child(3) {
+  flex: 0 0 164px;
   width: 164px;
 }
 
-.rs-carousel-modal__controls
-  .rs-btn-ghost:nth-child(4) {
+.rs-carousel-modal__controls > :nth-child(4) {
+  flex: 0 0 113px;
   width: 113px;
 }
 
@@ -485,7 +499,7 @@
   display: flex;
   flex: none;
   flex-direction: row;
-  align-items: center;
+  align-items: flex-start;
   width: 100%;
   min-height: 12px;
   gap: 10px;
@@ -493,6 +507,7 @@
 }
 
 .rs-carousel-modal__row.has-thumbnail {
+  align-items: center;
   min-height: 30px;
   gap: 20px;
 }
@@ -523,19 +538,18 @@
   flex: 1 1 auto;
   flex-direction: row;
   align-items: center;
-  gap: 10px;
-  font-family: var(--font-mono);
-  font-size: 12px;
+  gap: 4px;
+  height: 12px;
+  font-family: 'CommitMono', var(--font-mono);
+  font-size: 11px;
   font-weight: 400;
-  line-height: 16px;
+  line-height: 12px;
   letter-spacing: 0.1em;
   color: #B4B4B4;
 }
 
 .rs-carousel-modal__position {
   flex: none;
-  width: 18px;
-  color: #707070;
 }
 
 .rs-carousel-modal__media {
@@ -544,35 +558,179 @@
   white-space: nowrap;
 }
 
+.rs-carousel-modal__summary-row {
+  display: flex;
+  flex: none;
+  flex-direction: row;
+  justify-content: space-between;
+  align-items: flex-start;
+  width: 534px;
+  height: 16px;
+  gap: 16px;
+}
+
 .rs-carousel-modal__summary {
   flex: none;
-  width: 534px;
   height: 16px;
   font-family: var(--font-mono);
   font-size: 12px;
   font-weight: 400;
   line-height: 16px;
   letter-spacing: 0.1em;
-  color: #707070;
+  color: #B4B4B4;
+}
+
+.rs-carousel-modal__thumbnails {
+  display: flex;
+  flex: none;
+  flex-direction: row;
+  align-items: center;
+  height: 16px;
+  gap: 8px;
+  cursor: pointer;
+}
+
+.rs-carousel-modal__thumbnails-label {
+  font-family: var(--font-sans);
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 16px;
+  letter-spacing: 0.1em;
+  color: #B4B4B4;
 }
 
 .rs-carousel-modal__foot {
   display: flex;
   flex: none;
   flex-direction: row;
-  justify-content: center;
   align-items: center;
   width: 534px;
   height: 44px;
   gap: 20px;
 }
 
-.rs-carousel-modal__foot .rs-btn-ghost,
-.rs-carousel-modal__foot .rs-glass {
-  flex: 0 0 245px;
-  width: 245px;
+.rs-carousel-modal__foot > :first-child {
+  min-width: 0;
+  flex: 1 1 267px;
+  width: 267px;
   height: 44px;
   box-sizing: border-box;
+  font-family: var(--font-sans);
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 19px;
+  letter-spacing: 0.1em;
+  text-transform: none;
+}
+
+.rs-carousel-modal__foot > :last-child {
+  min-width: 0;
+  flex: 0 0 247px;
+  width: 247px;
+  height: 44px;
+  box-sizing: border-box;
+}
+/* Финальная геометрия carousel modal:
+   ширину окна определяет верхний ряд кнопок. */
+
+.rs-carousel-modal .rs-carousel-modal__box {
+  width: max-content;
+  min-width: 576px;
+  max-width: none;
+}
+
+/* Title of the Publication:
+   строго IBM Plex Mono Regular 12, без uppercase. */
+.rs-carousel-modal .rs-carousel-modal__title {
+  width: 534px;
+  max-width: 534px;
+  font-family: 'IBM Plex Mono', monospace !important;
+  font-size: 12px !important;
+  font-style: normal !important;
+  font-weight: 400 !important;
+  line-height: 16px !important;
+  letter-spacing: 0.1em !important;
+  text-transform: none !important;
+  color: #707070 !important;
+}
+
+/* Button setting определяет итоговую ширину контента. */
+.rs-carousel-modal .rs-carousel-modal__content {
+  width: auto;
+  min-width: 534px;
+  align-self: stretch;
+}
+
+.rs-carousel-modal .rs-carousel-modal__controls {
+  width: max-content;
+  min-width: 534px;
+  align-self: flex-start;
+}
+
+/* Глобальные стили кнопок не должны менять размеры из Full_design. */
+.rs-carousel-modal .rs-carousel-modal__controls > * {
+  min-width: 0 !important;
+  max-width: none !important;
+  height: 30px !important;
+  box-sizing: border-box !important;
+  padding: 7px 15px !important;
+  font-family: 'IBM Plex Mono', monospace !important;
+  font-size: 12px !important;
+  font-style: normal !important;
+  font-weight: 500 !important;
+  line-height: 16px !important;
+  letter-spacing: 0.1em !important;
+  text-transform: uppercase !important;
+  white-space: nowrap !important;
+}
+
+.rs-carousel-modal
+  .rs-carousel-modal__controls > :nth-child(1) {
+  flex: 0 0 122px !important;
+  width: 122px !important;
+}
+
+.rs-carousel-modal
+  .rs-carousel-modal__controls > :nth-child(2) {
+  flex: 0 0 105px !important;
+  width: 105px !important;
+}
+
+.rs-carousel-modal
+  .rs-carousel-modal__controls > :nth-child(3) {
+  flex: 0 0 164px !important;
+  width: 164px !important;
+}
+
+.rs-carousel-modal
+  .rs-carousel-modal__controls > :nth-child(4) {
+  flex: 0 0 113px !important;
+  width: 113px !important;
+}
+
+/* Остальные горизонтальные блоки занимают всю вычисленную
+   ширину окна, а не сохраняют старые 534px. */
+.rs-carousel-modal .rs-carousel-modal__list,
+.rs-carousel-modal .rs-carousel-modal__summary-row,
+.rs-carousel-modal .rs-carousel-modal__foot {
+  width: 100%;
+  min-width: 534px;
+  align-self: stretch;
+}
+
+/* Нижние кнопки делят доступную ширину между собой. */
+.rs-carousel-modal
+  .rs-carousel-modal__foot > :first-child {
+  min-width: 0 !important;
+  flex: 1 1 0 !important;
+  width: auto !important;
+}
+
+.rs-carousel-modal
+  .rs-carousel-modal__foot > :last-child {
+  min-width: 0 !important;
+  flex: 1 1 0 !important;
+  width: auto !important;
 }
 
 .rs-cell.is-clickable {
