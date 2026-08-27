@@ -1167,8 +1167,7 @@ async function runImport() {
             componentDescriptions[componentIndex] ??
             annotation,
           tags: [
-            'instagram',
-            entry.post.plainUsername,
+            s.platform,
           ].filter(Boolean),
           postId: entry.post.postId,
           component: String(componentIndex),
