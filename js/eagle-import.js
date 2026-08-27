@@ -314,7 +314,16 @@ export function buildNames({
   extraDescription = '',
 } = {}) {
   const result = new Map();
-  let counter = startNumber;
+
+  const publicationNumbers = new Map (
+    posts
+    .filter((post) => selected.has(post.postId))
+    .reverse()
+    .map((post, index) => [
+      post.postId,
+      startNumber + index,
+    ])
+  )
 
   posts.forEach((post) => {
     const isSelected = selected.has(post.postId);
@@ -330,12 +339,9 @@ export function buildNames({
       .filter((value) => Number.isInteger(value) && value > 0);
 
     /* Номер публикации получают только выбранные строки. */
-    const postNumber = isSelected ? counter : null;
-
-    if (isSelected) {
-      counter += 1;
-    }
-
+    const postNumber = isSelected
+     ? publicationNumbers.get(post.postId)
+     : null;
     const numberingByComponent = new Map();
 
     if (numberingEnabled && postNumber !== null) {

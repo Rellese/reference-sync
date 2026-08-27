@@ -139,3 +139,45 @@ test('generated component name remains when name is not edited', () => {
 
   assert.equal(name, '@author instpoporder-1-2');
 });
+
+test('selected publications are numbered from oldest to newest', () => {
+  const posts = ['newest', 'middle', 'oldest'].map((postId) => ({
+    postId,
+    username: '@author',
+    description: '',
+    componentCount: 2,
+    components: [
+      { index: 1 },
+      { index: 2 },
+    ],
+    selectedComponents: [1, 2],
+  }));
+
+  const generated = buildNames({
+    posts,
+    selected: new Set([
+      'newest',
+      'middle',
+      'oldest',
+    ]),
+    numberingEnabled: true,
+    marker: 'instpoporder-',
+    startNumber: 10,
+    destination: 'name',
+  });
+
+  assert.equal(
+    generated.get('oldest').componentNames[0],
+    '@author instpoporder-10-1',
+  );
+
+  assert.equal(
+    generated.get('middle').componentNames[0],
+    '@author instpoporder-11-1',
+  );
+
+  assert.equal(
+    generated.get('newest').componentNames[0],
+    '@author instpoporder-12-1',
+  );
+});
