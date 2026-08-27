@@ -7,7 +7,7 @@
 
 import { el, clear, createCheckbox, createEditButton } from './ui.js';
 import {
-  loadIcons, buildTitlebar, buildHeader, buildSocial, buildSettings,
+  loadIcons, buildHeader, buildSocial, buildSettings,
   buildStatus, buildResults, buildNaming, buildFooter, buildLog,
   buildCollectionModal, buildMessageModal, buildCarouselModal,
 } from './panels.js';
@@ -390,10 +390,6 @@ async function boot() {
   const app = el('div', 'rs-app');
   app.id = 'reference-sync';
 
-  ui.titlebar = buildTitlebar({
-    onClose: () => closeGracefully(),
-  });
-
   ui.header = buildHeader({
     onLanguage: (code) => {
       setSetting('language', code);
@@ -476,7 +472,6 @@ async function boot() {
   work.append(ui.settings.node, right);
 
   app.append(
-    ui.titlebar,
     ui.header,
     ui.social,
     work,
