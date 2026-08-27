@@ -590,6 +590,7 @@
   display: inline-flex;
   align-items: center;
   flex: none;
+  margin-left: 2px;
   color: #E85935;
   white-space: nowrap;
 }
@@ -597,7 +598,7 @@
 .rs-carousel-modal__imported::before {
   content: '\00B7';
   display: inline-block;
-  margin-right: 4px;
+  margin-right: 6px;
   color: #E85935;
 }
 
