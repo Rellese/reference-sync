@@ -353,7 +353,6 @@ export function buildSettings({ onChange, onFolderSearch }) {
   const recentSpinner = createSpinner({
     value: s.recentLimit,
     min: 1,
-    max: 500,
     onChange: (value) => {
       setSetting('recentLimit', value);
       if (onChange) onChange('recentLimit', value);
