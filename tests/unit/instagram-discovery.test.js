@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 
 import {
   buildPostRecords,
+  buildSmartStopFilter,
   canonicalUrl,
   collectPostRecords,
   normalizePost,
@@ -76,6 +77,29 @@ test('invalid nested identifiers do not create fake Instagram URLs', () => {
       pk: 'author-001',
       username: 'nested_user',
     }),
+    null,
+  );
+});
+
+test('smart mode stops at the first known post', () => {
+  assert.equal(
+    buildSmartStopFilter(
+      new Set(['222', '111', '222']),
+    ),
+    'str(post_id) not in ("111","222",) or abort()',
+  );
+});
+
+test('smart stop filter ignores unsafe identifiers', () => {
+  assert.equal(
+    buildSmartStopFilter(
+      new Set(['123', 'bad") or true']),
+    ),
+    'str(post_id) not in ("123",) or abort()',
+  );
+
+  assert.equal(
+    buildSmartStopFilter(new Set()),
     null,
   );
 });

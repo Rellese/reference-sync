@@ -62,6 +62,31 @@ function paceArgs(profile) {
     : [];
 }
 
+export function buildSmartStopFilter(knownPostIds) {
+  const source = knownPostIds instanceof Set
+    ? [...knownPostIds]
+    : Array.isArray(knownPostIds)
+      ? knownPostIds
+      : [];
+
+  const values = [...new Set(
+    source
+      .map((value) => String(value || '').trim())
+      .filter((value) => /^\d+$/.test(value)),
+  )].sort();
+
+  if (!values.length) return null;
+
+  const tuple = values
+    .map((value) => JSON.stringify(value))
+    .join(',');
+
+  return (
+    `str(post_id) not in (${tuple},) ` +
+    'or abort()'
+  );
+}
+
 /* Cookies всегда берутся из явно выбранного профиля.
    При пустом profileId сохраняется совместимость с браузерами,
    где отдельный профиль не обнаружен. */
@@ -790,6 +815,16 @@ export async function discoverSaved({
        smart и full используют курсорную пагинацию gallery-dl. */
     if (searchMode === SEARCH_MODES.RECENT && limit > 0) {
       args.push('--post-range', `1-${limit}`);
+    }
+
+    if (searchMode === SEARCH_MODES.SMART) {
+      const smartFilter = buildSmartStopFilter(
+        knownPostIds,
+      );
+
+      if (smartFilter) {
+        args.push('--filter', smartFilter);
+      }
     }
 
     args.push(target.url);
