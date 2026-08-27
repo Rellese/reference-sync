@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 
 import {
   buildNames,
+  orderImportItemsOldestFirst,
   resolveComponentName,
 } from '../../js/eagle-import.js';
 
@@ -179,5 +180,57 @@ test('selected publications are numbered from oldest to newest', () => {
   assert.equal(
     generated.get('newest').componentNames[0],
     '@author instpoporder-12-1',
+  );
+});
+
+test('Eagle import queue runs from oldest to newest', () => {
+  const posts = [
+    { postId: 'newest' },
+    { postId: 'middle' },
+    { postId: 'oldest' },
+  ];
+
+  const items = [
+    {
+      id: 'newest-1',
+      postId: 'newest',
+      component: '1',
+    },
+    {
+      id: 'newest-2',
+      postId: 'newest',
+      component: '2',
+    },
+    {
+      id: 'middle-1',
+      postId: 'middle',
+      component: '1',
+    },
+    {
+      id: 'oldest-1',
+      postId: 'oldest',
+      component: '1',
+    },
+    {
+      id: 'oldest-2',
+      postId: 'oldest',
+      component: '2',
+    },
+  ];
+
+  const ordered = orderImportItemsOldestFirst(
+    items,
+    posts,
+  );
+
+  assert.deepEqual(
+    ordered.map((item) => item.id),
+    [
+      'oldest-1',
+      'oldest-2',
+      'middle-1',
+      'newest-1',
+      'newest-2',
+    ],
   );
 });

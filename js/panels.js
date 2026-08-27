@@ -906,7 +906,14 @@ export function buildNaming({ onChange }) {
   body.appendChild(descriptionGrid);
 
   root.appendChild(body);
-  return { node: root };
+
+  return {
+     node: root,
+
+    setNumberingStart(value) {
+      startSpinner.set(value);
+    },
+  };
 }
 
 /* ============================================================

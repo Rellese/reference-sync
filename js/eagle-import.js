@@ -49,6 +49,20 @@ export async function checkEagle() {
    Проверка только тех Eagle ID, которые записал ReferenceSync.
    Полная библиотека не сканируется.
    ------------------------------------------------------------ */
+function compactEagleItem(item) {
+  if (!item?.id) return null;
+
+  return {
+    id: String(item.id),
+    name: String(item.name || ''),
+    annotation: String(item.annotation || ''),
+    tags: Array.isArray(item.tags)
+      ? item.tags.map((tag) => String(tag))
+      : [],
+    isDeleted: item.isDeleted === true,
+  };
+}
+
 export async function findEagleItemsByIds(itemIds) {
   const ids = [...new Set(
     (itemIds || [])
@@ -62,13 +76,18 @@ export async function findEagleItemsByIds(itemIds) {
     try {
       const items = await eagleApi.item.get({
         ids,
-        fields: ['id', 'isDeleted'],
+        fields: [
+          'id',
+          'name',
+          'annotation',
+          'tags',
+          'isDeleted',
+        ],
       });
 
-      return (items || []).map((item) => ({
-        id: String(item.id),
-        isDeleted: item.isDeleted === true,
-      }));
+      return (items || [])
+        .map(compactEagleItem)
+        .filter(Boolean);
     } catch (_) {
       /* Пробуем следующий API Eagle. */
     }
@@ -78,10 +97,9 @@ export async function findEagleItemsByIds(itemIds) {
     try {
       const items = await eagleApi.item.getByIds(ids);
 
-      return (items || []).map((item) => ({
-        id: String(item.id),
-        isDeleted: item.isDeleted === true,
-      }));
+      return (items || [])
+        .map(compactEagleItem)
+        .filter(Boolean);
     } catch (_) {
       /* Пробуем HTTP API. */
     }
@@ -99,14 +117,11 @@ export async function findEagleItemsByIds(itemIds) {
         const payload = await response.json();
         const item = payload?.data;
 
-        if (payload?.status !== 'success' || !item?.id) {
+        if (payload?.status !== 'success') {
           return null;
         }
 
-        return {
-          id: String(item.id),
-          isDeleted: item.isDeleted === true,
-        };
+        return compactEagleItem(item);
       } catch (_) {
         return null;
       }
@@ -198,6 +213,40 @@ function findCreatedId(payload) {
     return typeof first === 'string' ? first : first?.id || null;
   }
   return data?.id || null;
+}
+
+export function orderImportItemsOldestFirst(
+  items,
+  posts,
+) {
+  const publicationOrder = new Map(
+    [...(posts || [])]
+      .reverse()
+      .map((post, index) => [
+        String(post.postId),
+        index,
+      ]),
+  );
+
+  return [...(items || [])].sort(
+    (left, right) => {
+      const leftOrder = publicationOrder.get(
+        String(left?.postId || ''),
+      );
+
+      const rightOrder = publicationOrder.get(
+        String(right?.postId || ''),
+      );
+
+      const normalizedLeft =
+        leftOrder ?? Number.MAX_SAFE_INTEGER;
+
+      const normalizedRight =
+        rightOrder ?? Number.MAX_SAFE_INTEGER;
+
+      return normalizedLeft - normalizedRight;
+    },
+  );
 }
 
 /* ------------------------------------------------------------

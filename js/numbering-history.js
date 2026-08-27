@@ -207,11 +207,22 @@ export function resolveContinuedStart({
     return null;
   }
 
+  const platform = normalizePlatform(record.platform);
+
   const numbers = (items || [])
-    .map((item) => extractPublicationNumber(item, {
-      destination: record.destination,
-      marker: record.marker,
-    }))
+    .filter((item) => {
+        const tags = Array.isArray(item?.tags)
+            ? item.tags
+            : [];
+
+        return tags.some(
+            (tag) => normalizePlatform(tag) === platform,
+        );
+    })
+     .map((item) => extractPublicationNumber(item, {
+         destination: record.destination,
+         marker: record.marker,
+        }))
     .filter(
       (value) => Number.isInteger(value) && value > 0,
     );

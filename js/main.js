@@ -35,8 +35,13 @@ import {
 } from './instagram.js';
 
 import {
-  checkEagle, importToEagle, buildNames, listFolders,
-  findEagleItemsByIds, resolveComponentName,
+  checkEagle,
+  importToEagle,
+  buildNames,
+  listFolders,
+  findEagleItemsByIds,
+  orderImportItemsOldestFirst,
+  resolveComponentName,
 } from './eagle-import.js';
 
 import {
@@ -46,6 +51,14 @@ import {
   saveImportRecords,
   selectImportablePosts,
 } from './import-registry.js';
+
+import {
+  createNumberingRecord,
+  loadNumberingRecords,
+  numberingSettingsMatch,
+  resolveContinuedStart,
+  saveNumberingRecords,
+} from './numbering-history.js';
 
 import {
   allPostsImported,
@@ -92,6 +105,9 @@ let recoveryState = null;
 /* Скачанные файлы, восстановленные после аварии */
 let recoveredDownloaded = null;
 
+/* Последняя успешно импортированная нумерация по платформам */
+let numberingRecords = new Map();
+
 /* Штатное закрытие не должно восстанавливаться как авария */
 let closingGracefully = false;
 
@@ -106,6 +122,154 @@ const BROWSER_DISPLAY_NAMES = {
 function browserDisplayName(browser) {
   const key = String(browser || '').trim().toLowerCase();
   return BROWSER_DISPLAY_NAMES[key] || browser || 'браузера';
+}
+
+function normalizedPlatform(value) {
+  return String(value || '')
+    .trim()
+    .toLowerCase();
+}
+
+async function applyNumberingContinuation() {
+  const platform = normalizedPlatform(
+    state.settings.platform,
+  );
+
+  const record = numberingRecords.get(platform);
+
+  if (
+    !record ||
+    !numberingSettingsMatch(
+      record,
+      state.settings,
+    ) ||
+    !record.itemIds.length
+  ) {
+    return false;
+  }
+
+  const items = await findEagleItemsByIds(
+    record.itemIds,
+  );
+
+  const nextNumber = resolveContinuedStart({
+    record,
+    settings: state.settings,
+    items,
+  });
+
+  if (!Number.isInteger(nextNumber)) {
+    ui.log?.add(
+      'Последний номер в Eagle определить не удалось — ' +
+      'сохранено ручное начальное значение.',
+      'warn',
+    );
+
+    return false;
+  }
+
+  setSetting(
+    'numberingStart',
+    nextNumber,
+  );
+
+  ui.naming?.setNumberingStart(
+    nextNumber,
+  );
+
+  numberingRecords.set(platform, {
+    ...record,
+    startNumber: nextNumber,
+  });
+
+  saveNumberingRecords(
+    numberingRecords,
+  );
+
+  ui.log?.add(
+    `Нумерация продолжена с ${nextNumber}.`,
+    'ok',
+  );
+
+  return true;
+}
+
+function rememberImportedNumbering(
+  settings,
+  importedPostIds,
+) {
+  if (
+    settings.numberingEnabled !== true ||
+    !importedPostIds?.size
+  ) {
+    return false;
+  }
+
+  let latest = null;
+
+  for (const postId of importedPostIds) {
+    const postNumber = Number(
+      state.generated.get(postId)?.postNumber,
+    );
+
+    if (
+      !Number.isInteger(postNumber) ||
+      postNumber < 1
+    ) {
+      continue;
+    }
+
+    if (
+      !latest ||
+      postNumber > latest.postNumber
+    ) {
+      latest = {
+        postId,
+        postNumber,
+      };
+    }
+  }
+
+  if (!latest) {
+    return false;
+  }
+
+  const importRecord = state.importRecords.get(
+    latest.postId,
+  );
+
+  const itemIds = [
+    ...(importRecord?.components?.values() || []),
+  ];
+
+  if (!itemIds.length) {
+    return false;
+  }
+
+  const record = createNumberingRecord({
+    settings,
+    lastNumber: latest.postNumber,
+    itemIds,
+  });
+
+  if (!record) {
+    return false;
+  }
+
+  const platform = normalizedPlatform(
+    settings.platform,
+  );
+
+  numberingRecords.set(
+    platform,
+    record,
+  );
+
+  saveNumberingRecords(
+    numberingRecords,
+  );
+
+  return true;
 }
 
 async function refreshImportRegistry() {
@@ -385,6 +549,7 @@ async function boot() {
   bindCloseLifecycle();
   loadSettings();
   state.importRecords = loadImportRecords();
+  numberingRecords = loadNumberingRecords();
   await loadIcons();
 
   const app = el('div', 'rs-app');
@@ -810,6 +975,7 @@ async function runSearch() {
    Изменения формы во время операции не должны менять уже
    запущенный профиль браузера или лимит. */
   await refreshImportRegistry();
+  await applyNumberingContinuation();
   const s = { ...state.settings };
 
 
@@ -1186,7 +1352,10 @@ async function runImport() {
     ui.status.set('Импорт в Eagle…', `0 из ${items.length}`, true);
 
     const { created, failed, stopReason } = await importToEagle({
-      items,
+      items: orderImportItemsOldestFirst(
+        items,
+        state.posts,
+      ),
       signal: state.abortController.signal,
       onProgress: (progress) => {
         ui.status.set('Импорт в Eagle…',
@@ -1237,6 +1406,11 @@ async function runImport() {
       [...state.knownPostIds].filter(
         (postId) => !knownBeforeImport.has(postId),
       ),
+    );
+
+    rememberImportedNumbering(
+      s,
+      importedPostIds,
     );
 
     if (created.length) {

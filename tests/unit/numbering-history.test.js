@@ -137,10 +137,12 @@ test('continues from actual last Eagle publication number', () => {
       {
         id: 'eagle-1',
         name: '@author 250-1',
+        tags: ['instagram'],
       },
       {
         id: 'eagle-2',
         name: '@author 250-2',
+        tags: ['instagram'],
       },
     ],
   });
@@ -184,4 +186,39 @@ test('numbering records survive serialization', () => {
       ],
     },
   );
+});
+
+test('ignores numbering from another platform', () => {
+  const current = settings({
+    numberingMarker: '',
+    numberingStart: 1,
+  });
+
+  const record = createNumberingRecord({
+    settings: current,
+    lastNumber: 250,
+    itemIds: [
+      'instagram-item',
+      'pinterest-item',
+    ],
+  });
+
+  const next = resolveContinuedStart({
+    record,
+    settings: current,
+    items: [
+      {
+        id: 'instagram-item',
+        name: '@author 250',
+        tags: ['instagram'],
+      },
+      {
+        id: 'pinterest-item',
+        name: '@author 999',
+        tags: ['pinterest'],
+      },
+    ],
+  });
+
+  assert.equal(next, 251);
 });
