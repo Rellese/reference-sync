@@ -92,6 +92,9 @@ let recoveryState = null;
 /* Скачанные файлы, восстановленные после аварии */
 let recoveredDownloaded = null;
 
+/* Штатное закрытие не должно восстанавливаться как авария */
+let closingGracefully = false;
+
 const BROWSER_DISPLAY_NAMES = {
   chrome: 'Chrome',
   yandex: 'Yandex',
@@ -190,6 +193,8 @@ function restoreDownloadedEntries(snapshot) {
 }
 
 function checkpointRecovery(phaseName, extra = {}) {
+  if (closingGracefully) return;
+
   const previous = recoveryState || {};
 
   recoveryState = {
@@ -338,7 +343,9 @@ async function restoreInterruptedJob() {
   return true;
 }
 
-async function closeGracefully() {
+function prepareGracefulClose() {
+  closingGracefully = true;
+
   if (state.abortController) {
     state.abortController.abort();
   }
@@ -348,6 +355,10 @@ async function closeGracefully() {
   }
 
   discardRecovery();
+}
+
+async function closeGracefully() {
+  prepareGracefulClose();
 
   if (eagleApi?.window?.hide) {
     await eagleApi.window.hide();
@@ -356,10 +367,22 @@ async function closeGracefully() {
   }
 }
 
+function bindCloseLifecycle() {
+  eagleApi?.onPluginBeforeExit?.(() => {
+    prepareGracefulClose();
+  });
+
+  window.addEventListener(
+    'beforeunload',
+    prepareGracefulClose,
+  );
+}
+
 /* ------------------------------------------------------------
    Запуск
    ------------------------------------------------------------ */
 async function boot() {
+  bindCloseLifecycle();
   loadSettings();
   state.importRecords = loadImportRecords();
   await loadIcons();
