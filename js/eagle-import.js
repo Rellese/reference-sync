@@ -215,18 +215,21 @@ function findCreatedId(payload) {
   return data?.id || null;
 }
 
+export function orderPostsOldestFirst(posts) {
+  return [...(posts || [])].reverse();
+}
+
 export function orderImportItemsOldestFirst(
   items,
   posts,
 ) {
   const publicationOrder = new Map(
-    [...(posts || [])]
-      .reverse()
-      .map((post, index) => [
+    orderPostsOldestFirst(posts)
+      .map((post,index) => [
         String(post.postId),
         index,
       ]),
-  );
+    );
 
   return [...(items || [])].sort(
     (left, right) => {

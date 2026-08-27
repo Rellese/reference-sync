@@ -41,6 +41,7 @@ import {
   listFolders,
   findEagleItemsByIds,
   orderImportItemsOldestFirst,
+  orderPostsOldestFirst,
   resolveComponentName,
 } from './eagle-import.js';
 
@@ -1151,11 +1152,14 @@ async function runImport() {
 
   await refreshImportRegistry();
 
-  const chosen = selectImportablePosts(
-    visiblePosts(),
-    state.selected,
-    state.knownPostIds,
+  const chosen = orderPostsOldestFirst(
+    selectImportablePosts(
+      visiblePosts(),
+      state.selected,
+      state.knownPostIds,
+    ),
   );
+
 
 
   if (!chosen.length) {

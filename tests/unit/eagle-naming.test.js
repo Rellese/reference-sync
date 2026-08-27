@@ -4,6 +4,7 @@ import assert from 'node:assert/strict';
 import {
   buildNames,
   orderImportItemsOldestFirst,
+  orderPostsOldestFirst,
   resolveComponentName,
 } from '../../js/eagle-import.js';
 
@@ -231,6 +232,25 @@ test('Eagle import queue runs from oldest to newest', () => {
       'middle-1',
       'newest-1',
       'newest-2',
+    ],
+  );
+});
+
+test('download queue runs from oldest to newest', () => {
+  const posts = [
+    { postId: 'newest' },
+    { postId: 'middle' },
+    { postId: 'oldest' },
+  ];
+
+  const ordered = orderPostsOldestFirst(posts);
+
+  assert.deepEqual(
+    ordered.map((post) => post.postId),
+    [
+      'oldest',
+      'middle',
+      'newest',
     ],
   );
 });
