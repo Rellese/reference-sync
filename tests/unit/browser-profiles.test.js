@@ -117,6 +117,7 @@ test('builds exact gallery-dl cookie profile specification', () => {
 
 import {
   findInstagramUsername,
+  isTransientCookieReadError,
   parseInstagramCookieExport,
 } from '../../js/instagram.js';
 
@@ -193,5 +194,28 @@ test('does not use username belonging to another user id', () => {
   assert.equal(
     findInstagramUsername(response, '123456'),
     '',
+  );
+});
+
+test('recognizes transient Chromium cookie database failures', () => {
+  assert.equal(
+    isTransientCookieReadError(
+      '[directlink][warning] cookies: database disk image is malformed',
+    ),
+    true,
+  );
+
+  assert.equal(
+    isTransientCookieReadError(
+      'database is locked',
+    ),
+    true,
+  );
+
+  assert.equal(
+    isTransientCookieReadError(
+      'login required',
+    ),
+    false,
   );
 });

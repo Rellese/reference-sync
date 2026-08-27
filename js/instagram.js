@@ -21,7 +21,10 @@ import {
 import {
   browserCookieSpecForProfile,
 } from './browser-profiles.js';
-import { runGallery, requireToolchain } from './toolchain.js';
+import {
+  runGallery as runGalleryOnce,
+  requireToolchain,
+} from './toolchain.js';
 import {
   looksOffline,
   RETRY_STEPS,
@@ -148,6 +151,47 @@ export function parseInstagramCookieExport(
     authenticated: Boolean(hasValidSession && userId),
     userId: hasValidSession ? userId : '',
   };
+}
+
+export function isTransientCookieReadError(value) {
+  const text = String(value || '').toLowerCase();
+
+  return (
+    text.includes('database disk image is malformed') ||
+    text.includes('database is locked') ||
+    text.includes('database is busy') ||
+    text.includes('unable to open database file')
+  );
+}
+
+async function runGallery(args, options = {}) {
+  const firstResult = await runGalleryOnce(
+    args,
+    options,
+  );
+
+  const output = [
+    firstResult.stdout,
+    firstResult.stderr,
+  ].join('\n');
+
+  if (
+    firstResult.code === 0 ||
+    !isTransientCookieReadError(output)
+  ) {
+    return firstResult;
+  }
+
+  await new Promise((resolve) => {
+    setTimeout(resolve, 750);
+  });
+
+  throwIfAborted(options.signal);
+
+  return runGalleryOnce(
+    args,
+    options,
+  );
 }
 
 export function findInstagramUsername(value, userId) {
