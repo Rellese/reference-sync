@@ -1310,17 +1310,18 @@ async function runImport() {
       if (
         downloadStopReason === INSTAGRAM_RATE_LIMITED
       ) {
-        const rateLinitError = new Error(
+        const rateLimitError = new Error(
           'Instagram временно ограничил запросы. ' +
           'Очередь остановлена без повторных попыток.',
         );
 
-        rareLimitError.code = INSTAGRAM_RATE_LIMITED;
-        throw makeInstagramRateLimitError;
+        rateLimitError.code = INSTAGRAM_RATE_LIMITED;
+        throw rateLimitError;
       }
 
       throw new Error('Ни один файл не удалось скачать');
     }
+
 
     /* Формируем элементы для Eagle: карусель даёт несколько файлов,
        каждый становится отдельным элементом со своим номером. */

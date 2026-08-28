@@ -201,7 +201,7 @@ export async function runPublicationQueue(
   for (const [index, item] of items.entries()) {
     try {
       throwIfAborted(signal);
-      } catch (_) {
+    } catch (_) {
       stopped = true;
       stopReason = STOPPED;
       break; 

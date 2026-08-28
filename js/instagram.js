@@ -26,7 +26,6 @@ import {
   requireToolchain,
 } from './toolchain.js';
 import {
-  INSTAGRAM_RATE_LIMITED,
   looksInstagramRateLimited,
   looksOffline,
   makeInstagramRateLimitError,
@@ -1272,7 +1271,6 @@ return {
   results,
   completed,
   failed,
-  stopped: false,
   stopped: queue.stopped,
   stopReason: queue.stopReason,
 };
