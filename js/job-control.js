@@ -203,6 +203,7 @@ export async function runPublicationQueue(
       throwIfAborted(signal);
       } catch (_) {
       stopped = true;
+      stopReason = STOPPED;
       break; 
     }
 

@@ -26,7 +26,10 @@ import {
   requireToolchain,
 } from './toolchain.js';
 import {
+  INSTAGRAM_RATE_LIMITED,
+  looksInstagramRateLimited,
   looksOffline,
+  makeInstagramRateLimitError,
   RETRY_STEPS,
   runPublicationQueue,
   STOPPED,
@@ -1200,7 +1203,13 @@ export async function downloadPosts({
       error = 'gallery-dl не вернул файлов для этой публикации';
     }
 
-        if (error) {
+    if (error && looksInstagramRateLimited(raw)) {
+      const rateLimitError = makeInstagramRateLimitError(error);
+      rateLimitError.files = files;
+      throw rateLimitError;
+    }
+
+    if (error) {
       if (onLog) onLog(`Ошибка: ${post.url} — ${error}`);
 
       const postError = new Error(error);
@@ -1225,7 +1234,10 @@ return completedEntry;
   removeTemporaryFile(cookieFile);
 });
 
-if (queue.stopped) {
+if (
+  queue.stopped &&
+  queue.stopReason === STOPPED
+) {
   const stopError = new Error('Процесс остановлен пользователем');
   stopError.code = STOPPED;
   throw stopError;
@@ -1261,5 +1273,7 @@ return {
   completed,
   failed,
   stopped: false,
+  stopped: queue.stopped,
+  stopReason: queue.stopReason,
 };
 }

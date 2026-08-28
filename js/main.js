@@ -85,6 +85,7 @@ import {
 
 import {
   createJobControl,
+  INSTAGRAM_RATE_LIMITED,
   STOPPED,
   throwIfAborted,
 } from './job-control.js';
@@ -1236,7 +1237,10 @@ async function runImport() {
 
     const completedDownloads = [...restoredResults];
 
-    const { results: newResults } = await downloadPosts({
+    const {
+      results: newResults,
+      stopReason: downloadStopReason,
+    } = await downloadPosts({
       posts: postsToDownload,
       stagingRoot: recoveryState?.stagingRoot || '',
       browser: s.browser,
@@ -1303,6 +1307,18 @@ async function runImport() {
     });
 
     if (!downloaded.length) {
+      if (
+        downloadStopReason === INSTAGRAM_RATE_LIMITED
+      ) {
+        const rateLinitError = new Error(
+          'Instagram временно ограничил запросы. ' +
+          'Очередь остановлена без повторных попыток.',
+        );
+
+        rareLimitError.code = INSTAGRAM_RATE_LIMITED;
+        throw makeInstagramRateLimitError;
+      }
+
       throw new Error('Ни один файл не удалось скачать');
     }
 
@@ -1381,7 +1397,11 @@ async function runImport() {
 
     ui.status.set('Импорт в Eagle…', `0 из ${items.length}`, true);
 
-    const { created, failed, stopReason } = await importToEagle({
+    const {
+      created, 
+      failed, 
+      stopReason: eagleStopReason,
+    } = await importToEagle({
       items: orderImportItemsOldestFirst(
         items,
         state.posts,
@@ -1420,6 +1440,15 @@ async function runImport() {
         });
       },
     });
+
+    const stopReason =
+      downloadStopReason === INSTAGRAM_RATE_LIMITED
+        ? (
+          'Instagram временно ограничил запросы. ' +
+          'Очередь остановлена; уже скачанные файлы добавлены в Eagle. ' +
+          'Подождите и продолжите синхронизацию позже.'
+        )
+        : eagleStopReason;
 
     const knownBeforeImport = new Set(
       state.knownPostIds,
@@ -1523,6 +1552,38 @@ async function runImport() {
   } catch (error) {
     phase = 'ready';
     ui.footer.action.setLabel('Скачать и добавить в Eagle');
+
+    if (error?.code === INSTAGRAM_RATE_LIMITED) {
+      phase = 'ready';
+
+      ui.footer.action.setLabel(
+        'Скачать и добавить в Eagle',
+      );
+
+     ui.footer.action.setDisabled(
+        state.selected.size === 0,
+      );
+
+      ui.status.set(
+        'Instagram ограничил запросы',
+        'Очередь остановлена. Подождите и повторите синхронизацию позже.',
+      );
+
+      ui.status.progress.update({
+        mode: 'stopped',
+        lead: 'Instagram ограничил запросы',
+        trail: 'Файлов добавлено: 0',
+        ...publicationInfo(),
+      });
+
+      ui.log.add(
+        'Instagram временно ограничил запросы. ' +
+        'Повторные попытки остановлены.',
+        'err',
+      );
+
+      return;
+    }
 
     /* Остановка по кнопке «стоп» — не ошибка, а состояние 4 */
     if (error?.code === STOPPED) {
