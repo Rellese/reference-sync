@@ -55,7 +55,7 @@ const SPEED_PROFILES = {
   balanced: { sleepRequest: '1.0-2.0', retries: 2 },
   /* «Молния» — без задержек между запросами. Instagram может
      ответить блокировкой, поэтому режим выбирается вручную. */
-  lightning: { sleepRequest: null, retries: 1 },
+  lightning: { sleepRequest: '0', retries: 1 },
 };
 
 /* Задержка добавляется только если профиль её задаёт */
