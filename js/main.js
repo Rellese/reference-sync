@@ -1081,31 +1081,7 @@ async function runSearch() {
       removeInstagramCookieSnapshot(session.cookieFile);
     }
 
-    const { posts, stoppedEarly } = discoveryResult;({
-      username: s.username,
-      browser: s.browser,
-      browserProfile: s.browserProfile,
-      searchMode: s.searchMode,
-      limit: s.recentLimit,
-      speedProfile: s.speed,
-      collections: s.folderSearch ? state.collections : [],
-      knownPostIds: state.knownPostIds,
-      signal: operationController.signal,
-      onProgress: (progress) => {
-        if (progress.stage === 'discover') {
-          ui.status.set(
-            `Поиск публикаций… найдено ~${progress.approximate}`,
-            `Коллекция: ${progress.collection}`,
-            true);
-          /* Число найденных обновляется на ходу — как просил
-             Instruction/Scale Reviewing for Publications */
-          ui.status.progress.update({
-            trail: `Найдено: ${progress.approximate}`,
-          });
-        }
-      },
-      onLog: (line) => ui.log.add(redact(line)),
-    });
+    const { posts, stoppedEarly } = discoveryResult;
 
     /* Состояние 7 — «Reviewing Publications»: полоса идёт
        из конца в начало, пока список нормализуется */
