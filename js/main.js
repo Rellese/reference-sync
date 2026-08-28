@@ -7,6 +7,11 @@
 
 import { el, clear, createCheckbox, createEditButton } from './ui.js';
 import {
+  applyShiftSelection,
+  createCheckboxGestureState,
+} from './checkbox-selection.js';
+
+import {
   loadIcons, buildHeader, buildSocial, buildSettings,
   buildStatus, buildResults, buildNaming, buildFooter, buildLog,
   buildCollectionModal, buildMessageModal, buildCarouselModal,
@@ -1674,9 +1679,214 @@ function setCarouselPositions(post, positions) {
 /* ------------------------------------------------------------
    Таблица результатов
    ------------------------------------------------------------ */
+const tableSelectionGesture =
+  createCheckboxGestureState();
+
+const tableCheckboxes = new Map();
+
+let tableSelectionChanged = false;
+
+function tablePostVisualState(post) {
+  const isKnown =
+    state.knownPostIds.has(post.postId);
+
+  const carouselState =
+    currentCarouselState(post);
+
+  const selected =
+    !isKnown &&
+    state.selected.has(post.postId) &&
+    (
+      !carouselState ||
+      carouselState.selectedCount > 0
+    );
+
+  return {
+    selected,
+
+    checked: carouselState
+      ? selected && carouselState.checked
+      : selected,
+
+    mixed: Boolean(
+      carouselState &&
+      selected &&
+      carouselState.mixed
+    ),
+
+    carouselState,
+  };
+}
+
+function nextTablePostState(post) {
+  const current = tablePostVisualState(post);
+  const carouselState = current.carouselState;
+
+  if (!carouselState) {
+    return !current.selected;
+  }
+
+  if (current.mixed) {
+    const allAvailableSelected =
+      carouselState.availableCount > 0 &&
+      carouselState.selectedCount ===
+        carouselState.availableCount;
+
+    return !allAvailableSelected;
+  }
+
+  return !current.checked;
+}
+
+function setTablePostChecked(post, checked) {
+  if (
+    !post ||
+    state.knownPostIds.has(post.postId)
+  ) {
+    return;
+  }
+
+  const carouselState =
+    currentCarouselState(post);
+
+  if (carouselState) {
+    setCarouselPositions(
+      post,
+      checked
+        ? carouselState.available
+        : new Set(),
+    );
+
+    if (
+      checked &&
+      carouselState.availableCount > 0
+    ) {
+      state.selected.add(post.postId);
+    } else {
+      state.selected.delete(post.postId);
+    }
+
+    return;
+  }
+
+  if (checked) {
+    state.selected.add(post.postId);
+  } else {
+    state.selected.delete(post.postId);
+  }
+}
+
+function syncTablePostCheckbox(post) {
+  const entry =
+    tableCheckboxes.get(post.postId);
+
+  if (!entry) return;
+
+  const visual =
+    tablePostVisualState(post);
+
+  entry.checkbox.set(
+    visual.checked,
+    true,
+  );
+
+  entry.checkbox.setMixed(
+    visual.mixed,
+  );
+
+  entry.row.classList.toggle(
+    'is-selected',
+    visual.selected,
+  );
+}
+
+function applyTableShiftSelection(
+  targetPost,
+  checked,
+) {
+  const posts = visiblePosts();
+
+  const result = applyShiftSelection({
+    orderedIds: posts.map(
+      (post) => post.postId,
+    ),
+
+    selectedIds: state.selected,
+
+    anchorId:
+      tableSelectionGesture.getAnchor(),
+
+    targetId: targetPost.postId,
+    checked,
+
+    disabledIds: new Set(
+      posts
+        .filter((post) =>
+          state.knownPostIds.has(post.postId))
+        .map((post) => post.postId),
+    ),
+  });
+
+  const postsById = new Map(
+    posts.map((post) => [
+      post.postId,
+      post,
+    ]),
+  );
+
+  result.affectedIds.forEach((postId) => {
+    const post = postsById.get(postId);
+
+    if (
+      !post ||
+      state.knownPostIds.has(postId)
+    ) {
+      return;
+    }
+
+    setTablePostChecked(post, checked);
+    syncTablePostCheckbox(post);
+  });
+
+  tableSelectionGesture.setAnchor(
+    result.anchorId,
+  );
+
+  tableSelectionChanged = true;
+}
+
+function finishTableSelectionGesture() {
+  tableSelectionGesture.endDrag();
+
+  if (!tableSelectionChanged) {
+    return;
+  }
+
+  tableSelectionChanged = false;
+
+  refreshNames();
+  renderTable();
+}
+
+window.addEventListener(
+  'pointerup',
+  finishTableSelectionGesture,
+);
+
+window.addEventListener(
+  'pointercancel',
+  finishTableSelectionGesture,
+);
+
+window.addEventListener(
+  'blur',
+  finishTableSelectionGesture,
+);
+
 function renderTable() {
   const body = ui.results.body;
   clear(body);
+  tableCheckboxes.clear();
 
   const posts = visiblePosts();
   ui.results.setTitle(state.selected.size, posts.length);
@@ -1749,49 +1959,111 @@ const lead = el('div', 'rs-row__lead');
 const checkbox = createCheckbox({
   checked: parentChecked,
   mixed: parentMixed,
+  disabled: isKnown,
 
-  onChange: (value) => {
-    if (isCarousel) {
-      const allAvailableSelected =
-        carouselState.availableCount > 0 &&
-        carouselState.selectedCount ===
-          carouselState.availableCount;
+  onChange: (value, event) => {
+    const checked = parentMixed
+      ? nextTablePostState(post)
+      : value;
 
-      /* Частично импортированная карусель визуально всегда mixed,
-         даже если выбраны все оставшиеся компоненты. Повторный
-         щелчок по такому состоянию должен снять выбор. */
-      const shouldClear =
-        !value ||
-        (
-          parentMixed &&
-          allAvailableSelected
-        );
-
-      if (shouldClear) {
-        setCarouselPositions(post, new Set());
-        state.selected.delete(post.postId);
-      } else {
-        setCarouselPositions(
-          post,
-          carouselState.available,
-        );
-
-        if (carouselState.availableCount) {
-          state.selected.add(post.postId);
-        } else {
-          state.selected.delete(post.postId);
-        }
-      }
-    } else if (value) {
-      state.selected.add(post.postId);
+    if (event?.shiftKey) {
+      applyTableShiftSelection(
+        post,
+        checked,
+      );
     } else {
-      state.selected.delete(post.postId);
+      setTablePostChecked(
+        post,
+        checked,
+      );
+
+      tableSelectionGesture.setAnchor(
+        post.postId,
+      );
+
+      syncTablePostCheckbox(post);
     }
 
     refreshNames();
     renderTable();
   },
+
+  onPointerDown: (event) => {
+    if (isKnown) {
+      return false;
+    }
+
+    const checked =
+      nextTablePostState(post);
+
+    if (event.shiftKey) {
+      applyTableShiftSelection(
+        post,
+        checked,
+      );
+
+      return true;
+    }
+
+    tableSelectionGesture.beginDrag(
+      post.postId,
+      checked,
+    );
+
+    setTablePostChecked(
+      post,
+      checked,
+    );
+
+    syncTablePostCheckbox(post);
+
+    tableSelectionChanged = true;
+
+    return true;
+  },
+
+  onPointerEnter: (event) => {
+    if (
+      isKnown ||
+      !tableSelectionGesture.isDragging()
+    ) {
+      return false;
+    }
+
+    if ((event.buttons & 1) !== 1) {
+      finishTableSelectionGesture();
+      return false;
+    }
+
+    const action =
+      tableSelectionGesture.visitDrag(
+        post.postId,
+      );
+
+    if (!action) {
+      return false;
+    }
+
+    setTablePostChecked(
+      post,
+      action.checked,
+    );
+
+    syncTablePostCheckbox(post);
+
+    tableSelectionChanged = true;
+
+    return true;
+  },
 });
+
+tableCheckboxes.set(
+  post.postId,
+  {
+    checkbox,
+    row,
+  },
+);
 
 if (isKnown) {
   checkbox.node.classList.add('is-disabled');
@@ -2017,6 +2289,7 @@ function startEdit(node, postId, field, multiline = false) {
 }
 
 function toggleAll(value) {
+  tableSelectionGesture.reset();
   const posts = visiblePosts();
 
   posts.forEach((post) => {
