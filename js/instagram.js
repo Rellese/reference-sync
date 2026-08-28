@@ -249,6 +249,70 @@ export function removeInstagramCookieSnapshot(file) {
   removeTemporaryFile(file);
 }
 
+async function createBrowserCookieSnapshot({
+  browser,
+  browserProfile,
+  signal,
+  onLog,
+}) {
+  const cookieSpec = browserCookieSpec(
+    browser,
+    browserProfile,
+  );
+
+  const snapshotRoot = ensureDir(
+    nodeApi.path.join(workRoot(), 'cookie-snapshots'),
+  );
+
+  const cookieFile = nodeApi.path.join(
+    snapshotRoot,
+    `cookies-${Date.now()}-${Math.random()
+      .toString(16)
+      .slice(2)}.txt`,
+  );
+
+  try {
+    throwIfAborted(signal);
+
+    const exportResult = await runGallery([
+      '--config-ignore',
+      '--no-input',
+      '--cookies-from-browser', cookieSpec,
+      '--cookies-export', cookieFile,
+      '--no-download',
+      'http://0/file.jpg',
+    ], {
+      signal,
+      onStderr: (chunk) => {
+        const line = redact(chunk).trim();
+        if (line && onLog) onLog(line);
+      },
+    });
+
+    throwIfAborted(signal);
+
+    if (
+      exportResult.code !== 0 ||
+      !nodeApi.fs.existsSync(cookieFile)
+    ) {
+      throw new Error(
+        'Не удалось создать временный snapshot cookies браузера.',
+      );
+    }
+
+    try {
+      nodeApi.fs.chmodSync(cookieFile, 0o600);
+    } catch (_) {
+      /* chmod может быть недоступен на некоторых системах. */
+    }
+
+    return cookieFile;
+  } catch (error) {
+    removeTemporaryFile(cookieFile);
+    throw error;
+  }
+}
+
 export async function verifyInstagramSession({
   browser = 'chrome',
   browserProfile = '',
@@ -1036,7 +1100,12 @@ export async function downloadPosts({
     if (onStagingReady) {
       onStagingReady(stagingRoot);
     }
-  const cookieSpec = browserCookieSpec(browser, browserProfile)
+  const cookieFile = await createBrowserCookieSnapshot({
+    browser, 
+    browserProfile, 
+    signal, 
+    onLog,
+  });
   const profile = SPEED_PROFILES[speedProfile] || SPEED_PROFILES.safe;
   
 
@@ -1062,7 +1131,7 @@ export async function downloadPosts({
     const args = [
       '--config-ignore',
       '--no-input',
-      '--cookies-from-browser', cookieSpec,
+      '--cookies', cookieFile,
       '--retries', String(profile.retries),
       '--http-timeout', '60',
       ...paceArgs(profile),
@@ -1152,7 +1221,9 @@ if (onCompleted) {
 return completedEntry;
   },
   { signal },
-);
+).finally(() => {
+  removeTemporaryFile(cookieFile);
+});
 
 if (queue.stopped) {
   const stopError = new Error('Процесс остановлен пользователем');
