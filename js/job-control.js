@@ -25,6 +25,9 @@ export const RETRY_STEPS = [5, 10, 15, 20, 25, 30];
 /* Особая причина остановки — её ловит вызывающий код */
 export const STOPPED = 'JOB_STOPPED';
 
+export const INSTAGRAM_RATE_LIMITED =
+  'INSTAGRAM_RATE_LIMITED';
+
 export function makeStopError() {
   const error = new Error('Процесс остановлен пользователем');
   error.code = STOPPED;
@@ -35,6 +38,41 @@ export function throwIfAborted(signal) {
   if (signal?.aborted) {
     throw makeStopError();
   }
+}
+
+const INSTAGRAM_RATE_LIMIT_MARKERS = [
+  '429',
+  'too many requests',
+  'rate limit',
+  'ratelimit',
+  'feedback_required',
+  'challenge_required',
+  'checkpoint_required',
+  'please wait a few minutes',
+  'temporarily blocked',
+  'action blocked',
+];
+
+export function looksInstagramRateLimited(value) {
+  const text = String(value || '').toLowerCase();
+
+  return INSTAGRAM_RATE_LIMIT_MARKERS.some(
+    (marker) => text.includes(marker),
+  );
+}
+
+export function makeInstagramRateLimitError(value) {
+  const sourceMessage = String(
+    value?.message || value || '',
+  ).trim();
+
+  const error = new Error(
+    sourceMessage ||
+    'Instagram временно ограничил автоматические запросы.',
+  );
+
+  error.code = INSTAGRAM_RATE_LIMITED;
+  return error;
 }
 
 export function createJobControl({ onStateChange } = {}) {
@@ -158,6 +196,7 @@ export async function runPublicationQueue(
   const completed = [];
   const failed = [];
   let stopped = false;
+  let stopReason = null;
 
   for (const [index, item] of items.entries()) {
     try {
@@ -173,18 +212,34 @@ export async function runPublicationQueue(
     } catch (error) {
       if (signal?.aborted || error?.code === STOPPED) {
         stopped = true;
+        stopReason = STOPPED;
         break;
       }
 
-      failed.push({
+      const failedEntry = {
         item,
-        error: String(error?.message || error || 'Unknown error'),
+        error: String(
+          error?.message || error || 'Unknown error',
+        ),
         cause: error,
-      });
+      };
+
+      failed.push(failedEntry);
+      
+      if (error?.code === INSTAGRAM_RATE_LIMITED) {
+        stopped = true;
+        stopReason = INSTAGRAM_RATE_LIMITED;
+        break;
+      }
     }
   }
 
-  return { completed, failed, stopped };
+  return {
+    completed,
+    failed,
+    stopped,
+    stopReason,
+  };
 }
 
 

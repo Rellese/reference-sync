@@ -2,6 +2,9 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 
 import {
+  INSTAGRAM_RATE_LIMITED,
+  looksInstagramRateLimited,
+  makeInstagramRateLimitError,
   runPublicationQueue,
   STOPPED,
 } from '../../js/job-control.js';
@@ -97,3 +100,87 @@ test('publication queue treats job-control stop as full cancellation', async () 
   assert.equal(result.failed.length, 0);
 });
 
+test('recognizes Instagram rate-limit responses', () => {
+  assert.equal(
+    looksInstagramRateLimited('429 Too Many Requests'),
+    true,
+  );
+
+  assert.equal(
+    looksInstagramRateLimited(
+      'Instagram API error: feedback_required',
+    ),
+    true,
+  );
+
+  assert.equal(
+    looksInstagramRateLimited(
+      'Please wait a few minutes before you try again',
+    ),
+    true,
+  );
+
+  assert.equal(
+    looksInstagramRateLimited('challenge_required'),
+    true,
+  );
+
+  assert.equal(
+    looksInstagramRateLimited('connection timed out'),
+    false,
+  );
+
+  assert.equal(
+    looksInstagramRateLimited('login required'),
+    false,
+  );
+});
+
+test('publication queue stops at Instagram rate limit', async () => {
+  const visited = [];
+
+  const result = await runPublicationQueue(
+    [
+      { postId: 'first' },
+      { postId: 'limited' },
+      { postId: 'must-not-start' },
+    ],
+    async (post) => {
+      visited.push(post.postId);
+
+      if (post.postId === 'limited') {
+        throw makeInstagramRateLimitError(
+          '429 Too Many Requests',
+        );
+      }
+
+      return `${post.postId}-downloaded`;
+    },
+  );
+
+  assert.deepEqual(
+    visited,
+    ['first', 'limited'],
+  );
+
+  assert.equal(result.stopped, true);
+  assert.equal(
+    result.stopReason,
+    INSTAGRAM_RATE_LIMITED,
+  );
+
+  assert.deepEqual(
+    result.completed.map((entry) => entry.item.postId),
+    ['first'],
+  );
+
+  assert.deepEqual(
+    result.failed.map((entry) => entry.item.postId),
+    ['limited'],
+  );
+
+  assert.equal(
+    result.failed[0].cause.code,
+    INSTAGRAM_RATE_LIMITED,
+  );
+});
