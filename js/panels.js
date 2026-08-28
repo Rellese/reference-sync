@@ -1334,6 +1334,7 @@ export function buildCarouselModal() {
 
             updateSummary();
         },
+      });
 
         if (isImported) {
           checkbox.node.classList.add('is-disabled');
