@@ -347,7 +347,7 @@ export async function verifyInstagramSession({
     const infoResult = await runGallery([
       '--config-ignore',
       '--no-input',
-      '--cookies-from-browser', cookieSpec,
+      '--cookies', cookieFile,
       '--simulate',
       '--dump-json',
       '-o', 'extractor.instagram.metadata=true',
