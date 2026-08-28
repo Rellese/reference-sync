@@ -29,6 +29,10 @@ import {
   videosOnly,
   componentDisplay,
 } from './carousel-selection.js';
+import {
+  applyShiftSelection,
+  createCheckboxGestureState,
+} from './checkbox-selection.js';
 import { createProgressBar } from './progress.js';
 import { installSources, listSources } from './sources/index.js';
 
@@ -1106,6 +1110,8 @@ export function buildCarouselModal() {
   let currentPost = null;
   let currentSelection = new Set();
   let currentImported = new Set();
+  const selectionGesture =
+  createCheckboxGestureState();
   let currentThumbnails = true;
   let onConfirmCallback = null;
   let onCancelCallback = null;
@@ -1148,6 +1154,8 @@ export function buildCarouselModal() {
   }
 
   function updateSelection(nextSelection) {
+    selectionGesture.resetAnchor();
+    
     currentSelection = selectablePositions(
       nextSelection,
     );
@@ -1288,18 +1296,44 @@ export function buildCarouselModal() {
           !isImported &&
           currentSelection.has(componentIndex),
 
-          onChange: (checked) => {
+          onChange: (checked, event) => {
             if (isImported) return;
 
-            if (checked) {
-              currentSelection.add(componentIndex);
+            if (event?.shiftKey) {
+              const scrollTop = list.scrollTop;
+
+              const result = applyShiftSelection({
+                orderedIds: currentPost.components.map(
+                  (_, position) => position,
+                ),
+                selectedIds: currentSelection,
+                anchorId: selectionGesture.getAnchor(),
+                targetId: componentIndex,
+                checked,
+                disabledIds: currentImported,
+              });
+
+              currentSelection = result.selectedIds;
+              selectionGesture.setAnchor(
+                result.anchorId,
+              );
+
+              renderList();
+              list.scrollTop = scrollTop;
             } else {
-              currentSelection.delete(componentIndex);
+              if (checked) {
+                currentSelection.add(componentIndex);
+              } else {
+                currentSelection.delete(componentIndex);
+              }
+
+              selectionGesture.setAnchor(
+                componentIndex,
+              );
             }
 
             updateSummary();
-          },
-        });
+        },
 
         if (isImported) {
           checkbox.node.classList.add('is-disabled');
@@ -1389,6 +1423,7 @@ export function buildCarouselModal() {
   }
 
   function close() {
+    selectionGesture.reset();
     root.classList.remove('is-open');
   }
 
@@ -1472,6 +1507,8 @@ export function buildCarouselModal() {
       : selection;
 
       currentSelection = selectablePositions(initialSelection);
+
+      selectionGesture.reset();
 
       currentThumbnails = Boolean(thumbnails);
       thumbnailsCheckbox.set(currentThumbnails, false);
