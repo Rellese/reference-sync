@@ -1686,6 +1686,204 @@ const tableCheckboxes = new Map();
 
 let tableSelectionChanged = false;
 
+let tableAutoScrollFrame = null;
+let tablePointerX = 0;
+let tablePointerY = 0;
+
+const TABLE_SCROLL_EDGE = 48;
+const TABLE_SCROLL_MAX_SPEED = 18;
+
+function stopTableAutoScroll() {
+  if (tableAutoScrollFrame !== null) {
+    cancelAnimationFrame(tableAutoScrollFrame);
+    tableAutoScrollFrame = null;
+  }
+}
+
+function visitTablePostDuringDrag(post) {
+  if (
+    !post ||
+    state.knownPostIds.has(post.postId) ||
+    !tableSelectionGesture.isDragging()
+  ) {
+    return false;
+  }
+
+  const action =
+    tableSelectionGesture.visitDrag(
+      post.postId,
+    );
+
+  if (!action) {
+    return false;
+  }
+
+  setTablePostChecked(
+    post,
+    action.checked,
+  );
+
+  syncTablePostCheckbox(post);
+
+  tableSelectionChanged = true;
+
+  return true;
+}
+
+function tablePostAtPointer() {
+  const body = ui.results?.body;
+
+  if (!body) {
+    return null;
+  }
+
+  const rect = body.getBoundingClientRect();
+
+  const sampleX = Math.min(
+    rect.right - 1,
+    Math.max(rect.left + 1, tablePointerX),
+  );
+
+  const sampleY = Math.min(
+    rect.bottom - 1,
+    Math.max(rect.top + 1, tablePointerY),
+  );
+
+  const target = document.elementFromPoint(
+    sampleX,
+    sampleY,
+  );
+
+  const row = target?.closest?.(
+    '[data-table-post-id]',
+  );
+
+  if (!row || !body.contains(row)) {
+    return null;
+  }
+
+  return tableCheckboxes.get(
+    row.dataset.tablePostId,
+  )?.post || null;
+}
+
+function runTableAutoScroll() {
+  tableAutoScrollFrame = null;
+
+  if (!tableSelectionGesture.isDragging()) {
+    return;
+  }
+
+  const body = ui.results?.body;
+
+  if (!body) {
+    return;
+  }
+
+  const rect = body.getBoundingClientRect();
+
+  const insideHorizontal =
+    tablePointerX >= rect.left &&
+    tablePointerX <= rect.right;
+
+  const insideVertical =
+    tablePointerY >= rect.top - TABLE_SCROLL_EDGE &&
+    tablePointerY <= rect.bottom + TABLE_SCROLL_EDGE;
+
+  if (!insideHorizontal || !insideVertical) {
+    return;
+  }
+
+  let speed = 0;
+
+  if (
+    tablePointerY <
+    rect.top + TABLE_SCROLL_EDGE
+  ) {
+    const strength = Math.min(
+      1,
+      (
+        rect.top +
+        TABLE_SCROLL_EDGE -
+        tablePointerY
+      ) / TABLE_SCROLL_EDGE,
+    );
+
+    speed =
+      -TABLE_SCROLL_MAX_SPEED * strength;
+  } else if (
+    tablePointerY >
+    rect.bottom - TABLE_SCROLL_EDGE
+  ) {
+    const strength = Math.min(
+      1,
+      (
+        tablePointerY -
+        (
+          rect.bottom -
+          TABLE_SCROLL_EDGE
+        )
+      ) / TABLE_SCROLL_EDGE,
+    );
+
+    speed =
+      TABLE_SCROLL_MAX_SPEED * strength;
+  }
+
+  if (speed === 0) {
+    return;
+  }
+
+  const previousScrollTop =
+    body.scrollTop;
+
+  body.scrollTop += speed;
+
+  visitTablePostDuringDrag(
+    tablePostAtPointer(),
+  );
+
+  if (
+    body.scrollTop !== previousScrollTop &&
+    tableSelectionGesture.isDragging()
+  ) {
+    tableAutoScrollFrame =
+      requestAnimationFrame(
+        runTableAutoScroll,
+      );
+  }
+}
+
+function startTableAutoScroll() {
+  if (
+    tableAutoScrollFrame !== null ||
+    !tableSelectionGesture.isDragging()
+  ) {
+    return;
+  }
+
+  tableAutoScrollFrame =
+    requestAnimationFrame(
+      runTableAutoScroll,
+    );
+}
+
+function updateTableDragPointer(event) {
+  if (!tableSelectionGesture.isDragging()) {
+    return;
+  }
+
+  if ((event.buttons & 1) !== 1) {
+    finishTableSelectionGesture();
+    return;
+  }
+
+  tablePointerX = event.clientX;
+  tablePointerY = event.clientY;
+
+  startTableAutoScroll();
+}
+
 function tablePostVisualState(post) {
   const isKnown =
     state.knownPostIds.has(post.postId);
@@ -1856,6 +2054,7 @@ function applyTableShiftSelection(
 }
 
 function finishTableSelectionGesture() {
+  stopTableAutoScroll();
   tableSelectionGesture.endDrag();
 
   if (!tableSelectionChanged) {
@@ -1867,6 +2066,11 @@ function finishTableSelectionGesture() {
   refreshNames();
   renderTable();
 }
+
+window.addEventListener(
+  'pointermove',
+  updateTableDragPointer,
+);
 
 window.addEventListener(
   'pointerup',
@@ -2010,6 +2214,8 @@ const checkbox = createCheckbox({
       checked,
     );
 
+    updateTableDragPointer(event);
+
     setTablePostChecked(
       post,
       checked,
@@ -2030,38 +2236,21 @@ const checkbox = createCheckbox({
       return false;
     }
 
-    if ((event.buttons & 1) !== 1) {
-      finishTableSelectionGesture();
-      return false;
-    }
+    updateTableDragPointer(event);
 
-    const action =
-      tableSelectionGesture.visitDrag(
-        post.postId,
-      );
-
-    if (!action) {
-      return false;
-    }
-
-    setTablePostChecked(
-      post,
-      action.checked,
-    );
-
-    syncTablePostCheckbox(post);
-
-    tableSelectionChanged = true;
-
-    return true;
+    return visitTablePostDuringDrag(post);
   },
 });
+
+row.dataset.tablePostId =
+  post.postId;
 
 tableCheckboxes.set(
   post.postId,
   {
     checkbox,
     row,
+    post,
   },
 );
 
