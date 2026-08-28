@@ -245,11 +245,16 @@ function removeTemporaryFile(file) {
   }
 }
 
+export function removeInstagramCookieSnapshot(file) {
+  removeTemporaryFile(file);
+}
+
 export async function verifyInstagramSession({
   browser = 'chrome',
   browserProfile = '',
   signal,
   onLog,
+  keepCookieFile = false,
 } = {}) {
   if (!nodeApi.available) {
     throw new Error(
@@ -276,6 +281,8 @@ export async function verifyInstagramSession({
       .toString(16)
       .slice(2)}.txt`,
   );
+
+  let preserveCookieFile = false;
 
   try {
     throwIfAborted(signal);
@@ -384,14 +391,19 @@ export async function verifyInstagramSession({
       };
     }
 
+    preserveCookieFile = keepCookieFile;
+
     return {
       authenticated: true,
       username,
       userId: session.userId,
       error: '',
+      cookieFile: preserveCookieFile ? cookieFile : '',
     };
   } finally {
-    removeTemporaryFile(cookieFile);
+    if (!preserveCookieFile) {
+      removeTemporaryFile(cookieFile);
+    }
   }
 }
 
@@ -801,6 +813,7 @@ export async function discoverSaved({
   username,
   browser = 'chrome',
   browserProfile = '',
+  cookieFile = '',
   searchMode = SEARCH_MODES.SMART,
   limit = 50,
   speedProfile = 'safe',
@@ -821,7 +834,12 @@ export async function discoverSaved({
   requireToolchain();
   throwIfAborted(signal);
 
-  const cookieSpec = browserCookieSpec(browser, browserProfile)
+  const cookieArgs = cookieFile
+    ? ['--cookies', cookieFile]
+    : [
+        '--cookies-from-browser',
+        browserCookieSpec(browser, browserProfile),
+      ];
   const profile = SPEED_PROFILES[speedProfile] || SPEED_PROFILES.safe;
 
   /* Целевые адреса: общая лента или выбранные коллекции.
@@ -847,7 +865,7 @@ export async function discoverSaved({
     const args = [
       '--config-ignore',
       '--no-input',
-      '--cookies-from-browser', cookieSpec,
+      ...cookieArgs,
       '--simulate',
       '--dump-json',
       '--retries', String(profile.retries),

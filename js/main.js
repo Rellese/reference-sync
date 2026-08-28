@@ -35,6 +35,7 @@ import {
   discoverSaved,
   downloadPosts,
   verifyInstagramSession,
+  removeInstagramCookieSnapshot,
   SEARCH_MODES,
   redact,
 } from './instagram.js';
@@ -919,60 +920,66 @@ async function requireMatchingInstagramSession(settings, signal) {
     browserProfile: settings.browserProfile,
     signal,
     onLog: (line) => ui.log.add(line),
+    keepCookieFile: true,
   });
-  throwIfAborted(signal);
+  try{
+    throwIfAborted(signal);
 
-  ui.settings.setInstagramProfileHint(
-    session.username,
-    browserName,
-  );
-
-  if (!session.authenticated) {
-    const error = new Error(
-      session.error ||
-      `В выбранном профиле ${browserName} вход в Instagram не выполнен.`,
+    ui.settings.setInstagramProfileHint(
+      session.username,
+      browserName,
     );
 
-    error.code = 'INSTAGRAM_SESSION_INVALID';
+    if (!session.authenticated) {
+      const error = new Error(
+        session.error ||
+        `В выбранном профиле ${browserName} вход в Instagram не выполнен.`,
+      );
+
+      error.code = 'INSTAGRAM_SESSION_INVALID';
+      throw error;
+    }
+
+    const expected = String(settings.username || '')
+      .trim()
+      .replace(/^@/, '')
+      .toLowerCase();
+
+    const actual = String(session.username || '')
+      .trim()
+      .replace(/^@/, '')
+      .toLowerCase();
+
+    if (expected && actual !== expected) {
+      const profiles = discoverBrowserProfiles(settings.browser);
+      const selected = profiles.find(
+        (profile) => profile.id === settings.browserProfile,
+      );
+
+      const selectedName = selected?.label
+        ? ` «${selected.label}»`
+        : '';
+
+      const error = new Error(
+        `В профиле ${browserName}${selectedName} в Instagram авторизован ` +
+        `@${session.username}, а для поиска указан @${expected}. ` +
+        'Выберите профиль браузера с нужным аккаунтом Instagram ' +
+        'либо войдите в нужный аккаунт и повторите проверку.',
+      );
+
+      error.code = 'INSTAGRAM_ACCOUNT_MISMATCH';
+      throw error;
+    }
+
+    ui.log.add(
+      `Проверен Instagram-аккаунт: @${session.username}`,
+    );
+
+    return session;
+  } catch (error) {
+    removeInstagramCookieSnapshot(session.cookieFile);
     throw error;
   }
-
-  const expected = String(settings.username || '')
-    .trim()
-    .replace(/^@/, '')
-    .toLowerCase();
-
-  const actual = String(session.username || '')
-    .trim()
-    .replace(/^@/, '')
-    .toLowerCase();
-
-  if (expected && actual !== expected) {
-    const profiles = discoverBrowserProfiles(settings.browser);
-    const selected = profiles.find(
-      (profile) => profile.id === settings.browserProfile,
-    );
-
-    const selectedName = selected?.label
-      ? ` «${selected.label}»`
-      : '';
-
-    const error = new Error(
-      `В профиле ${browserName}${selectedName} в Instagram авторизован ` +
-      `@${session.username}, а для поиска указан @${expected}. ` +
-      'Выберите профиль браузера с нужным аккаунтом Instagram ' +
-      'либо войдите в нужный аккаунт и повторите проверку.',
-    );
-
-    error.code = 'INSTAGRAM_ACCOUNT_MISMATCH';
-    throw error;
-  }
-
-  ui.log.add(
-    `Проверен Instagram-аккаунт: @${session.username}`,
-  );
-
-  return session;
 }
 
 /* ---------- Поиск ---------- */
@@ -1032,11 +1039,49 @@ async function runSearch() {
   });
 
   try {
-    await requireMatchingInstagramSession(
+    const session = await requireMatchingInstagramSession(
       s,
-      operationController.signal
+      operationController.signal,
     );
-    const { posts, stoppedEarly } = await discoverSaved({
+
+    let discoveryResult;
+
+    try {
+      discoveryResult = await discoverSaved({
+        username: s.username,
+        browser: s.browser,
+        browserProfile: s.browserProfile,
+        cookieFile: session.cookieFile,
+        searchMode: s.searchMode,
+        limit: s.recentLimit,
+        speedProfile: s.speed,
+        collections: s.folderSearch
+        ? state.collections
+          : [],
+        knownPostIds: state.knownPostIds,
+        signal: operationController.signal,
+        onProgress: (progress) => {
+          if (progress.stage === 'discover') {
+            ui.status.set(
+              `Поиск публикаций… найдено ~${progress.approximate}`,
+              `Коллекция: ${progress.collection}`,
+              true,
+            );
+
+            /* Число найденных обновляется на ходу — как просил
+            Instruction/Scale Reviewing for Publications */
+            ui.status.progress.update({
+              trail: `Найдено: ${progress.approximate}`,
+            });
+          }
+        },
+        onLog: (line) => ui.log.add(redact(line)),
+      });
+    } finally {
+      removeInstagramCookieSnapshot(session.cookieFile);
+    }
+
+    const { posts, stoppedEarly } = discoveryResult;({
       username: s.username,
       browser: s.browser,
       browserProfile: s.browserProfile,
