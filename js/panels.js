@@ -1112,6 +1112,26 @@ export function buildCarouselModal() {
   let currentImported = new Set();
   const selectionGesture =
   createCheckboxGestureState();
+  const componentCheckboxes = new Map();
+
+  const endSelectionGesture = () => {
+    selectionGesture.endDrag();
+  };
+
+  window.addEventListener(
+    'pointerup',
+    endSelectionGesture,
+  );
+
+  window.addEventListener(
+    'pointercancel',
+    endSelectionGesture,
+  );
+
+  window.addEventListener(
+    'blur',
+    endSelectionGesture,
+  );
   let currentThumbnails = true;
   let onConfirmCallback = null;
   let onCancelCallback = null;
@@ -1161,6 +1181,57 @@ export function buildCarouselModal() {
     );
 
     renderList();
+    updateSummary();
+  }
+
+  function setComponentChecked(
+  componentIndex,
+  checked,
+) {
+  if (currentImported.has(componentIndex)) {
+    return;
+  }
+
+  if (checked) {
+    currentSelection.add(componentIndex);
+  } else {
+    currentSelection.delete(componentIndex);
+  }
+}
+
+function syncComponentCheckboxes() {
+  componentCheckboxes.forEach(
+    (checkbox, componentIndex) => {
+      checkbox.set(
+        currentSelection.has(componentIndex),
+        true,
+      );
+    },
+  );
+}
+
+  function shiftComponentSelection(
+    componentIndex,
+    checked,
+  ) {
+    const result = applyShiftSelection({
+      orderedIds: currentPost.components.map(
+        (_, position) => position,
+      ),
+      selectedIds: currentSelection,
+      anchorId: selectionGesture.getAnchor(),
+      targetId: componentIndex,
+      checked,
+      disabledIds: currentImported,
+    });
+
+    currentSelection = result.selectedIds;
+
+    selectionGesture.setAnchor(
+      result.anchorId,
+    );
+
+    syncComponentCheckboxes();
     updateSummary();
   }
 
@@ -1257,6 +1328,7 @@ export function buildCarouselModal() {
 
   function renderList() {
     clear(list);
+    componentCheckboxes.clear();
 
     if (!currentPost?.components?.length) {
       return;
@@ -1293,48 +1365,100 @@ export function buildCarouselModal() {
 
         const checkbox = createCheckbox({
           checked:
-          !isImported &&
-          currentSelection.has(componentIndex),
+            !isImported &&
+            currentSelection.has(componentIndex),
+
+          disabled: isImported,
 
           onChange: (checked, event) => {
             if (isImported) return;
 
             if (event?.shiftKey) {
-              const scrollTop = list.scrollTop;
-
-              const result = applyShiftSelection({
-                orderedIds: currentPost.components.map(
-                  (_, position) => position,
-                ),
-                selectedIds: currentSelection,
-                anchorId: selectionGesture.getAnchor(),
-                targetId: componentIndex,
-                checked,
-                disabledIds: currentImported,
-              });
-
-              currentSelection = result.selectedIds;
-              selectionGesture.setAnchor(
-                result.anchorId,
-              );
-
-              renderList();
-              list.scrollTop = scrollTop;
-            } else {
-              if (checked) {
-                currentSelection.add(componentIndex);
-              } else {
-                currentSelection.delete(componentIndex);
-              }
-
-              selectionGesture.setAnchor(
+              shiftComponentSelection(
                 componentIndex,
+                checked,
               );
+              return;
             }
 
+            setComponentChecked(
+              componentIndex,
+              checked,
+            );
+
+            selectionGesture.setAnchor(
+              componentIndex,
+            );
+
             updateSummary();
-        },
-      });
+          },
+
+          onPointerDown: (event, api) => {
+            if (isImported) return false;
+
+            const checked =
+              !currentSelection.has(componentIndex);
+
+            if (event.shiftKey) {
+              shiftComponentSelection(
+                componentIndex,
+                checked,
+              );
+
+              return true;
+            }
+
+            selectionGesture.beginDrag(
+              componentIndex,
+              checked,
+            );
+
+            setComponentChecked(
+              componentIndex,
+              checked,
+            );
+
+            api.set(checked, true);
+            updateSummary();
+
+            return true;
+          },
+
+          onPointerEnter: (event, api) => {
+            if (
+              isImported ||
+              !selectionGesture.isDragging()
+            ) {
+              return;
+            }
+
+            if ((event.buttons & 1) !== 1) {
+              selectionGesture.endDrag();
+              return;
+            }
+
+            const action =
+              selectionGesture.visitDrag(
+                componentIndex,
+              );
+
+            if (!action) return;
+
+            setComponentChecked(
+              action.id,
+              action.checked,
+            );
+
+            api.set(action.checked, true);
+            updateSummary();
+          },
+        });
+
+        componentCheckboxes.set(
+          componentIndex,
+          checkbox,
+        );
+
 
         if (isImported) {
           checkbox.node.classList.add('is-disabled');
