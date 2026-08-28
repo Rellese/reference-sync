@@ -75,7 +75,15 @@ export function createSwitch({ checked = false, onChange, label, id } = {}) {
 /* ------------------------------------------------------------
    Checkbox — 12×12 + галочка Vector 1
    ------------------------------------------------------------ */
-export function createCheckbox({ checked = false, mixed = false, onChange, label } = {}) {
+export function createCheckbox({
+  checked = false,
+  mixed = false,
+  disabled = false,
+  onChange,
+  onPointerDown,
+  onPointerEnter,
+  label,
+} = {}) {
   const root = el('div', 'rs-check');
   root.setAttribute('role', 'checkbox');
   root.setAttribute('tabindex', '0');
@@ -83,56 +91,199 @@ export function createCheckbox({ checked = false, mixed = false, onChange, label
 
   let value = Boolean(checked);
   let isMixed = Boolean(mixed);
+  let isDisabled = Boolean(disabled);
+  let suppressNextClick = false;
 
   const apply = () => {
-    root.classList.toggle('is-on', value && !isMixed);
-    root.classList.toggle('is-mixed', isMixed);
-    root.setAttribute('aria-checked', isMixed ? 'mixed' : String(value));
+    root.classList.toggle(
+      'is-on',
+      value && !isMixed,
+    );
+
+    root.classList.toggle(
+      'is-mixed',
+      isMixed,
+    );
+
+    root.classList.toggle(
+      'is-disabled',
+      isDisabled,
+    );
+
+    root.setAttribute(
+      'aria-checked',
+      isMixed ? 'mixed' : String(value),
+    );
+
+    root.setAttribute(
+      'aria-disabled',
+      String(isDisabled),
+    );
+
+    root.setAttribute(
+      'tabindex',
+      isDisabled ? '-1' : '0',
+    );
   };
 
-  const toggle = () => {
-    if (root.classList.contains('is-disabled')) return;
-    value = isMixed ? true : !value;
+  const toggle = (event) => {
+    if (isDisabled) return;
+
+    value = isMixed
+      ? true
+      : !value;
+
     isMixed = false;
     apply();
-    if (onChange) onChange(value);
+
+    if (onChange) {
+      onChange(value, event);
+    }
   };
 
-  root.addEventListener('click', (event) => {
+  const handleClick = (event) => {
     event.stopPropagation();
-    toggle();
-  });
-  root.addEventListener('keydown', (event) => {
-    if (event.key === ' ' || event.key === 'Enter') {
-      event.preventDefault();
-      toggle();
+
+    if (suppressNextClick) {
+      suppressNextClick = false;
+      return;
     }
-  });
-  apply();
+
+    toggle(event);
+  };
+
+  const handlePointerDown = (event) => {
+    if (
+      isDisabled ||
+      !onPointerDown ||
+      event.button !== 0
+    ) {
+      return;
+    }
+
+    const handled = onPointerDown(
+      event,
+      api,
+    ) === true;
+
+    if (!handled) return;
+
+    suppressNextClick = true;
+    event.preventDefault();
+    event.stopPropagation();
+  };
+
+  const handlePointerEnter = (event) => {
+    if (
+      isDisabled ||
+      !onPointerEnter
+    ) {
+      return;
+    }
+
+    const handled = onPointerEnter(
+      event,
+      api,
+    ) === true;
+
+    if (!handled) return;
+
+    event.preventDefault();
+    event.stopPropagation();
+  };
+
+  root.addEventListener(
+    'click',
+    handleClick,
+  );
+
+  root.addEventListener(
+    'pointerdown',
+    handlePointerDown,
+  );
+
+  root.addEventListener(
+    'pointerenter',
+    handlePointerEnter,
+  );
+
+  root.addEventListener(
+    'keydown',
+    (event) => {
+      if (
+        event.key !== ' ' &&
+        event.key !== 'Enter'
+      ) {
+        return;
+      }
+
+      event.preventDefault();
+      toggle(event);
+    },
+  );
 
   const api = {
     node: root,
-    get value() { return value; },
-    set(next, silent) {
+
+    get value() {
+      return value;
+    },
+
+    get disabled() {
+      return isDisabled;
+    },
+
+    set(next, silent = false) {
       value = Boolean(next);
       isMixed = false;
       apply();
-      if (!silent && onChange) onChange(value);
+
+      if (!silent && onChange) {
+        onChange(value);
+      }
     },
+
     setMixed(state) {
       isMixed = Boolean(state);
-      if (isMixed) value = false;
+
+      if (isMixed) {
+        value = false;
+      }
+
+      apply();
+    },
+
+    setDisabled(state) {
+      isDisabled = Boolean(state);
       apply();
     },
   };
 
-  if (label === undefined) return api;
+  apply();
 
-  const row = el('div', 'rs-check-row');
-  const text = el('span', 'rs-check-row__label', label);
-  text.addEventListener('click', toggle);
+  if (label === undefined) {
+    return api;
+  }
+
+  const row = el(
+    'div',
+    'rs-check-row',
+  );
+
+  const text = el(
+    'span',
+    'rs-check-row__label',
+    label,
+  );
+
+  text.addEventListener(
+    'click',
+    (event) => toggle(event),
+  );
+
   row.append(root, text);
   api.row = row;
+
   return api;
 }
 
