@@ -2122,6 +2122,81 @@ function syncTablePostCheckbox(post) {
   );
 }
 
+const TABLE_SELECTION_BATCH_SIZE = 100;
+
+let tableSelectionSyncFrame = null;
+let tableSelectionSyncVersion = 0;
+
+function updateTableSelectionTitle() {
+  ui.results.setTitle(
+    state.selected.size,
+    visiblePosts().length,
+  );
+}
+
+function stopTableSelectionSync() {
+  tableSelectionSyncVersion += 1;
+
+  if (tableSelectionSyncFrame !== null) {
+    cancelAnimationFrame(
+      tableSelectionSyncFrame,
+    );
+
+    tableSelectionSyncFrame = null;
+  }
+}
+
+function syncTableSelectionInBatches() {
+  stopTableSelectionSync();
+
+  const version =
+    tableSelectionSyncVersion;
+
+  const posts = [
+    ...tableCheckboxes.values(),
+  ]
+    .map((entry) => entry.post)
+    .filter(Boolean);
+
+  let position = 0;
+
+  function syncBatch() {
+    if (
+      version !==
+      tableSelectionSyncVersion
+    ) {
+      return;
+    }
+
+    const end = Math.min(
+      position +
+        TABLE_SELECTION_BATCH_SIZE,
+      posts.length,
+    );
+
+    while (position < end) {
+      syncTablePostCheckbox(
+        posts[position],
+      );
+
+      position += 1;
+    }
+
+    if (position < posts.length) {
+      tableSelectionSyncFrame =
+        requestAnimationFrame(
+          syncBatch,
+        );
+
+      return;
+    }
+
+    tableSelectionSyncFrame = null;
+  }
+
+  syncBatch();
+}
+
 function applyTableShiftSelection(
   targetPost,
   checked,
@@ -2187,8 +2262,7 @@ function finishTableSelectionGesture() {
 
   tableSelectionChanged = false;
 
-  refreshNames();
-  renderTable();
+  updateTableSelectionTitle();
 }
 
 window.addEventListener(
@@ -2212,6 +2286,8 @@ window.addEventListener(
 );
 
 function renderTable() {
+  stopTableSelectionSync();
+
   const body = ui.results.body;
   clear(body);
   tableCheckboxes.clear();
@@ -2312,8 +2388,7 @@ const checkbox = createCheckbox({
       syncTablePostCheckbox(post);
     }
 
-    refreshNames();
-    renderTable();
+    updateTableSelectionTitle();
   },
 
   onPointerDown: (event) => {
@@ -2603,46 +2678,20 @@ function startEdit(node, postId, field, multiline = false) {
 
 function toggleAll(value) {
   tableSelectionGesture.reset();
+  stopTableAutoScroll();
+  stopTableSelectionSync();
+
   const posts = visiblePosts();
 
   posts.forEach((post) => {
-    if (state.knownPostIds.has(post.postId)) {
-      state.selected.delete(post.postId);
-      return;
-    }
-
-    const carouselState = currentCarouselState(post);
-
-    if (!value) {
-      state.selected.delete(post.postId);
-
-      if (carouselState) {
-        setCarouselPositions(post, new Set());
-      }
-
-      return;
-    }
-
-    if (carouselState) {
-      setCarouselPositions(
-        post,
-        carouselState.available,
-      );
-
-      if (carouselState.availableCount) {
-        state.selected.add(post.postId);
-      } else {
-        state.selected.delete(post.postId);
-      }
-
-      return;
-    }
-
-    state.selected.add(post.postId);
+    setTablePostChecked(
+      post,
+      value,
+    );
   });
 
-  refreshNames();
-  renderTable();
+  updateTableSelectionTitle();
+  syncTableSelectionInBatches();
 }
 
 function clearResults() {
