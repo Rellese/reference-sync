@@ -292,11 +292,16 @@ const OFFLINE_MARKERS = [
 
 export function looksOffline(text) {
   const lower = String(text || '').toLowerCase();
-  /* Явный отказ сервиса — это не обрыв связи */
-  if (lower.includes('login required') || lower.includes('checkpoint') ||
-      lower.includes('challenge') || lower.includes('rate limit') ||
-      lower.includes('429')) {
+
+  /* Явный отказ Instagram — это не обрыв связи */
+  if (
+    lower.includes('login required') ||
+    looksInstagramRateLimited(lower)
+  ) {
     return false;
   }
-  return OFFLINE_MARKERS.some((marker) => lower.includes(marker));
+
+  return OFFLINE_MARKERS.some(
+    (marker) => lower.includes(marker),
+  );
 }

@@ -1085,7 +1085,7 @@ function classifyFailure(result, browser) {
     return 'Instagram требует повторный вход. Откройте instagram.com в браузере, ' +
       'войдите в аккаунт и повторите поиск.';
   }
-  if (text.includes('429') || text.includes('rate limit')) {
+  if (looksInstagramRateLimited(text)) {
     return 'Instagram ограничил частоту запросов. Подождите и включите ' +
       'безопасный режим скорости.';
   }

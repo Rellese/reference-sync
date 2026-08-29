@@ -4,6 +4,7 @@ import assert from 'node:assert/strict';
 import {
   INSTAGRAM_RATE_LIMITED,
   looksInstagramRateLimited,
+  looksOffline,
   makeInstagramRateLimitError,
   runPublicationQueue,
   STOPPED,
@@ -209,5 +210,21 @@ test('publication queue stops at Instagram rate limit', async () => {
   assert.equal(
     result.failed[0].cause.code,
     INSTAGRAM_RATE_LIMITED,
+  );
+});
+
+test('numeric media ids do not hide real network errors', () => {
+  assert.equal(
+    looksOffline(
+      'connection timed out while downloading media 18442912345678901',
+    ),
+    true,
+  );
+
+  assert.equal(
+    looksOffline(
+      'HTTP Error 429: Too Many Requests',
+    ),
+    false,
   );
 });
