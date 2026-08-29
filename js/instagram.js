@@ -1110,6 +1110,7 @@ export async function downloadPosts({
   posts,
   browser = 'chrome',
   browserProfile = '',
+  cookieFile: suppliedCookieFile = '',
   stagingRoot: existingStagingRoot = '',
   speedProfile = 'safe',
   onProgress,
@@ -1140,11 +1141,18 @@ export async function downloadPosts({
     if (onStagingReady) {
       onStagingReady(stagingRoot);
     }
-  const cookieFile = await createBrowserCookieSnapshot({
-    browser, 
-    browserProfile, 
-    signal, 
-    onLog,
+  const externalCookieFile = String(
+    suppliedCookieFile || '',
+  ).trim();
+
+  const ownsCookieFile = !externalCookieFile;
+
+  const activeCookieFile = externalCookieFile ||
+    await createBrowserCookieSnapshot({
+      browser,
+      browserProfile,
+      signal,
+      onLog,
   });
   const profile = SPEED_PROFILES[speedProfile] || SPEED_PROFILES.safe;
   
@@ -1171,7 +1179,7 @@ export async function downloadPosts({
     const args = [
       '--config-ignore',
       '--no-input',
-      '--cookies', cookieFile,
+      '--cookies', activeCookieFile,
       '--retries', String(profile.retries),
       '--http-timeout', '60',
       ...paceArgs(profile),
@@ -1268,7 +1276,9 @@ return completedEntry;
   },
   { signal },
 ).finally(() => {
-  removeTemporaryFile(cookieFile);
+  if (ownsCookieFile) {
+    removeTemporaryFile(activeCookieFile);
+  }
 });
 
 if (

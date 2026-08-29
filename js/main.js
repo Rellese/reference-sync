@@ -1042,7 +1042,7 @@ async function runSearch() {
   try {
     const session = await requireMatchingInstagramSession(
       s,
-      operationController.signal,
+      state.abortController.signal,
     );
 
     let discoveryResult;
@@ -1226,6 +1226,7 @@ async function runImport() {
 
   phase = 'importing';
   state.abortController = new AbortController();
+  let sessionCookieFile = '';
   checkpointRecovery('importing');
   control = createJobControl();
   ui.footer.action.setLabel('Остановить');
@@ -1273,6 +1274,7 @@ async function runImport() {
       stagingRoot: recoveryState?.stagingRoot || '',
       browser: s.browser,
       browserProfile: s.browserProfile,
+      cookieFile: sessionCookieFile,
       speedProfile: s.speed,
       signal: state.abortController.signal,
       control,
@@ -1629,6 +1631,10 @@ async function runImport() {
       reportRunError('Ошибка импорта', error);
     }
   } finally {
+    if (sessionCookieFile) {
+      removeInstagramCookieSnapshot(sessionCookieFile);
+      sessionCookieFile = '';
+    }
     state.abortController = null;
     control = null;
   }
