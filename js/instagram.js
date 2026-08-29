@@ -1383,11 +1383,12 @@ if (onLog) {
           }
         } else {
           if (onLog) {
-            onlog(
+            onLog(
               'Прямые ссылки отсутствуют: ' +
               'получаем данные через страницу публикации.',
             );
           }
+
           result = await runGallery(fallbackArgs, {
             signal,
             onStderr: handleStderr,
