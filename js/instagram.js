@@ -963,15 +963,23 @@ export async function discoverSaved({
 
     let buffer = '';
     let discovered = 0;
+    let discoveryStderr = '';
+    let result;
 
-    const result = await runGallery(args, {
+    try {
+    result = await runGallery(args, {
       signal,
       onStdout: (chunk) => {
         buffer += chunk;
+
         /* Прогресс по мере поступления записей */
-        const matches = chunk.match(/"post_id"|"post_shortcode"/g);
+        const matches = chunk.match(
+          /"post_id"|"post_shortcode"/g,
+        );
+
         if (matches && onProgress) {
           discovered += matches.length;
+
           onProgress({
             stage: 'discover',
             collection: target.name,
@@ -980,11 +988,42 @@ export async function discoverSaved({
         }
       },
       onStderr: (chunk) => {
+        discoveryStderr += chunk;
+
         const line = redact(chunk).trim();
-        if (line && onLog) onLog(line);
+
+        if (line && onLog) {
+          onLog(line);
+        }
       },
     });
+  } catch (error) {
+    const evidence = [
+      discoveryStderr,
+      error?.message || error || '',
+    ].join('\n');
+
+    if (looksInstagramRateLimited(evidence)) {
+      throw makeInstagramRateLimitError(
+        'Instagram временно ограничил запросы во время поиска.',
+      );
+    }
+
+    throw error;
+  }
     throwIfAborted(signal);
+
+    const rateLimitEvidence = [
+      discoveryStderr,
+      result?.stdout || '',
+      result?.stderr || '',
+    ].join('\n');
+
+    if (looksInstagramRateLimited(rateLimitEvidence)) {
+      throw makeInstagramRateLimitError(
+        'Instagram временно ограничил запросы во время поиска.',
+      );
+    }
 
    const records = buildPostRecords(
       collectPostRecords(parseJsonStream(buffer)),

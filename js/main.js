@@ -1129,28 +1129,56 @@ async function runSearch() {
     phase = 'idle';
     ui.footer.action.setLabel('Начать поиск');
 
-    if (
+    if (error?.code === INSTAGRAM_RATE_LIMITED) {
+      discardRecovery();
+
+      ui.status.showProgress(true);
+
+      ui.status.set(
+        'Instagram ограничил запросы',
+        'Поиск остановлен. Подождите некоторое время и повторите.',
+      );
+
+      ui.status.progress.update({
+        mode: 'stopped',
+        lead: 'Поиск остановлен',
+        trail: 'Instagram временно ограничил запросы',
+      });
+
+      ui.log.add(
+        `Поиск остановлен: ${error.message}`,
+        'err',
+      );
+    } else if (
       operationController.signal.aborted ||
       error?.code === STOPPED
     ) {
       discardRecovery();
+
       ui.status.showProgress(true);
+
       ui.status.set(
         'Поиск остановлен',
         'Можно изменить параметры и запустить поиск снова',
       );
+
       ui.status.progress.update({
         mode: 'stopped',
         lead: 'Процесс остановлен',
         trail: 'Поиск публикаций отменён',
       });
-      ui.log.add('Поиск остановлен пользователем.', 'warn');
+
+      ui.log.add(
+        'Поиск остановлен пользователем.',
+        'warn',
+      );
     } else {
       discardRecovery();
       ui.status.showProgress(false);
       reportRunError('Ошибка поиска', error);
     }
   } finally {
+
     if (state.abortController === operationController) {
       state.abortController = null;
     }
