@@ -1042,7 +1042,7 @@ async function runSearch() {
   try {
     const session = await requireMatchingInstagramSession(
       s,
-      state.abortController.signal,
+      operationController.signal,
     );
 
     let discoveryResult;
@@ -1250,7 +1250,14 @@ async function runImport() {
   });
 
   try {
-        const restoredResults = Array.isArray(recoveredDownloaded)
+    const session = await requireMatchingInstagramSession(
+      s,
+      state.abortController.signal,
+    );
+
+    sessionCookieFile = session.cookieFile;
+
+    const restoredResults = Array.isArray(recoveredDownloaded)
       ? recoveredDownloaded
       : [];
 
