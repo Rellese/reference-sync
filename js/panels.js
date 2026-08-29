@@ -1550,8 +1550,30 @@ function syncComponentCheckboxes() {
         row.dataset.carouselComponentIndex =
           String(componentIndex);
 
+        row.addEventListener(
+          'pointerenter',
+          (event) => {
+            /*
+            * M1-T08H:
+            * во время drag-selection компонент
+            * срабатывает по всей площади строки.
+            */
+            if (
+              !selectionGesture.isDragging()
+            ) {
+              return;
+            }
+
+            updateCarouselDragPointer(event);
+
+            visitCarouselComponentDuringDrag(
+              componentIndex,
+            );
+          },
+        );
+
         const isImported =
-        currentImported.has(componentIndex);
+          currentImported.has(componentIndex);
 
         row.classList.toggle(
           'is-imported',

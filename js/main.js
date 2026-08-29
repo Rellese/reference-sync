@@ -7,6 +7,7 @@
 
 import { el, clear, createCheckbox, createEditButton } from './ui.js';
 import {
+  checkboxRange,
   applyShiftSelection,
   createCheckboxGestureState,
 } from './checkbox-selection.js';
@@ -1808,6 +1809,8 @@ const tableSelectionGesture =
 
 const tableCheckboxes = new Map();
 
+const tableRangePreviewIds = new Set();
+
 let tableSelectionChanged = false;
 
 let tableAutoScrollFrame = null;
@@ -2122,6 +2125,64 @@ function syncTablePostCheckbox(post) {
   );
 }
 
+function clearTableRangePreview() {
+  for (
+    const postId
+    of tableRangePreviewIds
+  ) {
+    tableCheckboxes
+      .get(postId)
+      ?.checkbox.node.classList.remove(
+        'is-range-preview',
+      );
+  }
+
+  tableRangePreviewIds.clear();
+}
+
+function previewTableRange(targetPostId) {
+  const anchorPostId =
+    tableSelectionGesture.getAnchor();
+
+  if (
+    !anchorPostId ||
+    !targetPostId
+  ) {
+    clearTableRangePreview();
+    return;
+  }
+
+  const orderedPostIds = [
+    ...tableCheckboxes.keys(),
+  ];
+
+  const range = checkboxRange(
+    orderedPostIds,
+    anchorPostId,
+    targetPostId,
+  );
+
+  clearTableRangePreview();
+
+  for (const postId of range) {
+    const entry =
+      tableCheckboxes.get(postId);
+
+    if (
+      !entry ||
+      state.knownPostIds.has(postId)
+    ) {
+      continue;
+    }
+
+    entry.checkbox.node.classList.add(
+      'is-range-preview',
+    );
+
+    tableRangePreviewIds.add(postId);
+  }
+}
+
 const TABLE_SELECTION_BATCH_SIZE = 100;
 
 let tableSelectionSyncFrame = null;
@@ -2326,6 +2387,20 @@ window.addEventListener(
 );
 
 window.addEventListener(
+  'keyup',
+  (event) => {
+    if (event.key === 'Shift') {
+      clearTableRangePreview();
+    }
+  },
+);
+
+window.addEventListener(
+  'blur',
+  clearTableRangePreview,
+);
+
+window.addEventListener(
   'pointercancel',
   finishTableSelectionGesture,
 );
@@ -2338,6 +2413,7 @@ window.addEventListener(
 function renderTable() {
   stopTableSelectionSync();
   stopTableSelectionTitleUpdate();
+  clearTableRangePreview();
 
   const body = ui.results.body;
   clear(body);
@@ -2422,6 +2498,7 @@ const checkbox = createCheckbox({
       : value;
 
     if (event?.shiftKey) {
+      clearTableRangePreview();
       applyTableShiftSelection(
         post,
         checked,
@@ -2458,6 +2535,8 @@ const checkbox = createCheckbox({
 
       return true;
     }
+
+    clearTableRangePreview();
 
     tableSelectionGesture.beginDrag(
       post.postId,
@@ -2501,6 +2580,33 @@ tableCheckboxes.set(
     checkbox,
     row,
     post,
+  },
+);
+
+row.addEventListener(
+  'pointerenter',
+  (event) => {
+    /*
+     * M1-T08H:
+     * во время протягивания достаточно пересечь
+     * любую часть строки, а не сам чекбокс.
+     */
+    if (
+      tableSelectionGesture.isDragging()
+    ) {
+      updateTableDragPointer(event);
+      visitTablePostDuringDrag(post);
+      return;
+    }
+
+    /*
+     * M1-T08G:
+     * Shift без нажатой кнопки мыши показывает
+     * диапазон, который применится по клику.
+     */
+    if (event.shiftKey) {
+      previewTableRange(post.postId);
+    }
   },
 );
 
