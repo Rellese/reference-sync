@@ -2127,11 +2127,61 @@ const TABLE_SELECTION_BATCH_SIZE = 100;
 let tableSelectionSyncFrame = null;
 let tableSelectionSyncVersion = 0;
 
+let tableSelectionTitleFrame = null;
+let tableSelectionTitleNextFrame = null;
+
 function updateTableSelectionTitle() {
   ui.results.setTitle(
     state.selected.size,
     visiblePosts().length,
   );
+}
+
+function scheduleTableSelectionTitleUpdate() {
+  if (
+    tableSelectionTitleFrame !== null ||
+    tableSelectionTitleNextFrame !== null
+  ) {
+    return;
+  }
+
+  /*
+   * Первый кадр отображает состояние чекбокса.
+   * Во втором обновляется общий счётчик таблицы.
+   *
+   * Это не даёт заголовку большой таблицы задерживать
+   * визуальную реакцию одиночного чекбокса.
+   */
+  tableSelectionTitleFrame =
+    requestAnimationFrame(() => {
+      tableSelectionTitleFrame = null;
+
+      tableSelectionTitleNextFrame =
+        requestAnimationFrame(() => {
+          tableSelectionTitleNextFrame = null;
+          updateTableSelectionTitle();
+        });
+    });
+}
+
+function stopTableSelectionTitleUpdate() {
+  if (tableSelectionTitleFrame !== null) {
+    cancelAnimationFrame(
+      tableSelectionTitleFrame,
+    );
+
+    tableSelectionTitleFrame = null;
+  }
+
+  if (
+    tableSelectionTitleNextFrame !== null
+  ) {
+    cancelAnimationFrame(
+      tableSelectionTitleNextFrame,
+    );
+
+    tableSelectionTitleNextFrame = null;
+  }
 }
 
 function stopTableSelectionSync() {
@@ -2262,7 +2312,7 @@ function finishTableSelectionGesture() {
 
   tableSelectionChanged = false;
 
-  updateTableSelectionTitle();
+  scheduleTableSelectionTitleUpdate();
 }
 
 window.addEventListener(
@@ -2287,6 +2337,7 @@ window.addEventListener(
 
 function renderTable() {
   stopTableSelectionSync();
+  stopTableSelectionTitleUpdate();
 
   const body = ui.results.body;
   clear(body);
@@ -2388,7 +2439,7 @@ const checkbox = createCheckbox({
       syncTablePostCheckbox(post);
     }
 
-    updateTableSelectionTitle();
+    scheduleTableSelectionTitleUpdate();
   },
 
   onPointerDown: (event) => {

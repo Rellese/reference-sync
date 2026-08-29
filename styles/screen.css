@@ -517,7 +517,8 @@
    * 70px — штатная высота строки из макета.
    */
   content-visibility: auto;
-  contain-intrinsic-size: auto 70px;
+  contain: layout style paint;
+  contain-intrinsic-size: 70px;
 }
 .rs-row:nth-child(odd) { background: var(--bg-row); }
 .rs-row:hover { background: rgba(38, 38, 38, 0.45); }
