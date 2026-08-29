@@ -67,6 +67,55 @@ function paceArgs(profile) {
     : [];
 }
 
+export function buildDirectDownloadPlan(post) {
+  const components = Array.isArray(post?.components)
+    ? post.components
+    : [];
+
+  if (!components.length) return [];
+
+  const plan = [];
+
+  for (const component of components) {
+    const componentIndex = Number.parseInt(
+      component?.index,
+      10,
+    );
+
+    const url = String(component?.url || '').trim();
+
+    const extension = String(
+      component?.extension || '',
+    )
+      .trim()
+      .toLowerCase()
+      .replace(/^\./, '');
+
+    if (
+      !Number.isInteger(componentIndex) ||
+      componentIndex < 1 ||
+      !/^https?:\/\//i.test(url) ||
+      !/^[a-z0-9]+$/i.test(extension)
+    ) {
+      /* План используется только целиком. Если хотя бы для одного
+         компонента не хватает данных, загрузка публикации выполняется
+         старым надёжным способом через post.url. */
+      return [];
+    }
+
+    plan.push({
+      componentIndex,
+      url,
+      extension,
+    });
+  }
+
+  return plan.sort(
+    (left, right) =>
+      left.componentIndex - right.componentIndex,
+  );
+}
+
 export function buildSmartStopFilter(knownPostIds) {
   const source = knownPostIds instanceof Set
     ? [...knownPostIds]
@@ -1101,6 +1150,81 @@ export function redact(text) {
     .replace(/(ds_user_id\s*[=:]\s*)[^;\s,"']+/gi, '$1<REDACTED>');
 }
 
+async function downloadDirectComponents({
+  plan,
+  postDir,
+  cookieFile,
+  profile,
+  signal,
+  onStderr,
+}) {
+  let stdout = '';
+  let stderr = '';
+
+  for (const component of plan) {
+    throwIfAborted(signal);
+
+    const filename =
+      `${component.componentIndex}.${component.extension}`;
+
+    const destination = nodeApi.path.join(
+      postDir,
+      filename,
+    );
+
+    const result = await runGallery([
+      '--config-ignore',
+      '--no-input',
+      '--cookies', cookieFile,
+      '--retries', String(profile.retries),
+      '--http-timeout', '60',
+      '--dest', postDir,
+      '--filename', filename,
+      '--directory', '',
+      component.url,
+    ], {
+      signal,
+      onStdout: (chunk) => {
+        stdout += chunk;
+      },
+      onStderr: (chunk) => {
+        stderr += chunk;
+        if (onStderr) onStderr(chunk);
+      },
+    });
+
+    stdout += `\n${result.stdout || ''}`;
+    stderr += `\n${result.stderr || ''}`;
+
+    let downloaded = false;
+
+    try {
+      downloaded =
+        result.code === 0 &&
+        nodeApi.fs.existsSync(destination) &&
+        nodeApi.fs.statSync(destination).size > 0;
+    } catch (_) {
+      downloaded = false;
+    }
+
+    if (!downloaded) {
+      return {
+        code: result.code || 1,
+        stdout,
+        stderr:
+          `${stderr}\nПрямая ссылка компонента ` +
+          `${component.componentIndex} недоступна.`,
+      };
+    }
+  }
+
+  return {
+    code: 0,
+    stdout,
+    stderr,
+  };
+}
+
 /* ------------------------------------------------------------
    Скачивание выбранных публикаций во временную папку.
    Перенос instagram_download_staging.py: файлы сначала
@@ -1155,7 +1279,21 @@ export async function downloadPosts({
       onLog,
   });
   const profile = SPEED_PROFILES[speedProfile] || SPEED_PROFILES.safe;
-  
+
+  const directPostCount = posts.reduce(
+  (count, post) =>
+    buildDirectDownloadPlan(post).length
+      ? count + 1
+      : count,
+  0,
+);
+
+if (onLog) {
+  onLog(
+    `Источник загрузки: discovery URL ` +
+    `${directPostCount}/${posts.length}.`,
+  );
+}
 
   const queue = await runPublicationQueue(
     posts,
@@ -1176,7 +1314,9 @@ export async function downloadPosts({
       });
     }
 
-    const args = [
+    const directPlan = buildDirectDownloadPlan(post);
+
+    const fallbackArgs = [
       '--config-ignore',
       '--no-input',
       '--cookies', activeCookieFile,
@@ -1189,6 +1329,7 @@ export async function downloadPosts({
       post.url,
     ];
 
+
     /* Попытки: при обрыве связи ждём по лестнице 5→30 сек
        и повторяем ту же публикацию, не сдвигая очередь */
     let error = null;
@@ -1200,16 +1341,66 @@ export async function downloadPosts({
       error = null;
       let raw = '';
       try {
-        const result = await runGallery(args, {
-          signal,
-          onStderr: (chunk) => {
-            raw += chunk;
-            const line = redact(chunk).trim();
-            if (line && onLog) onLog(line);
-          },
-        });
-        raw += `\n${result.stdout || ''}\n${result.stderr || ''}`;
-        if (result.code !== 0) error = classifyFailure(result, browser);
+        const handleStderr = (chunk) => {
+          raw += chunk;
+
+          const line = redact(chunk).trim();
+
+          if (line && onLog) {
+            onLog(line);
+          }
+        };
+
+        let result;
+
+        if (directPlan.length) {
+          result = await downloadDirectComponents({
+
+            plan: directPlan,
+            postDir,
+            cookieFile: activeCookieFile,
+            profile,
+            signal,
+            onStderr: handleStderr,
+          });
+
+          raw +=
+            `\n${result.stdout || ''}` +
+            `\n${result.stderr || ''}`;
+
+          if (result.code !== 0) {
+            if (onLog) {
+              onLog(
+                `Прямая ссылка устарела: ${post.url}. ` +
+                'Повторяем через страницу публикации.',
+              );
+            }
+
+            result = await runGallery(fallbackArgs, {
+              signal,
+              onStderr: handleStderr,
+            });
+          }
+        } else {
+          if (onLog) {
+            onlog(
+              'Прямые ссылки отсутствуют: ' +
+              'получаем данные через страницу публикации.',
+            );
+          }
+          result = await runGallery(fallbackArgs, {
+            signal,
+            onStderr: handleStderr,
+          });
+        }
+
+        raw +=
+          `\n${result.stdout || ''}` +
+          `\n${result.stderr || ''}`;
+
+        if (result.code !== 0) {
+          error = classifyFailure(result, browser);
+        }
       } catch (runError) {
         raw += `\n${runError.message}`;
         error = runError.message;

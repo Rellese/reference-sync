@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 
 import {
+  buildDirectDownloadPlan,
   buildPostRecords,
   buildSmartStopFilter,
   canonicalUrl,
@@ -101,5 +102,50 @@ test('smart stop filter ignores unsafe identifiers', () => {
   assert.equal(
     buildSmartStopFilter(new Set()),
     null,
+  );
+});
+
+test('direct download plan preserves component order and extensions', () => {
+  const plan = buildDirectDownloadPlan({
+    components: [
+      {
+        index: 2,
+        url: 'https://cdn.example.com/video',
+        extension: '.mp4',
+      },
+      {
+        index: 1,
+        url: 'https://cdn.example.com/image',
+        extension: 'jpg',
+      },
+    ],
+  });
+
+  assert.deepEqual(plan, [
+    {
+      componentIndex: 1,
+      url: 'https://cdn.example.com/image',
+      extension: 'jpg',
+    },
+    {
+      componentIndex: 2,
+      url: 'https://cdn.example.com/video',
+      extension: 'mp4',
+    },
+  ]);
+});
+
+test('direct download plan falls back when component data is incomplete', () => {
+  assert.deepEqual(
+    buildDirectDownloadPlan({
+      components: [
+        {
+          index: 1,
+          url: '',
+          extension: 'jpg',
+        },
+      ],
+    }),
+    [],
   );
 });
