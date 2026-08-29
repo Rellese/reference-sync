@@ -237,6 +237,27 @@ export function createCheckbox({
     event.stopPropagation();
   };
 
+  const handlePointerEnter = (event) => {
+    if (
+      isDisabled ||
+      !onPointerEnter
+    ) {
+      return;
+    }
+
+    const handled = onPointerEnter(
+      event,
+      api,
+    ) === true;
+
+    if (!handled) {
+      return;
+    }
+
+    event.preventDefault();
+    event.stopPropagation();
+  };
+  
   root.addEventListener(
     'click',
     handleClick,
