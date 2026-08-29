@@ -94,6 +94,56 @@ export function createCheckbox({
   let isDisabled = Boolean(disabled);
   let suppressNextClick = false;
 
+  const POINTER_PRESS_CLASSES = [
+  'is-press-from-off',
+  'is-press-from-on',
+  'is-press-from-mixed',
+];
+
+  const clearPointerPress = () => {
+    root.classList.remove(
+      ...POINTER_PRESS_CLASSES,
+    );
+
+    window.removeEventListener(
+      'pointerup',
+      clearPointerPress,
+    );
+
+    window.removeEventListener(
+      'pointercancel',
+      clearPointerPress,
+    );
+
+    window.removeEventListener(
+      'blur',
+      clearPointerPress,
+    );
+  };
+
+  const showPointerPress = (state) => {
+    clearPointerPress();
+
+    root.classList.add(
+      `is-press-from-${state}`,
+    );
+
+    window.addEventListener(
+      'pointerup',
+      clearPointerPress,
+    );
+
+    window.addEventListener(
+      'pointercancel',
+      clearPointerPress,
+    );
+
+    window.addEventListener(
+      'blur',
+      clearPointerPress,
+    );
+  };
+
   const apply = () => {
     root.classList.toggle(
       'is-on',
@@ -161,33 +211,28 @@ export function createCheckbox({
       return;
     }
 
+    /*
+    * Запоминаем визуальное состояние до того,
+    * как callback изменит логическое значение.
+    */
+    const pressedState = isMixed
+      ? 'mixed'
+      : value
+        ? 'on'
+        : 'off';
+
     const handled = onPointerDown(
       event,
       api,
     ) === true;
 
-    if (!handled) return;
-
-    suppressNextClick = true;
-    event.preventDefault();
-    event.stopPropagation();
-  };
-
-  const handlePointerEnter = (event) => {
-    if (
-      isDisabled ||
-      !onPointerEnter
-    ) {
+    if (!handled) {
       return;
     }
 
-    const handled = onPointerEnter(
-      event,
-      api,
-    ) === true;
+    showPointerPress(pressedState);
 
-    if (!handled) return;
-
+    suppressNextClick = true;
     event.preventDefault();
     event.stopPropagation();
   };

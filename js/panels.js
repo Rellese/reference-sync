@@ -30,6 +30,7 @@ import {
   componentDisplay,
 } from './carousel-selection.js';
 import {
+  checkboxRange,
   applyShiftSelection,
   createCheckboxGestureState,
 } from './checkbox-selection.js';
@@ -1113,6 +1114,7 @@ export function buildCarouselModal() {
   const selectionGesture =
   createCheckboxGestureState();
   const componentCheckboxes = new Map();
+  const componentRangePreviewIds = new Set();
 
   let carouselAutoScrollFrame = null;
   let carouselPointerX = 0;
@@ -1120,6 +1122,71 @@ export function buildCarouselModal() {
 
   const CAROUSEL_SCROLL_EDGE = 48;
   const CAROUSEL_SCROLL_MAX_SPEED = 18;
+
+  function clearCarouselRangePreview() {
+  for (
+    const componentIndex
+    of componentRangePreviewIds
+  ) {
+    componentCheckboxes
+      .get(componentIndex)
+      ?.node.classList.remove(
+        'is-range-preview',
+      );
+  }
+
+  componentRangePreviewIds.clear();
+}
+
+  function previewCarouselRange(
+    targetComponentIndex,
+  ) {
+    const anchorComponentIndex =
+      selectionGesture.getAnchor();
+
+    if (
+      !Number.isInteger(anchorComponentIndex) ||
+      !Number.isInteger(targetComponentIndex) ||
+      !currentPost?.components?.length
+    ) {
+      clearCarouselRangePreview();
+      return;
+    }
+
+    const orderedComponentIndexes =
+      currentPost.components.map(
+        (_, position) => position,
+      );
+
+    const range = checkboxRange(
+      orderedComponentIndexes,
+      anchorComponentIndex,
+      targetComponentIndex,
+    );
+
+    clearCarouselRangePreview();
+
+    for (const componentIndex of range) {
+      if (currentImported.has(componentIndex)) {
+        continue;
+      }
+
+      const checkbox =
+        componentCheckboxes.get(componentIndex);
+
+      if (!checkbox) {
+        continue;
+      }
+
+      checkbox.node.classList.add(
+        'is-range-preview',
+      );
+
+      componentRangePreviewIds.add(
+        componentIndex,
+      );
+    }
+  }
 
   function stopCarouselAutoScroll() {
     if (carouselAutoScrollFrame === null) {
@@ -1338,6 +1405,21 @@ export function buildCarouselModal() {
     'blur',
     endSelectionGesture,
   );
+
+  window.addEventListener(
+    'keyup',
+    (event) => {
+      if (event.key === 'Shift') {
+        clearCarouselRangePreview();
+      }
+    },
+  );
+
+  window.addEventListener(
+    'blur',
+    clearCarouselRangePreview,
+  );
+
   let currentThumbnails = true;
   let onConfirmCallback = null;
   let onCancelCallback = null;
@@ -1380,6 +1462,7 @@ export function buildCarouselModal() {
   }
 
   function updateSelection(nextSelection) {
+    clearCarouselRangePreview();
     selectionGesture.resetAnchor();
     
     currentSelection = selectablePositions(
@@ -1420,6 +1503,8 @@ function syncComponentCheckboxes() {
     componentIndex,
     checked,
   ) {
+    clearCarouselRangePreview();
+
     const result = applyShiftSelection({
       orderedIds: currentPost.components.map(
         (_, position) => position,
@@ -1533,6 +1618,7 @@ function syncComponentCheckboxes() {
   root.appendChild(box);
 
   function renderList() {
+    clearCarouselRangePreview();
     clear(list);
     componentCheckboxes.clear();
 
@@ -1554,23 +1640,32 @@ function syncComponentCheckboxes() {
           'pointerenter',
           (event) => {
             /*
-            * M1-T08H:
-            * во время drag-selection компонент
-            * срабатывает по всей площади строки.
+            * Обычный drag-selection имеет приоритет
+            * над Shift-preview.
             */
-            if (
-              !selectionGesture.isDragging()
-            ) {
+            if (selectionGesture.isDragging()) {
+              updateCarouselDragPointer(event);
+
+              visitCarouselComponentDuringDrag(
+                componentIndex,
+              );
+
               return;
             }
 
-            updateCarouselDragPointer(event);
-
-            visitCarouselComponentDuringDrag(
-              componentIndex,
-            );
+            /*
+            * M1-T08G:
+            * при удержании Shift показываем диапазон,
+            * который применится следующим Shift-click.
+            */
+            if (event.shiftKey) {
+              previewCarouselRange(
+                componentIndex,
+              );
+            }
           },
         );
+
 
         const isImported =
           currentImported.has(componentIndex);
@@ -1629,6 +1724,8 @@ function syncComponentCheckboxes() {
 
             const checked =
               !currentSelection.has(componentIndex);
+
+              clearCarouselRangePreview();
 
             if (event.shiftKey) {
               shiftComponentSelection(
@@ -1784,6 +1881,7 @@ function syncComponentCheckboxes() {
 
   function close() {
     stopCarouselAutoScroll();
+    clearCarouselRangePreview();
     selectionGesture.reset();
     root.classList.remove('is-open');
   }

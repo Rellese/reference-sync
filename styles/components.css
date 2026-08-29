@@ -259,6 +259,80 @@
   border-radius: 1px;
 }
 
+/*
+ * M1-T09H(a):
+ * pointer drag меняет логическое состояние на pointerdown,
+ * но до pointerup должен отображаться Pressed исходного
+ * состояния чекбокса.
+ */
+
+/* State=Off, Status=Pressed */
+.rs-check.is-press-from-off,
+.rs-check.is-on.is-press-from-off,
+.rs-check.is-mixed.is-press-from-off,
+.rs-check.is-range-preview.is-press-from-off {
+  background: rgba(112, 112, 112, 0.2);
+  border-color: #707070;
+  box-shadow:
+    0 0 0 2px
+    rgba(112, 112, 112, 0.15);
+}
+
+.rs-check.is-press-from-off
+  .rs-check__mark {
+  opacity: 1;
+}
+
+.rs-check.is-press-from-off
+  .rs-check__mark::before,
+.rs-check.is-press-from-off
+  .rs-check__mark::after {
+  background: var(--text-muted);
+}
+
+.rs-check.is-press-from-off::after {
+  opacity: 0;
+}
+
+/* State=On, Status=Pressed */
+.rs-check.is-press-from-on,
+.rs-check.is-on.is-press-from-on,
+.rs-check.is-mixed.is-press-from-on,
+.rs-check.is-range-preview.is-press-from-on {
+  background: rgba(232, 89, 53, 0.3);
+  border-color: rgba(232, 89, 53, 0.5);
+  box-shadow:
+    0 0 0 2px
+    rgba(232, 89, 53, 0.15);
+}
+
+.rs-check.is-press-from-on
+  .rs-check__mark {
+  opacity: 0;
+}
+
+.rs-check.is-press-from-on::after {
+  opacity: 0;
+}
+
+/* Indeterminate ведёт себя как активное состояние */
+.rs-check.is-press-from-mixed,
+.rs-check.is-on.is-press-from-mixed,
+.rs-check.is-mixed.is-press-from-mixed,
+.rs-check.is-range-preview.is-press-from-mixed {
+  background: rgba(232, 89, 53, 0.3);
+  border-color: rgba(232, 89, 53, 0.5);
+  box-shadow:
+    0 0 0 2px
+    rgba(232, 89, 53, 0.15);
+}
+
+.rs-check.is-press-from-mixed
+  .rs-check__mark,
+.rs-check.is-press-from-mixed::after {
+  opacity: 0;
+}
+
 .rs-check-row {
   display: flex;
   flex-direction: row;
