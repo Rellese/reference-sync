@@ -134,6 +134,33 @@ test('recognizes Instagram rate-limit responses', () => {
     looksInstagramRateLimited('login required'),
     false,
   );
+    assert.equal(
+    looksInstagramRateLimited(
+      '{"post_id":"18442912345678901"}',
+    ),
+    false,
+  );
+
+  assert.equal(
+    looksInstagramRateLimited(
+      'Downloaded Instagram media 429873214567890 successfully',
+    ),
+    false,
+  );
+
+  assert.equal(
+    looksInstagramRateLimited(
+      'HTTP Error 429: Too Many Requests',
+    ),
+    true,
+  );
+
+  assert.equal(
+    looksInstagramRateLimited(
+      'Instagram response status code: 429',
+    ),
+    true,
+  );
 });
 
 test('publication queue stops at Instagram rate limit', async () => {

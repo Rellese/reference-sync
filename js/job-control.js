@@ -41,7 +41,6 @@ export function throwIfAborted(signal) {
 }
 
 const INSTAGRAM_RATE_LIMIT_MARKERS = [
-  '429',
   'too many requests',
   'rate limit',
   'ratelimit',
@@ -53,13 +52,31 @@ const INSTAGRAM_RATE_LIMIT_MARKERS = [
   'action blocked',
 ];
 
+const INSTAGRAM_HTTP_429_PATTERNS = [
+  /^\s*429\s*$/im,
+  /\b429\D{0,20}too many requests\b/i,
+  /\bhttp(?:error| error| status)?\D{0,20}429\b/i,
+  /\bstatus(?: code)?\D{0,20}429\b/i,
+  /\bresponse(?: code)?\D{0,20}429\b/i,
+  /\berror code\D{0,20}429\b/i,
+];
+
 export function looksInstagramRateLimited(value) {
   const text = String(value || '').toLowerCase();
 
-  return INSTAGRAM_RATE_LIMIT_MARKERS.some(
-    (marker) => text.includes(marker),
+  if (
+    INSTAGRAM_RATE_LIMIT_MARKERS.some(
+      (marker) => text.includes(marker),
+    )
+  ) {
+    return true;
+  }
+
+  return INSTAGRAM_HTTP_429_PATTERNS.some(
+    (pattern) => pattern.test(text),
   );
 }
+
 
 export function makeInstagramRateLimitError(value) {
   const sourceMessage = String(

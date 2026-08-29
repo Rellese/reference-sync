@@ -1015,7 +1015,6 @@ export async function discoverSaved({
 
     const rateLimitEvidence = [
       discoveryStderr,
-      result?.stdout || '',
       result?.stderr || '',
     ].join('\n');
 
