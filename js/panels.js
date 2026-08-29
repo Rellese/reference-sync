@@ -1114,9 +1114,215 @@ export function buildCarouselModal() {
   createCheckboxGestureState();
   const componentCheckboxes = new Map();
 
-  const endSelectionGesture = () => {
+  let carouselAutoScrollFrame = null;
+  let carouselPointerX = 0;
+  let carouselPointerY = 0;
+
+  const CAROUSEL_SCROLL_EDGE = 48;
+  const CAROUSEL_SCROLL_MAX_SPEED = 18;
+
+  function stopCarouselAutoScroll() {
+    if (carouselAutoScrollFrame === null) {
+      return;
+    }
+
+    cancelAnimationFrame(carouselAutoScrollFrame);
+    carouselAutoScrollFrame = null;
+  }
+
+  function visitCarouselComponentDuringDrag(
+    componentIndex,
+  ) {
+    if (
+      !Number.isInteger(componentIndex) ||
+      currentImported.has(componentIndex) ||
+      !selectionGesture.isDragging()
+    ) {
+      return false;
+    }
+
+    const action = selectionGesture.visitDrag(
+      componentIndex,
+    );
+
+    if (!action) {
+      return false;
+    }
+
+    setComponentChecked(
+      action.id,
+      action.checked,
+    );
+
+    componentCheckboxes
+      .get(action.id)
+      ?.set(action.checked, true);
+
+    updateSummary();
+
+    return true;
+  }
+
+  function carouselComponentAtPointer() {
+    const rect = list.getBoundingClientRect();
+
+    const sampleX = Math.min(
+      rect.right - 1,
+      Math.max(rect.left + 1, carouselPointerX),
+    );
+
+    const sampleY = Math.min(
+      rect.bottom - 1,
+      Math.max(rect.top + 1, carouselPointerY),
+    );
+
+    const target = document.elementFromPoint(
+      sampleX,
+      sampleY,
+    );
+
+    const row = target?.closest?.(
+      '[data-carousel-component-index]',
+    );
+
+    if (!row || !list.contains(row)) {
+      return null;
+    }
+
+    const componentIndex = Number.parseInt(
+      row.dataset.carouselComponentIndex,
+      10,
+    );
+
+    return Number.isInteger(componentIndex)
+      ? componentIndex
+      : null;
+  }
+
+  function runCarouselAutoScroll() {
+    carouselAutoScrollFrame = null;
+
+    if (
+      !selectionGesture.isDragging() ||
+      !root.classList.contains('is-open')
+    ) {
+      return;
+    }
+
+    const rect = list.getBoundingClientRect();
+
+    const insideHorizontal =
+      carouselPointerX >= rect.left &&
+      carouselPointerX <= rect.right;
+
+    const insideVertical =
+      carouselPointerY >=
+        rect.top - CAROUSEL_SCROLL_EDGE &&
+      carouselPointerY <=
+        rect.bottom + CAROUSEL_SCROLL_EDGE;
+
+    if (!insideHorizontal || !insideVertical) {
+      return;
+    }
+
+    let speed = 0;
+
+    if (
+      carouselPointerY <
+      rect.top + CAROUSEL_SCROLL_EDGE
+    ) {
+      const strength = Math.min(
+        1,
+        (
+          rect.top +
+          CAROUSEL_SCROLL_EDGE -
+          carouselPointerY
+        ) / CAROUSEL_SCROLL_EDGE,
+      );
+
+      speed =
+        -CAROUSEL_SCROLL_MAX_SPEED * strength;
+    } else if (
+      carouselPointerY >
+      rect.bottom - CAROUSEL_SCROLL_EDGE
+    ) {
+      const strength = Math.min(
+        1,
+        (
+          carouselPointerY -
+          (
+            rect.bottom -
+            CAROUSEL_SCROLL_EDGE
+          )
+        ) / CAROUSEL_SCROLL_EDGE,
+      );
+
+      speed =
+        CAROUSEL_SCROLL_MAX_SPEED * strength;
+    }
+
+    if (speed === 0) {
+      return;
+    }
+
+    const previousScrollTop = list.scrollTop;
+
+    list.scrollTop += speed;
+
+    visitCarouselComponentDuringDrag(
+      carouselComponentAtPointer(),
+    );
+
+    if (
+      list.scrollTop !== previousScrollTop &&
+      selectionGesture.isDragging()
+    ) {
+      carouselAutoScrollFrame =
+        requestAnimationFrame(
+          runCarouselAutoScroll,
+        );
+    }
+  }
+
+  function startCarouselAutoScroll() {
+    if (
+      carouselAutoScrollFrame !== null ||
+      !selectionGesture.isDragging()
+    ) {
+      return;
+    }
+
+    carouselAutoScrollFrame =
+      requestAnimationFrame(
+        runCarouselAutoScroll,
+      );
+  }
+
+  function endSelectionGesture() {
+    stopCarouselAutoScroll();
     selectionGesture.endDrag();
-  };
+  }
+
+  function updateCarouselDragPointer(event) {
+    if (!selectionGesture.isDragging()) {
+      return;
+    }
+
+    if ((event.buttons & 1) !== 1) {
+      endSelectionGesture();
+      return;
+    }
+
+    carouselPointerX = event.clientX;
+    carouselPointerY = event.clientY;
+
+    startCarouselAutoScroll();
+  }
+
+  window.addEventListener(
+    'pointermove',
+    updateCarouselDragPointer,
+  );
 
   window.addEventListener(
     'pointerup',
@@ -1341,6 +1547,9 @@ function syncComponentCheckboxes() {
           'rs-carousel-modal__row',
         );
 
+        row.dataset.carouselComponentIndex =
+          String(componentIndex);
+
         const isImported =
         currentImported.has(componentIndex);
 
@@ -1418,6 +1627,8 @@ function syncComponentCheckboxes() {
               checked,
             );
 
+            updateCarouselDragPointer(event);
+
             api.set(checked, true);
             updateSummary();
 
@@ -1433,9 +1644,11 @@ function syncComponentCheckboxes() {
             }
 
             if ((event.buttons & 1) !== 1) {
-              selectionGesture.endDrag();
+              endSelectionGesture();
               return;
             }
+
+            updateCarouselDragPointer(event);
 
             const action =
               selectionGesture.visitDrag(
@@ -1548,6 +1761,7 @@ function syncComponentCheckboxes() {
   }
 
   function close() {
+    stopCarouselAutoScroll();
     selectionGesture.reset();
     root.classList.remove('is-open');
   }
