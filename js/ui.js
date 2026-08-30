@@ -87,7 +87,47 @@ export function createCheckbox({
   const root = el('div', 'rs-check');
   root.setAttribute('role', 'checkbox');
   root.setAttribute('tabindex', '0');
-  root.appendChild(el('div', 'rs-check__mark'));
+
+  const mark = document.createElementNS(
+    'http://www.w3.org/2000/svg',
+    'svg',
+  );
+
+  mark.classList.add('rs-check__mark');
+  mark.setAttribute('viewBox', '0 0 6 4');
+  mark.setAttribute('width', '6');
+  mark.setAttribute('height', '4');
+  mark.setAttribute('aria-hidden', 'true');
+
+  const markPath = document.createElementNS(
+    'http://www.w3.org/2000/svg',
+    'path',
+  );
+
+  markPath.setAttribute(
+    'd',
+    'M0.5 2 L2.25 3.5 L5.5 0.5',
+  );
+  markPath.setAttribute('fill', 'none');
+  markPath.setAttribute(
+    'stroke',
+    'currentColor',
+  );
+  markPath.setAttribute(
+    'stroke-width',
+    '1',
+  );
+  markPath.setAttribute(
+    'stroke-linecap',
+    'round',
+  );
+  markPath.setAttribute(
+    'stroke-linejoin',
+    'round',
+  );
+
+  mark.appendChild(markPath);
+  root.appendChild(mark);
 
   let value = Boolean(checked);
   let isMixed = Boolean(mixed);
@@ -257,7 +297,7 @@ export function createCheckbox({
     event.preventDefault();
     event.stopPropagation();
   };
-  
+
   root.addEventListener(
     'click',
     handleClick,

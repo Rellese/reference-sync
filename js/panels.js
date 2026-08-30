@@ -1675,6 +1675,50 @@ function syncComponentCheckboxes() {
           isImported,
         );
 
+        /*
+        * Shift-клик по любой части строки должен
+        * применять тот же диапазон, что Shift-клик
+        * непосредственно по чекбоксу.
+        *
+        * Capture нужен, чтобы обработать событие раньше
+        * обычного row-click, переключающего одну строку.
+        */
+        row.addEventListener(
+          'click',
+          (event) => {
+            if (
+              !event.shiftKey ||
+              isImported
+            ) {
+              return;
+            }
+
+            /*
+            * Сам чекбокс уже обрабатывает Shift
+            * через onPointerDown.
+            */
+            if (
+              event.target.closest?.('.rs-check')
+            ) {
+              return;
+            }
+
+            const checked =
+              !currentSelection.has(componentIndex);
+
+            clearCarouselRangePreview();
+
+            shiftComponentSelection(
+              componentIndex,
+              checked,
+            );
+
+            event.preventDefault();
+            event.stopImmediatePropagation();
+          },
+          true,
+        );
+
         if (isImported) {
          row.setAttribute('aria-disabled', 'true');
           row.title = 'Этот файл уже импортирован в Eagle';

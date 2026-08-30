@@ -520,9 +520,25 @@
   contain: layout style paint;
   contain-intrinsic-size: 70px;
 }
-.rs-row:nth-child(odd) { background: var(--bg-row); }
-.rs-row:hover { background: rgba(38, 38, 38, 0.45); }
-.rs-row.is-selected { background: rgba(211, 82, 45, 0.07); }
+.rs-row:nth-child(odd) {
+  background: var(--bg-row);
+}
+
+.rs-row:hover {
+  background: rgba(38, 38, 38, 0.45);
+}
+
+.rs-row.is-selected {
+  background: rgba(211, 82, 45, 0.07);
+}
+
+/*
+ * Более яркий hover выбранной строки.
+ * Должен находиться после .rs-row.is-selected.
+ */
+.rs-row.is-selected:hover {
+  background: rgba(211, 82, 45, 0.14);
+}
 
 /* 1 колонка — чекбокс + миниатюра, space-between в 90px */
 .rs-row__lead {
