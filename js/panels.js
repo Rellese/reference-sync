@@ -1524,6 +1524,23 @@ function syncComponentCheckboxes() {
 
     syncComponentCheckboxes();
     updateSummary();
+
+    return result;
+  }
+
+  function pressComponentRange(
+    affectedIds,
+    pressedState,
+  ) {
+    for (const componentIndex of affectedIds) {
+      if (currentImported.has(componentIndex)) {
+        continue;
+      }
+
+      componentCheckboxes
+        .get(componentIndex)
+        ?.setPressedFrom(pressedState);
+    }
   }
 
   const selectAllButton = createGhostButton({
@@ -1683,10 +1700,13 @@ function syncComponentCheckboxes() {
         * Capture нужен, чтобы обработать событие раньше
         * обычного row-click, переключающего одну строку.
         */
+        let suppressShiftRowClick = false;
+
         row.addEventListener(
-          'click',
+          'pointerdown',
           (event) => {
             if (
+              !event.button !== 0 ||
               !event.shiftKey ||
               isImported
             ) {
@@ -1694,8 +1714,8 @@ function syncComponentCheckboxes() {
             }
 
             /*
-            * Сам чекбокс уже обрабатывает Shift
-            * через onPointerDown.
+            * Сам чекбокс уже полностью обрабатывает
+            * pointerdown через createCheckbox().
             */
             if (
               event.target.closest?.('.rs-check')
@@ -1708,13 +1728,39 @@ function syncComponentCheckboxes() {
 
             clearCarouselRangePreview();
 
-            shiftComponentSelection(
+            const result = shiftComponentSelection(
               componentIndex,
               checked,
             );
 
+            pressComponentRange(
+              result?.affectedIds || [componentIndex],
+              checked ? 'off' : 'on',
+            );
+
+            /*
+            * Логическое изменение уже сделано на pointerdown.
+            * Обычный row-click после pointerup нужно подавить.
+            */
+           suppressShiftRowClick = true;
+
             event.preventDefault();
             event.stopImmediatePropagation();
+          },
+          true,
+        );
+
+        row.addEventListener(
+          'click',
+          (event) => {
+          if (!suppressShiftRowClick) {
+            return;
+          }
+
+          suppressShiftRowClick = false;
+
+          event.preventDefault();
+          event.stopImmediatePropagation();
           },
           true,
         );
@@ -1772,9 +1818,28 @@ function syncComponentCheckboxes() {
               clearCarouselRangePreview();
 
             if (event.shiftKey) {
-              shiftComponentSelection(
+              /*
+                * Запоминаем состояние последнего чекбокса
+                * до логического переключения диапазона.
+                */
+              const result = shiftComponentSelection(
                 componentIndex,
                 checked,
+              );
+
+              /*
+              * checked — итоговое состояние диапазона.
+              * checked=true:
+              * чекбокс был Off и сейчас нажимается для включения,
+              * поэтому во время pointerdown показываем Off/Pressed.
+              * 
+              * checked=false:
+              * чекбокс был On и сейчас нажимается для выключения,
+              * поэтому показываем On/Pressed.
+              */
+              pressComponentRange(
+                result?.affectedIds || [componentIndex],
+                checked ? 'off' : 'on',
               );
 
               return true;

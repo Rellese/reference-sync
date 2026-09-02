@@ -155,7 +155,7 @@
   overflow: visible;
   color: var(--accent-check);
   opacity: 0;
-  transform: translateX(0.5px);
+  transform: translateX(0px);
   transition:
     opacity 120ms ease,
     color 120ms ease;
@@ -570,16 +570,28 @@
   display: flex;
   flex: none;
   flex-direction: column;
-  align-items: flex-start;
+  align-items: stretch;
   width: 534px;
   height: 140px;
   box-sizing: border-box;
-  padding: 10px 15px;
-  gap: 10px;
+
+  padding: 0;
+  gap: 0;
+
   overflow-x: hidden;
-  overflow-y: auto;
+  /*
+  * В Electron/Chromium overlay помещает scrollbar
+  * поверх содержимого, не уменьшая ширину строк.
+  */
+  overflow-y: overlay;
   background: #1A1A1A;
   border-radius: 10px;
+
+  /*
+   * Не резервируем отдельную пустую полосу
+   * под scrollbar.
+   */
+  scrollbar-gutter: auto !important;
 }
 
 .rs-carousel-modal__row {
@@ -588,19 +600,103 @@
   flex-direction: row;
   align-items: flex-start;
   width: 100%;
-  min-height: 12px;
+  min-height: 22px;
+  box-sizing: border-box;
+
+  padding: 5px 15px;
   gap: 10px;
+
+  border-radius: 0;
   cursor: pointer;
+
+  transition:
+    background 120ms ease;
 }
 
-.rs-carousel-modal__row {
-  border-radius: 4px;
-  transition: background 120ms ease;
+.rs-carousel-modal__row:first-child {
+  padding-top: 10px;
+}
+
+.rs-carousel-modal__row:last-child {
+  padding-bottom: 10px;
+}
+
+.rs-carousel-modal__list::-webkit-scrollbar-track {
+  background: transparent;
 }
 
 /* Выключенная строка при наведении */
-.rs-carousel-modal__row:not(.is-imported):hover {
-  background: rgba(38, 38, 38, 0.45);
+.rs-carousel-modal__row:not(.is-imported):hover
+  .rs-check:not(.is-on):not(.is-mixed) {
+  background: rgba(112, 112, 112, 0.3);
+  border-color: rgba(112, 112, 112, 0.5);
+  box-shadow:
+    0 0 0 2px
+    rgba(112, 112, 112, 0.15);
+}
+
+.rs-carousel-modal__row:not(.is-imported):hover
+  .rs-check.is-on {
+  background: rgba(232, 89, 53, 0.3);
+  border-color: var(--accent-check);
+  box-shadow:
+    0 0 0 2px
+    rgba(232, 89, 53, 0.15);
+}
+
+.rs-carousel-modal__row:not(.is-imported):active
+  .rs-check:not(.is-on):not(.is-mixed):not(
+    .is-press-from-off
+  ):not(
+    .is-press-from-on
+  ):not(
+    .is-press-from-mixed
+  ) {
+  background: rgba(112, 112, 112, 0.2);
+  border-color: #707070;
+  box-shadow:
+    0 0 0 2px
+    rgba(112, 112, 112, 0.15);
+}
+
+.rs-carousel-modal__row:not(.is-imported):active
+  .rs-check:not(.is-on):not(.is-mixed):not(
+    .is-press-from-off
+  ):not(
+    .is-press-from-on
+  ):not(
+    .is-press-from-mixed
+  )
+  .rs-check__mark {
+  color: var(--text-muted);
+  opacity: 1;
+}
+
+.rs-carousel-modal__row:not(.is-imported):active
+  .rs-check.is-on:not(
+    .is-press-from-off
+  ):not(
+    .is-press-from-on
+  ):not(
+    .is-press-from-mixed
+  ) {
+  background: rgba(232, 89, 53, 0.3);
+  border-color: rgba(232, 89, 53, 0.5);
+  box-shadow:
+    0 0 0 2px
+    rgba(232, 89, 53, 0.15);
+}
+
+.rs-carousel-modal__row:not(.is-imported):active
+  .rs-check.is-on:not(
+    .is-press-from-off
+  ):not(
+    .is-press-from-on
+  ):not(
+    .is-press-from-mixed
+  )
+  .rs-check__mark {
+  opacity: 0;
 }
 
 /* Строка с включённым чекбоксом */
@@ -617,9 +713,21 @@
   background: rgba(211, 82, 45, 0.14);
 }
 
+/* Off row / Pressed */
+.rs-carousel-modal__row:not(.is-imported):active {
+  background: rgba(38, 38, 38, 0.60);
+}
+
+/* On row / Pressed */
+.rs-carousel-modal__row:not(.is-imported):has(
+  .rs-check.is-on
+):active {
+  background: rgba(211, 82, 45, 0.21);
+}
+
 .rs-carousel-modal__row.has-thumbnail {
   align-items: center;
-  min-height: 30px;
+  min-height: 40px;
   gap: 20px;
 }
 
@@ -1695,4 +1803,57 @@
 textarea.rs-editable {
   overflow: auto;
   resize: none;
+}
+
+/* ============================================================
+   Checkbox pointer state must override row hover/active styles
+   ============================================================ */
+
+/* State=Off, Status=Pressed */
+.rs-check.is-press-from-off {
+  background: rgba(112, 112, 112, 0.2) !important;
+  border-color: #707070 !important;
+  box-shadow:
+    0 0 0 2px
+    rgba(112, 112, 112, 0.15) !important;
+}
+
+.rs-check.is-press-from-off
+  .rs-check__mark {
+  color: var(--text-muted) !important;
+  opacity: 1 !important;
+}
+
+.rs-check.is-press-from-off::after {
+  opacity: 0 !important;
+}
+
+/* State=On, Status=Pressed */
+.rs-check.is-press-from-on {
+  background: rgba(232, 89, 53, 0.3) !important;
+  border-color: rgba(232, 89, 53, 0.5) !important;
+  box-shadow:
+    0 0 0 2px
+    rgba(232, 89, 53, 0.15) !important;
+}
+
+.rs-check.is-press-from-on
+  .rs-check__mark,
+.rs-check.is-press-from-on::after {
+  opacity: 0 !important;
+}
+
+/* Mixed трактуем как активный State */
+.rs-check.is-press-from-mixed {
+  background: rgba(232, 89, 53, 0.3) !important;
+  border-color: rgba(232, 89, 53, 0.5) !important;
+  box-shadow:
+    0 0 0 2px
+    rgba(232, 89, 53, 0.15) !important;
+}
+
+.rs-check.is-press-from-mixed
+  .rs-check__mark,
+.rs-check.is-press-from-mixed::after {
+  opacity: 0 !important;
 }

@@ -2125,6 +2125,26 @@ function syncTablePostCheckbox(post) {
   );
 }
 
+function pressTableRange(
+  affectedIds,
+  pressedState,
+) {
+  for (const postId of affectedIds) {
+    const entry = tableCheckboxes.get(postId);
+
+    if (
+      !entry ||
+      state.knownPostIds.has(postId)
+    ) {
+      continue;
+    }
+
+    entry.checkbox.setPressedFrom(
+      pressedState,
+    );
+  }
+}
+
 function clearTableRangePreview() {
   for (
     const postId
@@ -2361,6 +2381,7 @@ function applyTableShiftSelection(
   );
 
   tableSelectionChanged = true;
+  return result;
 }
 
 function finishTableSelectionGesture() {
@@ -2528,9 +2549,16 @@ const checkbox = createCheckbox({
       nextTablePostState(post);
 
     if (event.shiftKey) {
-      applyTableShiftSelection(
+      clearTableRangePreview();
+
+      const result = applyTableShiftSelection(
         post,
         checked,
+      );
+
+      pressTableRange(
+        result?.affectedIds || [post.postId],
+        checked ? 'off' : 'on',
       );
 
       return true;
@@ -2739,6 +2767,86 @@ if (isKnown) {
     'div',
     'rs-cell rs-cell--desc',
   );
+
+  const isIndependentCellTarget = (target) =>
+  Boolean(
+    target.closest?.(
+      [
+        '.rs-cell--name',
+        '.rs-cell--desc',
+        '.rs-edit',
+        '.rs-editable',
+        '.rs-cell.is-clickable',
+        '.rs-check',
+      ].join(','),
+    ),
+  );
+
+  row.addEventListener(
+    'click',
+    (event) => {
+      if (
+        isKnown ||
+        isIndependentCellTarget(event.target)
+      ) {
+        return;
+      }
+
+      const checked =
+        !state.selected.has(post.postId);
+
+      if (event.shiftKey) {
+        clearTableRangePreview();
+
+        applyTableShiftSelection(
+          post,
+          checked,
+        );
+      } else {
+        checkbox.set(checked);
+      }
+
+      event.preventDefault();
+    },
+  );
+
+  const clearRowPressed = () => {
+    row.classList.remove('is-row-pressed');
+  };
+
+  row.addEventListener(
+    'pointerdown',
+    (event) => {
+      if (
+        event.button !== 0 ||
+        isKnown ||
+        isIndependentCellTarget(event.target)
+      ) {
+        return;
+      }
+
+      row.classList.add('is-row-pressed');
+
+      window.addEventListener(
+        'pointerup',
+        clearRowPressed,
+        { once: true },
+      );
+
+      window.addEventListener(
+        'pointercancel',
+        clearRowPressed,
+        { once: true },
+      );
+
+      window.addEventListener(
+        'blur',
+        clearRowPressed,
+        { once: true },
+      );
+    },
+  );
+
 
   const descText = el(
     'div',

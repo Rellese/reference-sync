@@ -363,6 +363,24 @@ export function createCheckbox({
       isDisabled = Boolean(state);
       apply();
     },
+  
+
+  setPressedFrom(state) {
+    if (
+      state !== 'off' &&
+      state !== 'on' &&
+      state !== 'mixed'
+    ) {
+      clearPointerPress();
+      return;
+    }
+
+    showPointerPress(state);
+  },
+
+  clearPressed() {
+    clearPointerPress();
+  },
   };
 
   apply();

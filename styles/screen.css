@@ -540,6 +540,14 @@
   background: rgba(211, 82, 45, 0.14);
 }
 
+.rs-row.is-row-pressed {
+  background: rgba(38, 38, 38, 0.60);
+}
+
+.rs-row.is-selected.is-row-pressed {
+  background: rgba(211, 82, 45, 0.21);
+}
+
 /* 1 колонка — чекбокс + миниатюра, space-between в 90px */
 .rs-row__lead {
   display: flex;
@@ -585,17 +593,29 @@
 }
 .rs-cell--author { color: var(--accent); }
 .rs-cell--name {
+  display: flex;
+  align-items: center;
+  position: relative;
+  width: 100%;
+  height: 50px;
+  max-height: 50px;
+  box-sizing: border-box;
+
   color: var(--text-primary);
   white-space: pre-line;
-  max-height: 24px;
   line-height: 12px;
+
+  cursor: text;
 }
 
 /* Описание в Eagle — 247×50 с прокруткой и кнопкой правки */
 .rs-cell--desc {
   position: relative;
+  width: 100%;
   height: 50px;
+  box-sizing: border-box;
   padding-right: 10px;
+  cursor: text;
 }
 .rs-desc__text {
   height: 50px;
