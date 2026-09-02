@@ -51,6 +51,48 @@ export const SEARCH_MODES = {
   RECENT: 'recent',
 };
 
+export function stopsAtKnownPost(searchMode) {
+  return (
+    searchMode === SEARCH_MODES.SMART ||
+    searchMode === SEARCH_MODES.RECENT
+  );
+}
+
+export function buildDiscoveryModeArgs({
+  searchMode = SEARCH_MODES.SMART,
+  limit = 50,
+  knownPostIds = new Set(),
+} = {}) {
+  const args = [];
+
+  /*
+   * Recent проверяет не больше N публикаций.
+   * SMART и FULL не получают ограничение диапазона.
+   */
+  if (
+    searchMode === SEARCH_MODES.RECENT &&
+    limit > 0
+  ) {
+    args.push('--post-range', `1-${limit}`);
+  }
+
+  /*
+   * SMART и RECENT завершают discovery на первой
+   * публикации, которая уже существует в Eagle.
+   */
+  if (stopsAtKnownPost(searchMode)) {
+    const stopFilter = buildSmartStopFilter(
+      knownPostIds,
+    );
+
+    if (stopFilter) {
+      args.push('--filter', stopFilter);
+    }
+  }
+
+  return args;
+}
+
 /* Профили скорости — app/instagram_download_staging.py */
 const SPEED_PROFILES = {
   safe: { sleepRequest: '2.0-4.0', retries: 3 },
@@ -988,21 +1030,11 @@ export async function discoverSaved({
       ...paceArgs(profile),
     ];
 
-    /* Только режим «последние N» ограничивает выборку.
-       smart и full используют курсорную пагинацию gallery-dl. */
-    if (searchMode === SEARCH_MODES.RECENT && limit > 0) {
-      args.push('--post-range', `1-${limit}`);
-    }
-
-    if (searchMode === SEARCH_MODES.SMART) {
-      const smartFilter = buildSmartStopFilter(
-        knownPostIds,
-      );
-
-      if (smartFilter) {
-        args.push('--filter', smartFilter);
-      }
-    }
+    args.push(...buildDiscoveryModeArgs({
+      searchMode,
+      limit,
+      knownPostIds,
+    }));
 
     args.push(target.url);
 
@@ -1087,16 +1119,17 @@ export async function discoverSaved({
       if (!post) continue;
       if (seenIds.has(post.postId)) continue;
 
-      /* Режим «только новые»: останавливаемся на первой
-         уже известной публикации (перенос smart-логики). */
+      /*
+       * SMART и RECENT останавливаются на первой уже
+       * сохранённой публикации. FULL продолжает поиск,
+       * пропуская известные публикации.
+       */
       if (knownPostIds.has(post.postId)) {
-        if (searchMode === SEARCH_MODES.SMART) {
+        if (stopsAtKnownPost(searchMode)) {
           stoppedEarly = true;
           break;
         }
 
-        /* В Recent и Full известная публикация пропускается,
-        но не останавливает просмотр следующих результатов. */
         continue;
       }
       

@@ -3,11 +3,14 @@ import assert from 'node:assert/strict';
 
 import {
   buildDirectDownloadPlan,
+  buildDiscoveryModeArgs,
   buildPostRecords,
   buildSmartStopFilter,
   canonicalUrl,
   collectPostRecords,
   normalizePost,
+  SEARCH_MODES,
+  stopsAtKnownPost,
 } from '../../js/instagram.js';
 
 const galleryDump = [
@@ -102,6 +105,78 @@ test('smart stop filter ignores unsafe identifiers', () => {
   assert.equal(
     buildSmartStopFilter(new Set()),
     null,
+  );
+});
+
+test('recent mode stops at the first known post', () => {
+  assert.equal(
+    stopsAtKnownPost(SEARCH_MODES.RECENT),
+    true,
+  );
+
+  assert.equal(
+    stopsAtKnownPost(SEARCH_MODES.SMART),
+    true,
+  );
+
+  assert.equal(
+    stopsAtKnownPost(SEARCH_MODES.FULL),
+    false,
+  );
+});
+
+test('recent mode combines N limit with known-post stop filter', () => {
+  assert.deepEqual(
+    buildDiscoveryModeArgs({
+      searchMode: SEARCH_MODES.RECENT,
+      limit: 500,
+      knownPostIds: new Set(['222', '111']),
+    }),
+    [
+      '--post-range',
+      '1-500',
+      '--filter',
+      'str(post_id) not in ("111","222",) or abort()',
+    ],
+  );
+});
+
+test('recent mode keeps N limit when there are no known posts', () => {
+  assert.deepEqual(
+    buildDiscoveryModeArgs({
+      searchMode: SEARCH_MODES.RECENT,
+      limit: 500,
+      knownPostIds: new Set(),
+    }),
+    [
+      '--post-range',
+      '1-500',
+    ],
+  );
+});
+
+test('smart mode stops at known posts without an N limit', () => {
+  assert.deepEqual(
+    buildDiscoveryModeArgs({
+      searchMode: SEARCH_MODES.SMART,
+      limit: 500,
+      knownPostIds: new Set(['111']),
+    }),
+    [
+      '--filter',
+      'str(post_id) not in ("111",) or abort()',
+    ],
+  );
+});
+
+test('full mode has neither an N limit nor an early stop filter', () => {
+  assert.deepEqual(
+    buildDiscoveryModeArgs({
+      searchMode: SEARCH_MODES.FULL,
+      limit: 500,
+      knownPostIds: new Set(['111']),
+    }),
+    [],
   );
 });
 
