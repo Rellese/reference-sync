@@ -2129,7 +2129,19 @@ function pressTableRange(
   affectedIds,
   pressedState,
 ) {
+  const anchorId =
+    tableSelectionGesture.getAnchor();
+
   for (const postId of affectedIds) {
+    /*
+     * Anchor уже был переключён первым кликом.
+     * При последующем Shift-click он не должен
+     * получать временное Pressed-состояние.
+     */
+    if (postId === anchorId) {
+      continue;
+    }
+
     const entry = tableCheckboxes.get(postId);
 
     if (
@@ -2185,6 +2197,12 @@ function previewTableRange(targetPostId) {
   clearTableRangePreview();
 
   for (const postId of range) {
+    if (
+      postId === tableSelectionGesture.getAnchor()
+    ) {
+      continue;
+    }
+    
     const entry =
       tableCheckboxes.get(postId);
 
@@ -2782,9 +2800,23 @@ if (isKnown) {
     ),
   );
 
+  let suppressNextRowClick = false;
+
   row.addEventListener(
     'click',
     (event) => {
+      /*
+      * Shift-действие уже выполнено на pointerdown.
+      * Последующий click не должен повторно менять выбор.
+      */
+      if (suppressNextRowClick) {
+        suppressNextRowClick = false;
+
+        event.preventDefault();
+        event.stopPropagation();
+        return;
+      }
+
       if (
         isKnown ||
         isIndependentCellTarget(event.target)
@@ -2792,19 +2824,19 @@ if (isKnown) {
         return;
       }
 
+      /*
+      * Защитный fallback: Shift обрабатывается только
+      * pointerdown-веткой ниже.
+      */
+      if (event.shiftKey) {
+        event.preventDefault();
+        return;
+      }
+
       const checked =
         !state.selected.has(post.postId);
 
-      if (event.shiftKey) {
-        clearTableRangePreview();
-
-        applyTableShiftSelection(
-          post,
-          checked,
-        );
-      } else {
-        checkbox.set(checked);
-      }
+      checkbox.set(checked);
 
       event.preventDefault();
     },
@@ -2835,18 +2867,51 @@ if (isKnown) {
 
       window.addEventListener(
         'pointercancel',
-        clearRowPressed,
+        () => {
+          suppressNextRowClick = false;
+          clearRowPressed();
+        },
         { once: true },
       );
 
       window.addEventListener(
         'blur',
-        clearRowPressed,
+        () => {
+          suppressNextRowClick = false;
+          clearRowPressed();
+        },
         { once: true },
       );
+
+      if (!event.shiftKey) {
+        return;
+      }
+
+      const checked =
+        !state.selected.has(post.postId);
+
+      clearTableRangePreview();
+
+      const result = applyTableShiftSelection(
+        post,
+        checked,
+      );
+
+      pressTableRange(
+        result?.affectedIds || [post.postId],
+        checked ? 'off' : 'on',
+      );
+
+      /*
+      * Не позволяем следующему click повторно
+      * переключить строку после pointerup.
+      */
+      suppressNextRowClick = true;
+
+      event.preventDefault();
+      event.stopPropagation();
     },
   );
-
 
   const descText = el(
     'div',

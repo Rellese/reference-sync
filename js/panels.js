@@ -1167,6 +1167,12 @@ export function buildCarouselModal() {
     clearCarouselRangePreview();
 
     for (const componentIndex of range) {
+      if (
+        componentIndex === anchorComponentIndex
+      ) {
+        continue;
+      }
+
       if (currentImported.has(componentIndex)) {
         continue;
       }
@@ -1532,13 +1538,27 @@ function syncComponentCheckboxes() {
     affectedIds,
     pressedState,
   ) {
+    const anchorComponentIndex =
+      selectionGesture.getAnchor();
+
     for (const componentIndex of affectedIds) {
+      /*
+      * Первый чекбокс является anchor.
+      * Его состояние уже было изменено первым кликом,
+      * поэтому Shift-pressed на него не накладываем.
+      */
+     if (
+        componentIndex === anchorComponentIndex
+      ) {
+        continue;
+      }
+
       if (currentImported.has(componentIndex)) {
         continue;
       }
 
       componentCheckboxes
-        .get(componentIndex)
+          .get(componentIndex)
         ?.setPressedFrom(pressedState);
     }
   }
@@ -1706,7 +1726,7 @@ function syncComponentCheckboxes() {
           'pointerdown',
           (event) => {
             if (
-              !event.button !== 0 ||
+              event.button !== 0 ||
               !event.shiftKey ||
               isImported
             ) {
@@ -1743,6 +1763,22 @@ function syncComponentCheckboxes() {
             * Обычный row-click после pointerup нужно подавить.
             */
            suppressShiftRowClick = true;
+
+           window.addEventListener(
+            'pointercancel',
+            () => {
+              suppressShiftRowClick = false;
+            },
+            { once: true },
+          );
+
+          window.addEventListener(
+            'blur',
+            () => {
+              suppressShiftRowClick = false;
+            },
+            { once: true },
+          );
 
             event.preventDefault();
             event.stopImmediatePropagation();
