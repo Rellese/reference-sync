@@ -919,7 +919,7 @@ export function normalizePost(record, options = {}) {
 
   /* Тип публикации для таблицы */
   let type = 'Фото';
-  if (components.length > 1) type = videoCount ? 'Карусель, видео' : 'Карусель';
+  if (components.length > 1) type = 'Карусель';
   else if (videoCount) type = 'Видео';
 
   const description = textValue(

@@ -2231,10 +2231,22 @@ let tableSelectionSyncVersion = 0;
 let tableSelectionTitleFrame = null;
 let tableSelectionTitleNextFrame = null;
 
-function updateTableSelectionTitle() {
+function selectedVisiblePostCount(posts) {
+  let count = 0;
+
+  for (const post of posts) {
+    if (state.selected.has(post.postId)) {
+      count += 1;
+    }
+  }
+
+  return count;
+}
+
+function updateTableSelectionTitle(posts = visiblePosts()) {
   ui.results.setTitle(
-    state.selected.size,
-    visiblePosts().length,
+    selectedVisiblePostCount(posts),
+    posts.length,
   );
 }
 
@@ -2470,7 +2482,7 @@ function renderTable() {
   tableCheckboxes.clear();
 
   const posts = visiblePosts();
-  ui.results.setTitle(posts.length, state.posts.length);
+  updateTableSelectionTitle(posts);
   ui.results.clearButton.setDisabled(!posts.length);
   if (phase === 'ready') {
     ui.footer.action.setDisabled(

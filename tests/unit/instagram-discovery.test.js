@@ -68,9 +68,37 @@ test('gallery records are grouped into publications and carousels', () => {
   assert.equal(posts[0].componentCount, 1);
 
   assert.equal(posts[1].postId, 'post-002');
-  assert.equal(posts[1].type, 'Карусель, видео');
+  assert.equal(posts[1].type, 'Карусель');
   assert.equal(posts[1].componentCount, 2);
   assert.equal(posts[1].components[1].mediaType, 'video');
+});
+
+test('video-only carousel keeps the generic carousel type', () => {
+  const post = normalizePost({
+    post_id: 'post-video-carousel',
+    post_shortcode: 'VIDEO123',
+    username: 'artist_video',
+    component_items: [
+      {
+        media_id: 'video-001',
+        component_index: 1,
+        extension: 'mp4',
+        media_type: 'video',
+      },
+      {
+        media_id: 'video-002',
+        component_index: 2,
+        extension: 'mp4',
+        media_type: 'video',
+      },
+    ],
+  });
+
+  assert.ok(post);
+  assert.equal(post.componentCount, 2);
+  assert.equal(post.type, 'Карусель');
+  assert.equal(post.components[0].mediaType, 'video');
+  assert.equal(post.components[1].mediaType, 'video');
 });
 
 test('invalid nested identifiers do not create fake Instagram URLs', () => {
