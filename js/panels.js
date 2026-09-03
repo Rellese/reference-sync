@@ -19,7 +19,12 @@ import {
   createLabelWithInfo,
 } from './ui.js';
 
-import { state, setSetting } from './state.js';
+import {
+  state,
+  setSetting,
+  formatAuthorFilterValue,
+  normalizeAuthorFilterValue,
+} from './state.js';
 import { SEARCH_MODES } from './instagram.js';
 import {
   normalizeSelection,
@@ -216,6 +221,39 @@ export function buildSocial({ onSelect }) {
 
   root.append(list, meta);
   return root;
+}
+
+function formatAuthorFieldInput(field, event) {
+  if (
+    String(event.inputType || '')
+      .startsWith('delete')
+  ) {
+    return;
+  }
+
+  const input = field.input;
+  const rawValue = input.value;
+  const selectionStart =
+    input.selectionStart ?? rawValue.length;
+
+  const formattedValue =
+    formatAuthorFilterValue(rawValue);
+
+  if (formattedValue === rawValue) {
+    return;
+  }
+
+  const formattedSelectionStart =
+    formatAuthorFilterValue(
+      rawValue.slice(0, selectionStart),
+    ).length;
+
+  field.set(formattedValue);
+
+  input.setSelectionRange(
+    formattedSelectionStart,
+    formattedSelectionStart,
+  );
 }
 
 /* ============================================================
@@ -479,31 +517,95 @@ export function buildSettings({ onChange, onFolderSearch }) {
   filtersBody.appendChild(el('div', 'rs-step__title', 'Фильтрация авторов'));
 
   const includeRow = el('div', 'rs-step__row');
+
+  const includeField = createField({
+    value: normalizeAuthorFilterValue(
+      s.authorInclude,
+    ),
+    placeholder: 'через запятую',
+    at: true,
+    onCommit: (value) => {
+      const normalized =
+        normalizeAuthorFilterValue(value);
+
+        includeField.set(normalized);
+      setSetting(
+        'authorInclude',
+        normalized,
+      );
+
+      if (onChange) {
+        onChange(
+          'authorInclude',
+          normalized,
+        );
+      }
+    },
+  });
+
+  includeField.input.addEventListener(
+    'input',
+    (event) => {
+      formatAuthorFieldInput(
+        includeField,
+        event,
+      );
+    },
+  );
+
   includeRow.append(
-    el('div', 'rs-field-label', 'Только эти авторы:'),
-    createField({
-      value: s.authorInclude,
-      placeholder: 'через запятую',
-      at: true,
-      onCommit: (value) => {
-        setSetting('authorInclude', value);
-        if (onChange) onChange('authorInclude', value);
-      },
-    }).node,
+    el(
+      'div',
+      'rs-field-label',
+      'Только эти авторы:',
+    ),
+    includeField.node,
   );
 
   const excludeRow = el('div', 'rs-step__row');
+
+  const excludeField = createField({
+    value: normalizeAuthorFilterValue(
+      s.authorExclude,
+    ),
+    placeholder: 'через запятую',
+    at: true,
+    onCommit: (value) => {
+      const normalized =
+        normalizeAuthorFilterValue(value);
+
+      excludeField.set(normalized);
+      setSetting(
+        'authorExclude',
+        normalized,
+      );
+
+      if (onChange) {
+        onChange(
+          'authorExclude',
+          normalized,
+        );
+      }
+    },
+  });
+
+  excludeField.input.addEventListener(
+    'input',
+    (event) => {
+      formatAuthorFieldInput(
+        excludeField,
+        event,
+      );
+    },
+  );
+
   excludeRow.append(
-    el('div', 'rs-field-label', 'Исключить авторов:'),
-    createField({
-      value: s.authorExclude,
-      placeholder: 'через запятую',
-      at: true,
-      onCommit: (value) => {
-        setSetting('authorExclude', value);
-        if (onChange) onChange('authorExclude', value);
-      },
-    }).node,
+    el(
+      'div',
+      'rs-field-label',
+      'Исключить авторов:',
+    ),
+    excludeField.node,
   );
   filtersBody.append(includeRow, excludeRow);
 

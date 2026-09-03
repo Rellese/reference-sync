@@ -85,15 +85,57 @@ export function setSetting(key, value) {
   saveSettings();
 }
 
+export function formatAuthorFilterValue(value) {
+  const text = String(value || '')
+    .trimStart()
+    .replace(/^@+\s*/, '');
+
+  const hasTrailingSeparator =
+    /(?:,\s*@*|\s+)$/.test(text);
+
+  const names = text
+    .split(/[,\s]+/)
+    .map((name) => name.replace(/^@+/, ''))
+    .filter(Boolean);
+
+  let formatted = names.join(', @');
+
+  if (
+    hasTrailingSeparator &&
+    names.length
+  ) {
+    formatted += ', @';
+  }
+
+  return formatted;
+}
+
+export function normalizeAuthorFilterValue(value) {
+  return parseAuthorFilter(value)
+    .join(', @');
+}
+
+export function parseAuthorFilter(value) {
+  return String(value || '')
+    .trim()
+    .toLowerCase()
+    .split(/[,\s]+/)
+    .map((name) => name.replace(/^@+/, ''))
+    .filter(Boolean);
+}
+
 /* Список публикаций после применения фильтров */
 export function visiblePosts() {
   const s = state.settings;
   if (!s.extraFilters) return state.posts;
 
-  const include = s.authorInclude.trim().toLowerCase()
-    .split(/[,\s]+/).filter(Boolean);
-  const exclude = s.authorExclude.trim().toLowerCase()
-    .split(/[,\s]+/).filter(Boolean);
+  const include = parseAuthorFilter(
+    s.authorInclude,
+  );
+
+  const exclude = parseAuthorFilter(
+    s.authorExclude,
+  );
 
   return state.posts.filter((post) => {
     const isVideo = post.type.toLowerCase().includes('видео');
@@ -105,10 +147,19 @@ export function visiblePosts() {
     if (isCarousel && !s.filterCarousel) return false;
 
     const author = post.plainUsername.toLowerCase();
-    if (include.length && !include.some((name) =>
-      author.includes(name.replace(/^@/, '')))) return false;
-    if (exclude.length && exclude.some((name) =>
-      author.includes(name.replace(/^@/, '')))) return false;
+    if (
+      include.length &&
+      !include.some((name) => author.includes(name))
+    ) {
+      return false;
+    }
+
+    if (
+      exclude.length &&
+      exclude.some((name) => author.includes(name))
+    ) {
+      return false;
+    }
 
     return true;
   });
