@@ -902,44 +902,163 @@ export function buildNaming({ onChange }) {
     },
   });
 
-  const startSpinner = createSpinner({
-    value: s.numberingStart,
-    min: 1,
-    width: 110,
+  const counterOptions = [
+    {
+      value: 'global',
+      label: 'Общий номер публикации',
+    },
+    {
+      value: 'carousel',
+      label: 'Номер элемента карусели',
+    },
+    {
+      value: 'none',
+      label: 'Не использовать',
+    },
+    {
+      value: 'batch',
+      label: 'Номер в текущей загрузке',
+    },
+    {
+      value: 'author',
+      label: 'Номер публикации автора',
+    },
+    {
+      value: 'type',
+      label: 'Номер публикации этого типа',
+    },
+  ];
+
+  const counterOneStartSpinner =
+    createSpinner({
+      value: s.counterOneStart,
+      min: 1,
+      width: 110,
+      onChange: (value) => {
+        setSetting(
+          'counterOneStart',
+          value,
+        );
+
+        if (onChange) {
+          onChange();
+        }
+      },
+    });
+
+  const counterTwoStartSpinner =
+    createSpinner({
+      value: s.counterTwoStart,
+      min: 1,
+      width: 110,
+      onChange: (value) => {
+        setSetting(
+          'counterTwoStart',
+          value,
+        );
+
+        if (onChange) {
+          onChange();
+        }
+      },
+    });
+
+  let counterOne;
+  let counterTwo;
+
+  function syncCounterAvailability() {
+    const firstDisabled =
+      state.settings.counterOne ===
+      'none';
+
+    const secondDisabled =
+      firstDisabled;
+
+    counterOneStartSpinner.setDisabled(
+      state.settings.counterOne ===
+      'none',
+    );
+
+    counterTwo.setDisabled(
+      secondDisabled,
+    );
+
+    counterTwoStartSpinner.setDisabled(
+      secondDisabled ||
+      state.settings.counterTwo ===
+        'none',
+    );
+  }
+
+  counterOne = createSelect({
+    options: counterOptions,
+    value: s.counterOne,
     onChange: (value) => {
-      setSetting('numberingStart', value);
-      if (onChange) onChange();
+      setSetting(
+        'counterOne',
+        value,
+      );
+
+      syncCounterAvailability();
+
+      if (onChange) {
+        onChange();
+      }
     },
   });
 
-  const counterOne = createSelect({
-    options: [
-      { value: 'global', label: 'Общий номер публикации' },
-      { value: 'batch', label: 'Номер в текущей загрузке' },
-      { value: 'author', label: 'Номер публикации автора' },
-      { value: 'type', label: 'Номер публикации этого типа' },
-    ],
-    value: s.counterOne,
-    onChange: (value) => setSetting('counterOne', value),
+  counterTwo = createSelect({
+    options: counterOptions,
+    value: s.counterTwo,
+    onChange: (value) => {
+      setSetting(
+        'counterTwo',
+        value,
+      );
+
+      syncCounterAvailability();
+
+      if (onChange) {
+        onChange();
+      }
+    },
   });
 
-  const counterTwo = createSelect({
-    options: [
-      { value: 'carousel', label: 'Номер элемента карусели' },
-      { value: 'none', label: 'Не использовать' },
-      { value: 'author', label: 'Номер публикации автора' },
-      { value: 'type', label: 'Номер публикации этого типа' },
-    ],
-    value: s.counterTwo,
-    onChange: (value) => setSetting('counterTwo', value),
-  });
+  /*
+  * Временный alias для старого API
+  * setNumberingStart(). Он будет удалён
+  * после подключения истории версии 2.
+  */
+  const startSpinner =
+    counterOneStartSpinner;
+
+  syncCounterAvailability();
 
   numberingGrid.append(
-    cell('Добавлять в:', destinationSelect.node),
-    cell('Текст перед номером:', markerField.node),
-    cell('Начальная цифра нумерации:', startSpinner.node),
-    cell('Первое число:', counterOne.node),
-    cell('Второе число:', counterTwo.node),
+    cell(
+      'Добавлять в:',
+      destinationSelect.node,
+    ),
+    cell(
+      'Текст перед номером:',
+      markerField.node,
+    ),
+    cell(
+      'Первый счётчик:',
+      counterOne.node,
+    ),
+    cell(
+      'Начальное число первого счётчика:',
+      counterOneStartSpinner.node,
+    ),
+    cell(
+      'Второй счётчик:',
+      counterTwo.node,
+    ),
+    cell(
+      'Начальное число второго счётчика:',
+      counterTwoStartSpinner.node,
+    ),
   );
   body.appendChild(numberingGrid);
 

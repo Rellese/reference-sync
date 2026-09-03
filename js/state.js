@@ -26,9 +26,20 @@ export const defaultSettings = {
   numberingEnabled: true,
   numberingDestination: 'name',
   numberingMarker: 'instpoporder-',
+
+  /*
+  * Старое поле временно сохраняется для миграции
+  * настроек и истории версии 1.
+  */
   numberingStart: 1,
+
   counterOne: 'global',
+  counterOneStart: 1,
+  counterOnePlacement: 'end',
+
   counterTwo: 'carousel',
+  counterTwoStart: 1,
+  counterTwoPlacement: 'end',
   descriptionEnabled: true,
   descriptionDestination: 'description',
   descriptionPlacement: 'start',
@@ -71,6 +82,19 @@ export function loadSettings() {
     Object.keys(defaultSettings).forEach((key) => {
       if (parsed[key] !== undefined) state.settings[key] = parsed[key];
     });
+
+    /*
+    * Пользовательские настройки до M1-T09D
+    * содержали одно общее поле numberingStart.
+    * Переносим его в первый счётчик.
+    */
+    if (
+      parsed.counterOneStart === undefined &&
+      parsed.numberingStart !== undefined
+    ) {
+      state.settings.counterOneStart =
+        parsed.numberingStart;
+    }
   } catch (_) { /* настройки повреждены — используем значения по умолчанию */ }
 }
 
@@ -83,6 +107,59 @@ export function saveSettings() {
 export function setSetting(key, value) {
   state.settings[key] = value;
   saveSettings();
+}
+
+function positiveInteger(value, fallback = 1) {
+  const number = Math.trunc(Number(value));
+
+  return Number.isInteger(number) &&
+    number > 0
+    ? number
+    : fallback;
+}
+
+export function numberingCounters(
+  settings = state.settings,
+) {
+  return [
+    {
+      id: 'counter-1',
+      mode:
+        String(
+          settings.counterOne ||
+          'global',
+        ),
+      start: positiveInteger(
+        settings.counterOneStart,
+        positiveInteger(
+          settings.numberingStart,
+          1,
+        ),
+      ),
+      placement:
+        settings.counterOnePlacement ===
+        'start'
+          ? 'start'
+          : 'end',
+    },
+    {
+      id: 'counter-2',
+      mode:
+        String(
+          settings.counterTwo ||
+          'none',
+        ),
+      start: positiveInteger(
+        settings.counterTwoStart,
+        1,
+      ),
+      placement:
+        settings.counterTwoPlacement ===
+        'start'
+          ? 'start'
+          : 'end',
+    },
+  ];
 }
 
 export function formatAuthorFilterValue(value) {
