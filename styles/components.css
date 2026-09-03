@@ -1857,3 +1857,20 @@ textarea.rs-editable {
 .rs-check.is-press-from-mixed::after {
   opacity: 0 !important;
 }
+
+/*
+ * M1-T09G:
+ * кнопка редактирования показывается только
+ * при наведении на конкретную редактируемую ячейку.
+ */
+.rs-cell--name:not(:hover) > .rs-edit,
+.rs-cell--desc:not(:hover) > .rs-edit {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.rs-cell--name:hover > .rs-edit,
+.rs-cell--desc:hover > .rs-edit {
+  opacity: 1;
+  pointer-events: auto;
+}

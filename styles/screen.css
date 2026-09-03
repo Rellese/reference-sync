@@ -645,7 +645,25 @@
   right: 0;
   top: 0;
 }
-.rs-row:hover .rs-edit { opacity: 1; }
+
+/*
+ * Кнопка названия закреплена относительно ячейки:
+ * 0px сверху и 10px от правой границы.
+ */
+.rs-cell--name .rs-edit {
+  position: absolute;
+  top: 0;
+  right: 10px;
+}
+
+/*
+ * Каждая кнопка появляется только при наведении
+ * на свою конкретную ячейку.
+ */
+.rs-cell--name:hover > .rs-edit,
+.rs-cell--desc:hover > .rs-edit {
+  opacity: 1;
+}
 
 /* Редактируемая ячейка */
 .rs-editable {
