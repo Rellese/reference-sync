@@ -452,9 +452,56 @@ function normalizePublicationType(post) {
     .toLowerCase() || 'unknown';
 }
 
+function seedNextNumber(
+  counterSeeds,
+  counter,
+) {
+  const number = Math.trunc(
+    Number(
+      counterSeeds?.[counter.id]
+        ?.nextNumber,
+    ),
+  );
+
+  return Number.isInteger(number) &&
+    number > 0
+    ? number
+    : counter.start;
+}
+
+function seedAuthorNumbers(
+  counterSeeds,
+  counter,
+) {
+  const source =
+    counterSeeds?.[counter.id]
+      ?.authors;
+
+  if (!source || typeof source !== 'object') {
+    return new Map();
+  }
+
+  return new Map(
+    Object.entries(source)
+      .map(([author, value]) => [
+        normalizeAuthorKey({
+          username: author,
+        }),
+        Math.trunc(Number(value)),
+      ])
+      .filter(
+        ([author, value]) =>
+          author &&
+          Number.isInteger(value) &&
+          value > 0,
+      ),
+  );
+}
+
 function buildPublicationCounterValues(
   counters,
   selectedPosts,
+  counterSeeds = {},
 ) {
   const values = new Map();
 
@@ -463,9 +510,25 @@ function buildPublicationCounterValues(
 
     if (
       counter.mode ===
-        NUMBERING_COUNTER_MODES.GLOBAL ||
+      NUMBERING_COUNTER_MODES.GLOBAL
+    ) {
+      const firstNumber =
+        seedNextNumber(
+          counterSeeds,
+          counter,
+        );
+
+      selectedPosts.forEach(
+        (post, index) => {
+          counterValues.set(
+            post.postId,
+            firstNumber + index,
+          );
+        },
+      );
+    } else if (
       counter.mode ===
-        NUMBERING_COUNTER_MODES.BATCH
+      NUMBERING_COUNTER_MODES.BATCH
     ) {
       selectedPosts.forEach(
         (post, index) => {
@@ -479,10 +542,16 @@ function buildPublicationCounterValues(
       counter.mode ===
       NUMBERING_COUNTER_MODES.AUTHOR
     ) {
-      const nextByAuthor = new Map();
+      const nextByAuthor =
+        seedAuthorNumbers(
+          counterSeeds,
+          counter,
+        );
 
       selectedPosts.forEach((post) => {
-        const author = normalizeAuthorKey(post);
+        const author =
+          normalizeAuthorKey(post);
+
         const next =
           nextByAuthor.get(author) ??
           counter.start;
@@ -523,7 +592,10 @@ function buildPublicationCounterValues(
       });
     }
 
-    values.set(counter.id, counterValues);
+    values.set(
+      counter.id,
+      counterValues,
+    );
   });
 
   return values;
@@ -562,6 +634,7 @@ export function buildNames({
   marker = 'instpoporder-',
   startNumber = 1,
   counters,
+  counterSeeds = {},
   destination = 'name',
   extraDescription = '',
 } = {}) {
@@ -595,6 +668,7 @@ export function buildNames({
     buildPublicationCounterValues(
       activeCounters,
       selectedPosts,
+      counterSeeds,
     );
 
   const globalCounter =

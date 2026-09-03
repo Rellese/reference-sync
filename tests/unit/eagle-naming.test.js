@@ -572,3 +572,158 @@ test('none in the first position disables all numbering counters', () => {
     null,
   );
 });
+
+test('global counter continues from a saved seed', () => {
+  const posts = [
+    makeNumberingPost({
+      postId: 'newest',
+      username: '@anna',
+      type: 'Фото',
+    }),
+    makeNumberingPost({
+      postId: 'oldest',
+      username: '@bob',
+      type: 'Видео',
+    }),
+  ];
+
+  const generated = buildNames({
+    posts,
+    selected: new Set([
+      'newest',
+      'oldest',
+    ]),
+    counters: [
+      {
+        id: 'counter-1',
+        mode: 'global',
+        start: 1,
+      },
+    ],
+    counterSeeds: {
+      'counter-1': {
+        nextNumber: 51,
+      },
+    },
+  });
+
+  assert.equal(
+    generated.get('oldest').name,
+    '@bob instpoporder-51',
+  );
+
+  assert.equal(
+    generated.get('newest').name,
+    '@anna instpoporder-52',
+  );
+});
+
+test('author counter continues only known authors', () => {
+  const posts = [
+    makeNumberingPost({
+      postId: 'anna-new',
+      username: '@anna',
+      type: 'Фото',
+    }),
+    makeNumberingPost({
+      postId: 'bob',
+      username: '@bob',
+      type: 'Видео',
+    }),
+    makeNumberingPost({
+      postId: 'anna-old',
+      username: '@anna',
+      type: 'Карусель',
+    }),
+  ];
+
+  const generated = buildNames({
+    posts,
+    selected: new Set([
+      'anna-new',
+      'bob',
+      'anna-old',
+    ]),
+    counters: [
+      {
+        id: 'counter-1',
+        mode: 'author',
+        start: 1,
+      },
+    ],
+    counterSeeds: {
+      'counter-1': {
+        authors: {
+          anna: 4,
+        },
+      },
+    },
+  });
+
+  assert.equal(
+    generated.get('anna-old').name,
+    '@anna instpoporder-4',
+  );
+
+  assert.equal(
+    generated.get('anna-new').name,
+    '@anna instpoporder-5',
+  );
+
+  assert.equal(
+    generated.get('bob').name,
+    '@bob instpoporder-1',
+  );
+});
+
+test('batch and type counters ignore saved seeds', () => {
+  const post = makeNumberingPost({
+    postId: 'photo',
+    username: '@anna',
+    type: 'Фото',
+  });
+
+  const batch = buildNames({
+    posts: [post],
+    selected: new Set(['photo']),
+    counters: [
+      {
+        id: 'counter-1',
+        mode: 'batch',
+        start: 10,
+      },
+    ],
+    counterSeeds: {
+      'counter-1': {
+        nextNumber: 500,
+      },
+    },
+  });
+
+  const type = buildNames({
+    posts: [post],
+    selected: new Set(['photo']),
+    counters: [
+      {
+        id: 'counter-1',
+        mode: 'type',
+        start: 20,
+      },
+    ],
+    counterSeeds: {
+      'counter-1': {
+        nextNumber: 700,
+      },
+    },
+  });
+
+  assert.equal(
+    batch.get('photo').name,
+    '@anna instpoporder-10',
+  );
+
+  assert.equal(
+    type.get('photo').name,
+    '@anna instpoporder-20',
+  );
+});

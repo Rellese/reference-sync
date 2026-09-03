@@ -7,6 +7,15 @@
 
 const STORAGE_KEY = 'reference-sync.last-numbering.v1';
 
+const COUNTER_STORAGE_KEY =
+  'reference-sync.counter-numbering.v2';
+
+const PERSISTENT_COUNTER_MODES =
+  new Set([
+    'global',
+    'author',
+  ]);
+
 function storageOrNull(storage) {
   if (storage) return storage;
 
@@ -343,4 +352,467 @@ export function saveNumberingRecords(
   } catch (_) {
     return false;
   }
+}
+
+function normalizeCounterId(value) {
+  return String(value || '').trim();
+}
+
+function normalizeCounterMode(value) {
+  const mode = String(value || '')
+    .trim()
+    .toLowerCase();
+
+  return PERSISTENT_COUNTER_MODES.has(mode)
+    ? mode
+    : '';
+}
+
+function normalizeAuthor(value) {
+  return String(value || '')
+    .trim()
+    .toLowerCase()
+    .replace(/^@+/, '');
+}
+
+function normalizeSeenPostIds(values) {
+  return [...new Set(
+    (values || [])
+      .map((value) =>
+        String(value || '').trim())
+      .filter(Boolean),
+  )];
+}
+
+function normalizeAuthorNumbers(values) {
+  const result = {};
+
+  if (!values || typeof values !== 'object') {
+    return result;
+  }
+
+  Object.entries(values).forEach(
+    ([authorValue, numberValue]) => {
+      const author =
+        normalizeAuthor(authorValue);
+
+      const number =
+        normalizeNumber(
+          numberValue,
+          0,
+        );
+
+      if (author && number > 0) {
+        result[author] = number;
+      }
+    },
+  );
+
+  return result;
+}
+
+export function counterNumberingSeriesKey({
+  platform,
+  counterId,
+  mode,
+  start,
+} = {}) {
+  const normalizedPlatform =
+    normalizePlatform(platform);
+
+  const normalizedCounterId =
+    normalizeCounterId(counterId);
+
+  const normalizedMode =
+    normalizeCounterMode(mode);
+
+  const normalizedStart =
+    normalizeNumber(start);
+
+  if (
+    !normalizedPlatform ||
+    !normalizedCounterId ||
+    !normalizedMode
+  ) {
+    return '';
+  }
+
+  return [
+    normalizedPlatform,
+    normalizedCounterId,
+    normalizedMode,
+    normalizedStart,
+  ].join('::');
+}
+
+function normalizeCounterHistoryRecord(record) {
+  if (!record) return null;
+
+  const platform =
+    normalizePlatform(record.platform);
+
+  const counterId =
+    normalizeCounterId(record.counterId);
+
+  const mode =
+    normalizeCounterMode(record.mode);
+
+  const start =
+    normalizeNumber(record.start);
+
+  if (
+    !platform ||
+    !counterId ||
+    !mode
+  ) {
+    return null;
+  }
+
+  const normalized = {
+    platform,
+    counterId,
+    mode,
+    start,
+    seenPostIds:
+      normalizeSeenPostIds(
+        record.seenPostIds,
+      ),
+  };
+
+  if (mode === 'global') {
+    normalized.nextNumber =
+      normalizeNumber(
+        record.nextNumber,
+        start,
+      );
+  }
+
+  if (mode === 'author') {
+    normalized.authors =
+      normalizeAuthorNumbers(
+        record.authors,
+      );
+  }
+
+  return normalized;
+}
+
+export function serializeCounterHistoryRecords(
+  records,
+) {
+  const series = {};
+
+  for (
+    const [recordKey, sourceRecord]
+    of records || []
+  ) {
+    const record =
+      normalizeCounterHistoryRecord(
+        sourceRecord,
+      );
+
+    if (!record) continue;
+
+    const key =
+      counterNumberingSeriesKey(record);
+
+    if (!key || key !== recordKey) {
+      continue;
+    }
+
+    series[key] = record;
+  }
+
+  return JSON.stringify({
+    version: 2,
+    series,
+  });
+}
+
+export function parseCounterHistoryRecords(
+  serialized,
+) {
+  try {
+    const parsed = JSON.parse(
+      String(serialized || ''),
+    );
+
+    if (
+      parsed?.version !== 2 ||
+      !parsed.series ||
+      typeof parsed.series !== 'object'
+    ) {
+      return new Map();
+    }
+
+    const records = new Map();
+
+    Object.entries(parsed.series).forEach(
+      ([storedKey, sourceRecord]) => {
+        const record =
+          normalizeCounterHistoryRecord(
+            sourceRecord,
+          );
+
+        if (!record) return;
+
+        const key =
+          counterNumberingSeriesKey(
+            record,
+          );
+
+        if (!key || key !== storedKey) {
+          return;
+        }
+
+        records.set(key, record);
+      },
+    );
+
+    return records;
+  } catch (_) {
+    return new Map();
+  }
+}
+
+export function loadCounterHistoryRecords(
+  storage = null,
+) {
+  const target = storageOrNull(storage);
+  if (!target) return new Map();
+
+  try {
+    return parseCounterHistoryRecords(
+      target.getItem(
+        COUNTER_STORAGE_KEY,
+      ),
+    );
+  } catch (_) {
+    return new Map();
+  }
+}
+
+export function saveCounterHistoryRecords(
+  records,
+  storage = null,
+) {
+  const target = storageOrNull(storage);
+  if (!target) return false;
+
+  try {
+    target.setItem(
+      COUNTER_STORAGE_KEY,
+      serializeCounterHistoryRecords(
+        records,
+      ),
+    );
+
+    return true;
+  } catch (_) {
+    return false;
+  }
+}
+
+export function counterHistorySeeds({
+  records,
+  platform,
+  counters,
+} = {}) {
+  const seeds = {};
+
+  for (const counter of counters || []) {
+    const mode =
+      normalizeCounterMode(
+        counter?.mode,
+      );
+
+    if (!mode) continue;
+
+    const key =
+      counterNumberingSeriesKey({
+        platform,
+        counterId: counter.id,
+        mode,
+        start: counter.start,
+      });
+
+    const record =
+      records?.get(key);
+
+    if (!record) continue;
+
+    if (mode === 'global') {
+      seeds[counter.id] = {
+        nextNumber:
+          normalizeNumber(
+            record.nextNumber,
+            counter.start,
+          ),
+      };
+    }
+
+    if (mode === 'author') {
+      seeds[counter.id] = {
+        authors:
+          normalizeAuthorNumbers(
+            record.authors,
+          ),
+      };
+    }
+  }
+
+  return seeds;
+}
+
+export function rememberCounterHistory({
+  records,
+  platform,
+  counters,
+  posts,
+  generated,
+  importedPostIds,
+} = {}) {
+  const updated = new Map(
+    records || [],
+  );
+
+  const postsById = new Map(
+    (posts || []).map(
+      (post) => [
+        String(post.postId),
+        post,
+      ],
+    ),
+  );
+
+  const successfulPostIds =
+    [...new Set(
+      [...(importedPostIds || [])]
+        .map((value) =>
+          String(value || '').trim())
+        .filter(Boolean),
+    )];
+
+  if (!successfulPostIds.length) {
+    return updated;
+  }
+
+  for (const counter of counters || []) {
+    const mode =
+      normalizeCounterMode(
+        counter?.mode,
+      );
+
+    if (!mode) continue;
+
+    const start =
+      normalizeNumber(counter.start);
+
+    const key =
+      counterNumberingSeriesKey({
+        platform,
+        counterId: counter.id,
+        mode,
+        start,
+      });
+
+    if (!key) continue;
+
+    const existing =
+      normalizeCounterHistoryRecord(
+        updated.get(key),
+      );
+
+    const record = existing || {
+      platform:
+        normalizePlatform(platform),
+      counterId:
+        normalizeCounterId(
+          counter.id,
+        ),
+      mode,
+      start,
+      seenPostIds: [],
+      ...(mode === 'global'
+        ? {
+          nextNumber: start,
+        }
+        : {
+          authors: {},
+        }),
+    };
+
+    const seen = new Set(
+      record.seenPostIds,
+    );
+
+    let changed = false;
+
+    successfulPostIds.forEach(
+      (postId) => {
+        if (seen.has(postId)) {
+          return;
+        }
+
+        const value = Number(
+          generated
+            ?.get(postId)
+            ?.counterValues
+            ?.[counter.id],
+        );
+
+        if (
+          !Number.isInteger(value) ||
+          value < 1
+        ) {
+          return;
+        }
+
+        if (mode === 'global') {
+          record.nextNumber = Math.max(
+            normalizeNumber(
+              record.nextNumber,
+              start,
+            ),
+            value + 1,
+          );
+        }
+
+        if (mode === 'author') {
+          const post =
+            postsById.get(postId);
+
+          const author =
+            normalizeAuthor(
+              post?.username,
+            );
+
+          if (!author) {
+            return;
+          }
+
+          record.authors[author] =
+            Math.max(
+              normalizeNumber(
+                record.authors[author],
+                start,
+              ),
+              value + 1,
+            );
+        }
+
+        seen.add(postId);
+        changed = true;
+      },
+    );
+
+    if (!changed && !existing) {
+      continue;
+    }
+
+    record.seenPostIds = [...seen];
+    updated.set(key, record);
+  }
+
+  return updated;
 }
