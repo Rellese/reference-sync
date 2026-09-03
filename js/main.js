@@ -2470,7 +2470,7 @@ function renderTable() {
   tableCheckboxes.clear();
 
   const posts = visiblePosts();
-  ui.results.setTitle(state.selected.size, posts.length);
+  ui.results.setTitle(posts.length, state.posts.length);
   ui.results.clearButton.setDisabled(!posts.length);
   if (phase === 'ready') {
     ui.footer.action.setDisabled(
