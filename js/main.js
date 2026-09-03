@@ -2714,7 +2714,7 @@ if (isKnown) {
     const carouselLabel = el(
       'span',
       'rs-carousel-button__label',
-      post.structure,
+      post.type,
     );
 
     const carouselCount = el(
@@ -2730,7 +2730,7 @@ if (isKnown) {
 
     structure.appendChild(carouselButton);
   } else {
-    structure.textContent = post.structure;
+    structure.textContent = post.type;
   }
 
   if (post.componentCount > 1) {
