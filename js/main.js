@@ -2700,16 +2700,38 @@ if (isKnown) {
   author.title = post.url;
   const type = el('div', 'rs-cell', post.type);
 
-  const structureText = carouselState
-    ? `${carouselState.availableCount} элем. · ` +
-      `выбрано ${carouselState.selectedCount}`
-    : post.structure;
-
   const structure = el(
     'div',
     'rs-cell',
-    structureText,
   );
+
+  if (carouselState) {
+    const carouselButton = el(
+      'div',
+      'rs-carousel-button',
+    );
+
+    const carouselLabel = el(
+      'span',
+      'rs-carousel-button__label',
+      post.structure,
+    );
+
+    const carouselCount = el(
+      'span',
+      'rs-carousel-button__count',
+      `${carouselState.selectedCount} / ${carouselState.total}`,
+    );
+
+    carouselButton.append(
+      carouselLabel,
+      carouselCount,
+    );
+
+    structure.appendChild(carouselButton);
+  } else {
+    structure.textContent = post.structure;
+  }
 
   if (post.componentCount > 1) {
     structure.classList.add('is-clickable');
