@@ -900,8 +900,13 @@ export function buildNames({
               destination === 'name' ||
               destination === 'both'
             )
-              ? `${post.username} ${numberingPart}`
-              : post.username;
+              ? [
+                baseName,
+                numberingPart,
+              ]
+              .filter(Boolean)
+              .join(' ')
+              : baseName;
 
           componentDescriptions[
             componentIndex
