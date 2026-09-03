@@ -2777,6 +2777,21 @@ if (isKnown) {
     'name',
   );
 
+  if (!isKnown) {
+    const nameEditButton =
+      createEditButton(() => {
+        startEdit(
+          nameCell,
+          post.postId,
+          'name',
+        );
+      });
+
+    nameCell.appendChild(
+      nameEditButton,
+    );
+  }
+
   if (isKnown) {
     nameCell.setAttribute(
       'aria-disabled',
