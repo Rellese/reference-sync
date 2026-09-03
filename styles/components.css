@@ -467,7 +467,7 @@
 .rs-tip.is-accent { color: var(--accent); }
 
 /* Важная часть подсказки — оранжевая (см. скриншот в Instruction) */
-.rs-tip__mark { color: var(--glow-orange); }
+.rs-tip__mark { color: #D3522D; }
 .rs-tip.is-visible { display: block; }
 
 /* ============================================================
