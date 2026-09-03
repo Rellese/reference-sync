@@ -612,7 +612,21 @@ export function createField({
     input,
     get value() { return input.value; },
     set(next) { input.value = next ?? ''; },
-    setDisabled(state) { root.classList.toggle('is-disabled', Boolean(state)); },
+    setDisabled(state) {
+      const disabled = Boolean(state);
+
+      root.classList.toggle(
+        'is-disabled',
+        disabled,
+      );
+
+      root.setAttribute(
+        'aria-disabled',
+        String(disabled),
+      );
+
+      input.disabled = disabled;
+    },
   };
 }
 

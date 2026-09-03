@@ -1117,6 +1117,24 @@
   opacity: 0;
 }
 
+/*
+ * Disabled:
+ * fill #262626 / 20%;
+ * stroke #707070 / 10%;
+ * текст #707070 / 20%.
+ */
+.rs-carousel-button.is-disabled {
+  background: rgba(38, 38, 38, 0.2);
+  border-color: rgba(112, 112, 112, 0.1);
+  box-shadow: none;
+  color: rgba(112, 112, 112, 0.2);
+  cursor: default;
+  pointer-events: none;
+}
+
+.rs-carousel-button.is-disabled::before {
+  opacity: 0;
+}
 
 /* ============================================================
    input field — docs/design/components/input field.css
@@ -1128,30 +1146,136 @@
   flex-direction: row;
   justify-content: space-between;
   align-items: center;
+
   width: 100%;
   height: var(--h-field);
   padding: 10px;
   gap: 8px;
-  background: var(--field-bg);
+
+  background: rgba(38, 38, 38, 0.2);
   border: 1px solid transparent;
   border-radius: var(--r-btn);
+
   cursor: text;
-  transition: border-color 120ms ease, box-shadow 120ms ease;
+
+  transition:
+    border-color 120ms ease,
+    box-shadow 120ms ease,
+    color 120ms ease;
 }
-.rs-field:hover { box-shadow: var(--field-shadow-hover); }
-.rs-field.is-focus {
-  border-color: var(--field-border-pressed);
+
+/*
+ * Enable — такой же градиентный Stroke 1,
+ * как у кнопки карусели.
+ */
+.rs-field::before {
+  content: '';
+  position: absolute;
+  inset: -1px;
+
+  padding: 1px;
+  border-radius: inherit;
+
+  background: linear-gradient(
+    -32deg,
+    rgba(112, 112, 112, 0.3) 0%,
+    rgba(112, 112, 112, 0) 32%,
+    rgba(112, 112, 112, 0) 72%,
+    rgba(112, 112, 112, 0.3) 100%
+  );
+
+  -webkit-mask:
+    linear-gradient(#fff 0 0) content-box,
+    linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+
+  mask:
+    linear-gradient(#fff 0 0) content-box,
+    linear-gradient(#fff 0 0);
+  mask-composite: exclude;
+
+  pointer-events: none;
+
+  transition: opacity 120ms ease;
+}
+
+/*
+ * Hovered — градиент остаётся, добавляются
+ * Stroke 2 и Drop shadow.
+ */
+.rs-field:not(.is-disabled):hover {
+  border-color: rgba(112, 112, 112, 0.3);
+  box-shadow:
+    0 0 0 3px
+    rgba(112, 112, 112, 0.06);
+}
+
+/*
+ * Pressed для поля — состояние фокуса.
+ * Остаётся только Stroke 2, тень отключается.
+ */
+.rs-field.is-focus:not(.is-disabled) {
+  border-color: rgba(112, 112, 112, 0.3);
   box-shadow: none;
 }
+
+.rs-field.is-focus:not(.is-disabled)::before {
+  opacity: 0;
+}
+
+.rs-field.is-focus:not(.is-disabled)
+  .rs-field__input,
+.rs-field.is-focus:not(.is-disabled)
+  .rs-field__at {
+  color: #EAEAEA;
+}
+
+.rs-field.is-focus:not(.is-disabled)
+  .rs-field__chevron::before,
+.rs-field.is-focus:not(.is-disabled)
+  .rs-field__chevron::after {
+  background: #EAEAEA;
+}
+
+/*
+ * Disabled:
+ * fill #262626 / 20%;
+ * stroke #707070 / 10%;
+ * внутренний текст #707070 / 20%.
+ */
 .rs-field.is-disabled {
-  background: var(--field-bg);
-  border-color: var(--field-border-disabled);
+  background: rgba(38, 38, 38, 0.2);
+  border-color: rgba(112, 112, 112, 0.1);
+  box-shadow: none;
+  cursor: default;
   pointer-events: none;
 }
+
+.rs-field.is-disabled::before {
+  opacity: 0;
+}
+
 .rs-field.is-disabled .rs-field__input,
-.rs-field.is-disabled .rs-field__at { color: var(--text-muted-20); }
+.rs-field.is-disabled .rs-field__at {
+  color: rgba(112, 112, 112, 0.2);
+}
+
+.rs-field.is-disabled .rs-field__input {
+  opacity: 1;
+  -webkit-text-fill-color:
+    rgba(112, 112, 112, 0.2);
+}
+
+.rs-field.is-disabled
+  .rs-field__chevron::before,
+.rs-field.is-disabled
+  .rs-field__chevron::after {
+  background: rgba(112, 112, 112, 0.2);
+}
 
 .rs-field__body {
+  position: relative;
+  z-index: 1;
   display: flex;
   flex-direction: row;
   align-items: center;
@@ -1195,6 +1319,7 @@
 /* Vector 2 — шеврон у select-подобных полей */
 .rs-field__chevron {
   position: relative;
+  z-index: 1;
   flex: none;
   width: 10px;
   height: 5px;

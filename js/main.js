@@ -2713,6 +2713,20 @@ if (isKnown) {
       'rs-carousel-button',
     );
 
+    const carouselDisabled =
+      isKnown ||
+      carouselState.disabled;
+
+    carouselButton.classList.toggle(
+      'is-disabled',
+      carouselDisabled,
+    );
+
+    carouselButton.setAttribute(
+      'aria-disabled',
+      String(carouselDisabled),
+    );
+
     const carouselLabel = el(
       'span',
       'rs-carousel-button__label',
@@ -2735,7 +2749,11 @@ if (isKnown) {
     structure.textContent = post.type;
   }
 
-  if (post.componentCount > 1) {
+  if (
+    post.componentCount > 1 &&
+    !isKnown &&
+    !carouselState?.disabled
+  ) {
     structure.classList.add('is-clickable');
     structure.title = 'Настроить компоненты публикации';
 
