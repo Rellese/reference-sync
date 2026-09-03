@@ -1742,6 +1742,9 @@ function refreshNames() {
     descriptionEnabled:
       s.descriptionEnabled,
 
+    descriptionDestination:
+      s.descriptionDestination,
+
     descriptionPlacement:
       s.descriptionPlacement,
 

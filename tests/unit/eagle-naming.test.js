@@ -791,3 +791,90 @@ test('empty additional description does not add extra separators', () => {
     'Original description',
   );
 });
+
+test('additional description can be added to the name only', () => {
+  const post = makeCarousel([1]);
+
+  const generated = buildNames({
+    posts: [post],
+    selected: new Set([post.postId]),
+    numberingEnabled: false,
+    descriptionEnabled: true,
+    descriptionDestination: 'name',
+    descriptionPlacement: 'end',
+    extraDescription: 'Additional text',
+  }).get(post.postId);
+
+  assert.equal(
+    generated.name,
+    '@author\n\nAdditional text',
+  );
+
+  assert.equal(
+    generated.description,
+    'Original description',
+  );
+
+  assert.equal(
+    generated.componentNames[0],
+    '@author\n\nAdditional text',
+  );
+});
+
+test('additional description can be added to name and description', () => {
+  const post = makeCarousel([1]);
+
+  const generated = buildNames({
+    posts: [post],
+    selected: new Set([post.postId]),
+    numberingEnabled: false,
+    descriptionEnabled: true,
+    descriptionDestination: 'both',
+    descriptionPlacement: 'start',
+    extraDescription: 'Additional text',
+  }).get(post.postId);
+
+  assert.equal(
+    generated.name,
+    'Additional text\n\n@author',
+  );
+
+  assert.equal(
+    generated.description,
+    'Additional text\n\nOriginal description',
+  );
+
+  assert.equal(
+    generated.componentNames[0],
+    'Additional text\n\n@author',
+  );
+
+  assert.equal(
+    generated.componentDescriptions[0],
+    'Additional text\n\nOriginal description',
+  );
+});
+
+test('disabled additional description preserves original fields', () => {
+  const post = makeCarousel([1]);
+
+  const generated = buildNames({
+    posts: [post],
+    selected: new Set([post.postId]),
+    numberingEnabled: false,
+    descriptionEnabled: false,
+    descriptionDestination: 'both',
+    descriptionPlacement: 'start',
+    extraDescription: 'Additional text',
+  }).get(post.postId);
+
+  assert.equal(
+    generated.name,
+    '@author',
+  );
+
+  assert.equal(
+    generated.description,
+    'Original description',
+  );
+});

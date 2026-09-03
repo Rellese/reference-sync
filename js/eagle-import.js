@@ -664,7 +664,7 @@ export function buildNames({
   descriptionPlacement = 'start',
   descriptionDestination = 'description',
   counters,
-  counterSeeds,
+  counterSeeds = {},
 } = {}) {
   const result = new Map();
   const safePosts = Array.isArray(posts)
@@ -788,31 +788,51 @@ export function buildNames({
       ...numberingByComponent.values(),
     ];
 
+    const originalName =
+      String(
+        post.username || '@unknown',
+      ).trim();
+
     const originalDescription =
-      String(post.description || '').trim();
+      String(
+        post.description || '',
+      ).trim();
 
     const additionalDescription =
-      String(extraDescription || '').trim();
-
-    const descriptionParts =
-      descriptionPlacement === 'end'
-        ? [
-          originalDescription,
-          additionalDescription,
-        ]
-        : [
-          additionalDescription,
-          originalDescription,
-        ];
-
-    const baseDescription =
       descriptionEnabled
-        ? descriptionParts
-          .filter(Boolean)
-          .join('\n\n')
+        ? String(
+          extraDescription || '',
+        ).trim()
         : '';
 
-    let name = post.username;
+    const addToName =
+      descriptionDestination === 'name' ||
+      descriptionDestination === 'both';
+
+    const addToDescription =
+      descriptionDestination ===
+        'description' ||
+      descriptionDestination === 'both';
+
+    const baseName =
+      addToName
+        ? placeAdditionalText(
+          originalName,
+          additionalDescription,
+          descriptionPlacement,
+        )
+        : originalName;
+
+    const baseDescription =
+      addToDescription
+        ? placeAdditionalText(
+          originalDescription,
+          additionalDescription,
+          descriptionPlacement,
+        )
+        : originalDescription;
+
+    let name = baseName;
     let description = baseDescription;
 
     if (numberingParts.length) {
