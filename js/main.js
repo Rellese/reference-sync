@@ -1739,10 +1739,14 @@ function refreshNames() {
     destination:
       s.numberingDestination,
 
+    descriptionEnabled:
+      s.descriptionEnabled,
+
+    descriptionPlacement:
+      s.descriptionPlacement,
+
     extraDescription:
-      s.descriptionEnabled
-        ? s.extraDescription
-        : '',
+      s.extraDescription,
   });
 }
 

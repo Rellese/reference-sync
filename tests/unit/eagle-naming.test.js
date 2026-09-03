@@ -727,3 +727,67 @@ test('batch and type counters ignore saved seeds', () => {
     '@anna instpoporder-20',
   );
 });
+
+test('additional description is added before original description', () => {
+  const post = makeCarousel([1]);
+
+  const generated = buildNames({
+    posts: [post],
+    selected: new Set([post.postId]),
+    numberingEnabled: false,
+    descriptionEnabled: true,
+    descriptionPlacement: 'start',
+    extraDescription: 'Additional text',
+  }).get(post.postId);
+
+  assert.equal(
+    generated.description,
+    'Additional text\n\nOriginal description',
+  );
+
+  assert.equal(
+    generated.componentDescriptions[0],
+    'Additional text\n\nOriginal description',
+  );
+});
+
+test('additional description is added after original description', () => {
+  const post = makeCarousel([1]);
+
+  const generated = buildNames({
+    posts: [post],
+    selected: new Set([post.postId]),
+    numberingEnabled: false,
+    descriptionEnabled: true,
+    descriptionPlacement: 'end',
+    extraDescription: 'Additional text',
+  }).get(post.postId);
+
+  assert.equal(
+    generated.description,
+    'Original description\n\nAdditional text',
+  );
+
+  assert.equal(
+    generated.componentDescriptions[0],
+    'Original description\n\nAdditional text',
+  );
+});
+
+test('empty additional description does not add extra separators', () => {
+  const post = makeCarousel([1]);
+
+  const generated = buildNames({
+    posts: [post],
+    selected: new Set([post.postId]),
+    numberingEnabled: false,
+    descriptionEnabled: true,
+    descriptionPlacement: 'start',
+    extraDescription: '',
+  }).get(post.postId);
+
+  assert.equal(
+    generated.description,
+    'Original description',
+  );
+});

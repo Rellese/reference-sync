@@ -627,16 +627,44 @@ function counterValueForComponent({
     ?.get(post.postId) ?? null;
 }
 
+function placeAdditionalText(
+  originalText,
+  additionalText,
+  placement = 'end',
+) {
+  const original =
+    String(originalText || '').trim();
+
+  const additional =
+    String(additionalText || '').trim();
+
+  if (!additional) {
+    return original;
+  }
+
+  const parts =
+    placement === 'start'
+      ? [additional, original]
+      : [original, additional];
+
+  return parts
+    .filter(Boolean)
+    .join('\n\n');
+}
+
 export function buildNames({
   posts,
   selected,
   numberingEnabled = true,
   marker = 'instpoporder-',
   startNumber = 1,
-  counters,
-  counterSeeds = {},
   destination = 'name',
   extraDescription = '',
+  descriptionEnabled = true,
+  descriptionPlacement = 'start',
+  descriptionDestination = 'description',
+  counters,
+  counterSeeds,
 } = {}) {
   const result = new Map();
   const safePosts = Array.isArray(posts)
@@ -760,14 +788,29 @@ export function buildNames({
       ...numberingByComponent.values(),
     ];
 
-    const baseDescription = [
-      post.description,
-      extraDescription,
-    ]
-      .map((part) =>
-        String(part || '').trim())
-      .filter(Boolean)
-      .join('\n\n');
+    const originalDescription =
+      String(post.description || '').trim();
+
+    const additionalDescription =
+      String(extraDescription || '').trim();
+
+    const descriptionParts =
+      descriptionPlacement === 'end'
+        ? [
+          originalDescription,
+          additionalDescription,
+        ]
+        : [
+          additionalDescription,
+          originalDescription,
+        ];
+
+    const baseDescription =
+      descriptionEnabled
+        ? descriptionParts
+          .filter(Boolean)
+          .join('\n\n')
+        : '';
 
     let name = post.username;
     let description = baseDescription;
