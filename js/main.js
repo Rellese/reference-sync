@@ -600,7 +600,9 @@ async function boot() {
   ui.results = buildResults({
     onClear: () => clearResults(),
     onToggleAll: (value) => toggleAll(value),
-    onThumbnails: () => renderTable(),
+    onThumbnails: () => {
+      syncTableThumbnailVisibility();
+    },
     onResetAll: () => {
       resetAllEdits();
       refreshNames();
@@ -2449,7 +2451,16 @@ window.addEventListener(
   finishTableSelectionGesture,
 );
 
+function syncTableThumbnailVisibility() {
+  ui.results?.node?.classList.toggle(
+    'is-thumbnails-hidden',
+    !state.settings.thumbnails,
+  );
+}
+
 function renderTable() {
+  syncTableThumbnailVisibility();
+
   stopTableSelectionSync();
   stopTableSelectionTitleUpdate();
   clearTableRangePreview();

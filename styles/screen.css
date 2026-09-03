@@ -405,6 +405,8 @@
 
 /* ---------- 5 блок — таблица результатов, 1132×470 ---------- */
 .rs-results {
+  --rs-table-lead-width: 90px;
+
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -415,6 +417,10 @@
   border: 1px solid var(--border-card);
   border-radius: var(--r-card);
   overflow: hidden;
+}
+
+.rs-results.is-thumbnails-hidden {
+  --rs-table-lead-width: 12px;
 }
 
 /* Шапка: заголовок + кнопка «Очистить список», ниже настройки */
@@ -465,7 +471,7 @@
 .rs-table__grid {
   display: grid;
   grid-template-columns:
-    90px
+    var(--rs-table-lead-width)
     minmax(110px, 150px)
     minmax(90px, 150px)
     minmax(90px, 150px)
@@ -577,6 +583,10 @@
   height: 100%;
   object-fit: cover;
   display: block;
+}
+
+.rs-results.is-thumbnails-hidden .rs-thumb {
+  display: none;
 }
 
 /* Ячейки таблицы — CommitMono 11/12 */
