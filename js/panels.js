@@ -1024,14 +1024,6 @@ export function buildNaming({ onChange }) {
     },
   });
 
-  /*
-  * Временный alias для старого API
-  * setNumberingStart(). Он будет удалён
-  * после подключения истории версии 2.
-  */
-  const startSpinner =
-    counterOneStartSpinner;
-
   syncCounterAvailability();
 
   numberingGrid.append(
@@ -1135,10 +1127,6 @@ export function buildNaming({ onChange }) {
 
   return {
      node: root,
-
-    setNumberingStart(value) {
-      startSpinner.set(value);
-    },
   };
 }
 

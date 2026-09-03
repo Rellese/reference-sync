@@ -28,8 +28,19 @@ import {
 } from './carousel-selection.js';
 
 import {
-  state, loadSettings, setSetting, visiblePosts, cellValue, isEdited,
-  applyEdit, removeEdit, undoEdit, redoEdit, resetAllEdits, hasEdits,
+  state,
+  loadSettings,
+  setSetting,
+  numberingCounters,
+  visiblePosts,
+  cellValue,
+  isEdited,
+  applyEdit,
+  removeEdit,
+  undoEdit,
+  redoEdit,
+  resetAllEdits,
+  hasEdits,
 } from './state.js';
 
 import {
@@ -45,6 +56,7 @@ import {
   checkEagle,
   importToEagle,
   buildNames,
+  normalizeNumberingCounters,
   listFolders,
   findEagleItemsByIds,
   orderImportItemsOldestFirst,
@@ -61,11 +73,10 @@ import {
 } from './import-registry.js';
 
 import {
-  createNumberingRecord,
-  loadNumberingRecords,
-  numberingSettingsMatch,
-  resolveContinuedStart,
-  saveNumberingRecords,
+  counterHistorySeeds,
+  loadCounterHistoryRecords,
+  rememberCounterHistory,
+  saveCounterHistoryRecords,
 } from './numbering-history.js';
 
 import {
@@ -114,8 +125,11 @@ let recoveryState = null;
 /* Скачанные файлы, восстановленные после аварии */
 let recoveredDownloaded = null;
 
-/* Последняя успешно импортированная нумерация по платформам */
-let numberingRecords = new Map();
+/*
+ * История независимых глобальных и авторских
+ * счётчиков версии 2.
+ */
+let counterHistoryRecords = new Map();
 
 /* Штатное закрытие не должно восстанавливаться как авария */
 let closingGracefully = false;
@@ -133,152 +147,80 @@ function browserDisplayName(browser) {
   return BROWSER_DISPLAY_NAMES[key] || browser || 'браузера';
 }
 
-function normalizedPlatform(value) {
-  return String(value || '')
-    .trim()
-    .toLowerCase();
-}
-
-async function applyNumberingContinuation() {
-  const platform = normalizedPlatform(
-    state.settings.platform,
-  );
-
-  const record = numberingRecords.get(platform);
-
-  if (
-    !record ||
-    !numberingSettingsMatch(
-      record,
-      state.settings,
-    ) ||
-    !record.itemIds.length
-  ) {
-    return false;
+function activeNumberingCounters(
+  settings = state.settings,
+) {
+  if (settings.numberingEnabled !== true) {
+    return [];
   }
 
-  const items = await findEagleItemsByIds(
-    record.itemIds,
+  return normalizeNumberingCounters(
+    numberingCounters(settings),
+    {
+      startNumber:
+        settings.numberingStart,
+    },
   );
-
-  const nextNumber = resolveContinuedStart({
-    record,
-    settings: state.settings,
-    items,
-  });
-
-  if (!Number.isInteger(nextNumber)) {
-    ui.log?.add(
-      'Последний номер в Eagle определить не удалось — ' +
-      'сохранено ручное начальное значение.',
-      'warn',
-    );
-
-    return false;
-  }
-
-  setSetting(
-    'numberingStart',
-    nextNumber,
-  );
-
-  ui.naming?.setNumberingStart(
-    nextNumber,
-  );
-
-  numberingRecords.set(platform, {
-    ...record,
-    startNumber: nextNumber,
-  });
-
-  saveNumberingRecords(
-    numberingRecords,
-  );
-
-  ui.log?.add(
-    `Нумерация продолжена с ${nextNumber}.`,
-    'ok',
-  );
-
-  return true;
 }
 
-function rememberImportedNumbering(
+function currentNumberingContext(
+  settings = state.settings,
+) {
+  const counters =
+    activeNumberingCounters(settings);
+
+  return {
+    counters,
+    counterSeeds:
+      counterHistorySeeds({
+        records:
+          counterHistoryRecords,
+        platform:
+          settings.platform,
+        counters,
+      }),
+  };
+}
+
+function selectedVisiblePostIds() {
+  return new Set(
+    visiblePosts()
+      .filter((post) =>
+        state.selected.has(post.postId))
+      .map((post) => post.postId),
+  );
+}
+
+function rememberImportedCounterHistory(
   settings,
   importedPostIds,
+  counters,
 ) {
   if (
     settings.numberingEnabled !== true ||
-    !importedPostIds?.size
+    !importedPostIds?.size ||
+    !counters?.length
   ) {
     return false;
   }
 
-  let latest = null;
+  counterHistoryRecords =
+    rememberCounterHistory({
+      records:
+        counterHistoryRecords,
+      platform:
+        settings.platform,
+      counters,
+      posts:
+        state.posts,
+      generated:
+        state.generated,
+      importedPostIds,
+    });
 
-  for (const postId of importedPostIds) {
-    const postNumber = Number(
-      state.generated.get(postId)?.postNumber,
-    );
-
-    if (
-      !Number.isInteger(postNumber) ||
-      postNumber < 1
-    ) {
-      continue;
-    }
-
-    if (
-      !latest ||
-      postNumber > latest.postNumber
-    ) {
-      latest = {
-        postId,
-        postNumber,
-      };
-    }
-  }
-
-  if (!latest) {
-    return false;
-  }
-
-  const importRecord = state.importRecords.get(
-    latest.postId,
+  return saveCounterHistoryRecords(
+    counterHistoryRecords,
   );
-
-  const itemIds = [
-    ...(importRecord?.components?.values() || []),
-  ];
-
-  if (!itemIds.length) {
-    return false;
-  }
-
-  const record = createNumberingRecord({
-    settings,
-    lastNumber: latest.postNumber,
-    itemIds,
-  });
-
-  if (!record) {
-    return false;
-  }
-
-  const platform = normalizedPlatform(
-    settings.platform,
-  );
-
-  numberingRecords.set(
-    platform,
-    record,
-  );
-
-  saveNumberingRecords(
-    numberingRecords,
-  );
-
-  return true;
 }
 
 async function refreshImportRegistry() {
@@ -558,7 +500,9 @@ async function boot() {
   bindCloseLifecycle();
   loadSettings();
   state.importRecords = loadImportRecords();
-  numberingRecords = loadNumberingRecords();
+
+  counterHistoryRecords =
+  loadCounterHistoryRecords();
   await loadIcons();
 
   const app = el('div', 'rs-app');
@@ -992,7 +936,6 @@ async function runSearch() {
    Изменения формы во время операции не должны менять уже
    запущенный профиль браузера или лимит. */
   await refreshImportRegistry();
-  await applyNumberingContinuation();
   const s = { ...state.settings };
 
 
@@ -1207,6 +1150,11 @@ function nextFrames(count = 1) {
 /* ---------- Скачивание и импорт ---------- */
 async function runImport() {
   const s = { ...state.settings };
+
+  const {
+    counters: importCounters,
+    counterSeeds: importCounterSeeds,
+  } = currentNumberingContext(s);
 
   await refreshImportRegistry();
 
@@ -1508,9 +1456,14 @@ async function runImport() {
       ),
     );
 
-    rememberImportedNumbering(
+    const {
+      counters: importedCounters,
+    } = currentNumberingContext(s);
+
+    rememberImportedCounterHistory(
       s,
       importedPostIds,
+      importedCounters,
     );
 
     if (created.length) {
@@ -1749,14 +1702,47 @@ function closeCollectionModal(cancelled) {
    ------------------------------------------------------------ */
 function refreshNames() {
   const s = state.settings;
+
+  const {
+    counters,
+    counterSeeds,
+  } = currentNumberingContext(s);
+
   state.generated = buildNames({
-    posts: visiblePosts(),
-    selected: state.selected,
-    numberingEnabled: s.numberingEnabled,
-    marker: s.numberingMarker,
-    startNumber: s.numberingStart,
-    destination: s.numberingDestination,
-    extraDescription: s.descriptionEnabled ? s.extraDescription : '',
+    posts: state.posts,
+
+    /*
+     * В нумерацию текущей очереди входят
+     * только выбранные и видимые строки.
+     * Скрытые выделения сохраняются в state,
+     * но не занимают номера.
+     */
+    selected:
+      selectedVisiblePostIds(),
+
+    numberingEnabled:
+      s.numberingEnabled,
+
+    marker:
+      s.numberingMarker,
+
+    /*
+     * Оставлено только для совместимости
+     * со старым API buildNames().
+     */
+    startNumber:
+      s.numberingStart,
+
+    counters,
+    counterSeeds,
+
+    destination:
+      s.numberingDestination,
+
+    extraDescription:
+      s.descriptionEnabled
+        ? s.extraDescription
+        : '',
   });
 }
 
