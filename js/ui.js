@@ -674,6 +674,7 @@ export function createSelect({ options = [], value, onChange } = {}) {
   const close = () => {
     menu.classList.remove('is-open');
     document.removeEventListener('mousedown', outside, true);
+    field.input.blur();
   };
 
   const outside = (event) => {

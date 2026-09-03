@@ -200,9 +200,17 @@
   display: flex;
   flex-direction: column;
   align-items: stretch;
-  padding: 0 8px 0 0;
+
+  /*
+   * 3px слева резервируются под hover-shadow.
+   * Отрицательный margin сохраняет исходное положение полей.
+   */
+  box-sizing: border-box;
+  margin-left: -3px;
+  padding: 0 8px 0 3px;
+
   gap: 20px;
-  width: 100%;
+  width: calc(100% + 3px);
   height: 100%;
   min-height: 0;
 }
