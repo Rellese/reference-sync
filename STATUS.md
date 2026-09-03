@@ -103,7 +103,8 @@ Production-репозиторий:
 - [x] M1-T09E - Настройка "добавить описание
 - [x] M1-T09F - изменить цвет подсказок
 - [x] M1-T09G - Добавить кнопку редактировать в ячейку названия
-- [ ] M1-T09G/G - Изменить кнопку карусели
+- [x] M1-T09G/G - Изменить кнопку карусели
+- [ ] M1-T09G/G2 - Изменить визуал поля ввода
 - [ ] M1-T09H - Добавить скролл в ячейку названия
 - [ ] M1-T09I - Переместить кнопку движка загрузки
 - [ ] M1-T09I - Оптимизировать прогресс бар
@@ -117,71 +118,7 @@ Production-репозиторий:
 
 # Описание задач по M1
 
-## M1-T09G/G - Изменить кнопку карусели
-Я прикладываю дизайн, нужно сделать обводку, ширина колонки по умолчанию всё также должна быть 150, но компонент кнопки карусель должен быть hug вокруг текста внутри. Первым числом в карусели указывать нужно количество выбранных элементов а второе число общее количество элементов в карусели
-/* Carousel Button */
-
-box-sizing: border-box;
-
-/* Auto layout */
-display: flex;
-flex-direction: row;
-align-items: flex-start;
-padding: 6px 10px;
-gap: 5px;
-
-width: 106px;
-height: 26px;
-
-background: rgba(38, 38, 38, 0.2);
-border-radius: 100px;
-
-/* Inside auto layout */
-flex: none;
-order: 0;
-flex-grow: 0;
-
-
-/* Название структуры */
-
-width: 57px;
-height: 12px;
-
-font-family: 'CommitMono';
-font-style: normal;
-font-weight: 400;
-font-size: 11px;
-line-height: 12px;
-letter-spacing: 0.1em;
-
-color: #707070;
-
-
-/* Inside auto layout */
-flex: none;
-order: 0;
-flex-grow: 0;
-
-
-/* Количество выбранных и общее количество элементов карусели */
-
-width: 22px;
-height: 12px;
-
-font-family: 'CommitMono';
-font-style: normal;
-font-weight: 400;
-font-size: 11px;
-line-height: 12px;
-letter-spacing: 0.1em;
-
-color: #707070;
-
-
-/* Inside auto layout */
-flex: none;
-order: 1;
-flex-grow: 0;
+## M1-T09G/G2 - Изменить визуал поля ввода
 
 ## M1-T09H - Добавить скролл в ячейку названия
 В "названии" почему то нельзя делать несколько строчек, не работает пробел, нет скролла в отличие от "Описания", а должны быть
@@ -1509,6 +1446,72 @@ Copyplacement: 'end'
 
 ## M1-T09G - Добавить кнопку редактировать в ячейку названия
 Сейчас кнопка "редактировать" отображается только в ячейке описания, она должна так же появляться в ячейке "названия". И появляться она должна не когда наведут на всю строку, а на конкретную ячейку либо "описания" либо "названия" 
+
+## M1-T09G/G - Изменить кнопку карусели
+Я прикладываю дизайн, нужно сделать обводку, ширина колонки по умолчанию всё также должна быть 150, но компонент кнопки карусель должен быть hug вокруг текста внутри. Первым числом в карусели указывать нужно количество выбранных элементов а второе число общее количество элементов в карусели
+/* Carousel Button */
+
+box-sizing: border-box;
+
+/* Auto layout */
+display: flex;
+flex-direction: row;
+align-items: flex-start;
+padding: 6px 10px;
+gap: 5px;
+
+width: 106px;
+height: 26px;
+
+background: rgba(38, 38, 38, 0.2);
+border-radius: 100px;
+
+/* Inside auto layout */
+flex: none;
+order: 0;
+flex-grow: 0;
+
+
+/* Название структуры */
+
+width: 57px;
+height: 12px;
+
+font-family: 'CommitMono';
+font-style: normal;
+font-weight: 400;
+font-size: 11px;
+line-height: 12px;
+letter-spacing: 0.1em;
+
+color: #707070;
+
+
+/* Inside auto layout */
+flex: none;
+order: 0;
+flex-grow: 0;
+
+
+/* Количество выбранных и общее количество элементов карусели */
+
+width: 22px;
+height: 12px;
+
+font-family: 'CommitMono';
+font-style: normal;
+font-weight: 400;
+font-size: 11px;
+line-height: 12px;
+letter-spacing: 0.1em;
+
+color: #707070;
+
+
+/* Inside auto layout */
+flex: none;
+order: 1;
+flex-grow: 0;
 
 ## M1-T09H - Добавить скролл в ячейку названия
 В "названии" почему то нельзя делать несколько строчек, не работает пробел, нет скролла в отличие от "Описания", а должны быть

@@ -2702,7 +2702,9 @@ if (isKnown) {
 
   const structure = el(
     'div',
-    'rs-cell',
+    carouselState
+    ? 'rs-cell rs-cell--carousel'
+    : 'rs-cell',
   );
 
   if (carouselState) {
@@ -2720,7 +2722,7 @@ if (isKnown) {
     const carouselCount = el(
       'span',
       'rs-carousel-button__count',
-      `${carouselState.selectedCount} / ${carouselState.total}`,
+      `${carouselState.selectedCount}/${carouselState.total}`,
     );
 
     carouselButton.append(

@@ -1005,12 +1005,18 @@
   color: var(--text-primary);
 }
 
-/* M1-T09G/G — кнопка карусели в основной таблице */
+/* ============================================================
+   M1-T09G/G — кнопка карусели в основной таблице
+   ============================================================ */
+
 .rs-carousel-button {
+  position: relative;
   box-sizing: border-box;
+
   display: inline-flex;
   flex-direction: row;
-  align-items: flex-start;
+  align-items: center;
+
   flex: none;
   width: fit-content;
   max-width: 100%;
@@ -1018,8 +1024,12 @@
   padding: 6px 10px;
   gap: 5px;
 
+  /*
+   * Fill: #262626, opacity 20%.
+   * Прозрачная граница резервирует место под оба Stroke.
+   */
   background: rgba(38, 38, 38, 0.2);
-  border: 0.5px solid #707070;
+  border: 1px solid transparent;
   border-radius: 100px;
 
   font-family: var(--font-table);
@@ -1029,12 +1039,84 @@
   letter-spacing: 0.1em;
   color: #707070;
   white-space: nowrap;
+
+  cursor: pointer;
+
+  transition:
+    color 120ms ease,
+    border-color 120ms ease,
+    box-shadow 120ms ease;
+}
+
+/*
+ * Stroke 1 — градиентная обводка.
+ * Он сделан отдельным слоем, потому что обычный CSS border
+ * не поддерживает градиент.
+ */
+.rs-carousel-button::before {
+  content: '';
+  position: absolute;
+  inset: -1px;
+
+  padding: 1px;
+  border-radius: inherit;
+
+  background: linear-gradient(
+    -32deg,
+    rgba(112, 112, 112, 0.3) 0%,
+    rgba(112, 112, 112, 0) 32%,
+    rgba(112, 112, 112, 0) 72%,
+    rgba(112, 112, 112, 0.3) 100%
+  );
+
+  -webkit-mask:
+    linear-gradient(#fff 0 0) content-box,
+    linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+
+  mask:
+    linear-gradient(#fff 0 0) content-box,
+    linear-gradient(#fff 0 0);
+  mask-composite: exclude;
+
+  pointer-events: none;
+
+  transition: opacity 120ms ease;
 }
 
 .rs-carousel-button__label,
 .rs-carousel-button__count {
+  position: relative;
+  z-index: 1;
   flex: none;
 }
+
+/*
+ * Hovered:
+ * Stroke 1 остаётся, поверх него появляется Stroke 2.
+ * Добавляется Drop shadow со spread 3px.
+ */
+.rs-carousel-button:hover {
+  border-color: rgba(112, 112, 112, 0.3);
+  box-shadow: 0 0 0 3px rgba(112, 112, 112, 0.06);
+}
+
+/*
+ * Pressed:
+ * остаётся только Stroke 2;
+ * тень отключается;
+ * текст становится светлым.
+ */
+.rs-carousel-button:active {
+  color: #EAEAEA;
+  border-color: rgba(112, 112, 112, 0.3);
+  box-shadow: none;
+}
+
+.rs-carousel-button:active::before {
+  opacity: 0;
+}
+
 
 /* ============================================================
    input field — docs/design/components/input field.css

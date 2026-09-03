@@ -601,6 +601,15 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+/*
+ * Ячейка карусели должна выпускать hover-shadow
+ * за свои границы.
+ */
+.rs-table__grid .rs-cell.rs-cell--carousel {
+  position: relative;
+  overflow: visible !important;
+  z-index: 2;
+}
 .rs-cell--author { color: var(--accent); }
 .rs-cell--name {
   display: flex;
