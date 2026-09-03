@@ -356,60 +356,330 @@ export function resolveComponentName({
   );
 }
 
+export const NUMBERING_COUNTER_MODES = Object.freeze({
+  GLOBAL: 'global',
+  CAROUSEL: 'carousel',
+  NONE: 'none',
+  BATCH: 'batch',
+  AUTHOR: 'author',
+  TYPE: 'type',
+});
+
+const VALID_NUMBERING_COUNTER_MODES = new Set(
+  Object.values(NUMBERING_COUNTER_MODES),
+);
+
+function normalizeCounterStart(value, fallback = 1) {
+  const number = Math.trunc(Number(value));
+
+  return Number.isInteger(number) && number > 0
+    ? number
+    : fallback;
+}
+
+function legacyNumberingCounters(startNumber) {
+  return [
+    {
+      id: 'counter-1',
+      mode: NUMBERING_COUNTER_MODES.GLOBAL,
+      start: normalizeCounterStart(startNumber),
+      placement: 'end',
+    },
+    {
+      id: 'counter-2',
+      mode: NUMBERING_COUNTER_MODES.CAROUSEL,
+      start: 1,
+      placement: 'end',
+    },
+  ];
+}
+
+export function normalizeNumberingCounters(
+  counters,
+  { startNumber = 1 } = {},
+) {
+  const source = Array.isArray(counters)
+    ? counters
+    : legacyNumberingCounters(startNumber);
+
+  const normalized = [];
+
+  for (
+    let index = 0;
+    index < source.length;
+    index += 1
+  ) {
+    const counter = source[index] || {};
+    const mode = String(
+      counter.mode || '',
+    ).trim().toLowerCase();
+
+    if (
+      !VALID_NUMBERING_COUNTER_MODES.has(mode) ||
+      mode === NUMBERING_COUNTER_MODES.NONE
+    ) {
+      break;
+    }
+
+    normalized.push({
+      id: String(
+        counter.id || `counter-${index + 1}`,
+      ),
+      mode,
+      start: normalizeCounterStart(
+        counter.start,
+      ),
+      placement:
+        counter.placement === 'start'
+          ? 'start'
+          : 'end',
+    });
+  }
+
+  return normalized;
+}
+
+function normalizeAuthorKey(post) {
+  return String(post?.username || '')
+    .trim()
+    .toLowerCase()
+    .replace(/^@+/, '');
+}
+
+function normalizePublicationType(post) {
+  return String(post?.type || '')
+    .trim()
+    .toLowerCase() || 'unknown';
+}
+
+function buildPublicationCounterValues(
+  counters,
+  selectedPosts,
+) {
+  const values = new Map();
+
+  counters.forEach((counter) => {
+    const counterValues = new Map();
+
+    if (
+      counter.mode ===
+        NUMBERING_COUNTER_MODES.GLOBAL ||
+      counter.mode ===
+        NUMBERING_COUNTER_MODES.BATCH
+    ) {
+      selectedPosts.forEach(
+        (post, index) => {
+          counterValues.set(
+            post.postId,
+            counter.start + index,
+          );
+        },
+      );
+    } else if (
+      counter.mode ===
+      NUMBERING_COUNTER_MODES.AUTHOR
+    ) {
+      const nextByAuthor = new Map();
+
+      selectedPosts.forEach((post) => {
+        const author = normalizeAuthorKey(post);
+        const next =
+          nextByAuthor.get(author) ??
+          counter.start;
+
+        counterValues.set(
+          post.postId,
+          next,
+        );
+
+        nextByAuthor.set(
+          author,
+          next + 1,
+        );
+      });
+    } else if (
+      counter.mode ===
+      NUMBERING_COUNTER_MODES.TYPE
+    ) {
+      const nextByType = new Map();
+
+      selectedPosts.forEach((post) => {
+        const type =
+          normalizePublicationType(post);
+
+        const next =
+          nextByType.get(type) ??
+          counter.start;
+
+        counterValues.set(
+          post.postId,
+          next,
+        );
+
+        nextByType.set(
+          type,
+          next + 1,
+        );
+      });
+    }
+
+    values.set(counter.id, counterValues);
+  });
+
+  return values;
+}
+
+function counterValueForComponent({
+  counter,
+  post,
+  componentNumber,
+  publicationCounterValues,
+}) {
+  if (
+    counter.mode ===
+    NUMBERING_COUNTER_MODES.CAROUSEL
+  ) {
+    if (post.componentCount <= 1) {
+      return null;
+    }
+
+    return (
+      counter.start +
+      componentNumber -
+      1
+    );
+  }
+
+  return publicationCounterValues
+    .get(counter.id)
+    ?.get(post.postId) ?? null;
+}
+
 export function buildNames({
   posts,
   selected,
   numberingEnabled = true,
   marker = 'instpoporder-',
   startNumber = 1,
-  destination = 'name', // name | description | both
+  counters,
+  destination = 'name',
   extraDescription = '',
 } = {}) {
   const result = new Map();
+  const safePosts = Array.isArray(posts)
+    ? posts
+    : [];
 
-  const publicationNumbers = new Map (
-    posts
-    .filter((post) => selected.has(post.postId))
-    .reverse()
-    .map((post, index) => [
-      post.postId,
-      startNumber + index,
-    ])
-  )
+  const safeSelected =
+    selected instanceof Set
+      ? selected
+      : new Set();
 
-  posts.forEach((post) => {
-    const isSelected = selected.has(post.postId);
+  /*
+   * Входной список хранится от новых публикаций
+   * к старым. Нумерацию считаем от старых к новым.
+   */
+  const selectedPosts = safePosts
+    .filter((post) =>
+      safeSelected.has(post.postId))
+    .reverse();
 
-    /* selectedComponents хранит исходные 1-based номера.
-       Пустой массив означает, что не выбран ни один компонент. */
-    const components = Array.isArray(post.selectedComponents)
-      ? post.selectedComponents
-      : post.components.map((item) => item.index);
+  const activeCounters = numberingEnabled
+    ? normalizeNumberingCounters(
+      counters,
+      { startNumber },
+    )
+    : [];
+
+  const publicationCounterValues =
+    buildPublicationCounterValues(
+      activeCounters,
+      selectedPosts,
+    );
+
+  const globalCounter =
+    activeCounters.find(
+      (counter) =>
+        counter.mode ===
+        NUMBERING_COUNTER_MODES.GLOBAL,
+    );
+
+  safePosts.forEach((post) => {
+    const isSelected =
+      safeSelected.has(post.postId);
+
+    /*
+     * selectedComponents хранит исходные
+     * 1-based позиции элементов карусели.
+     */
+    const components =
+      Array.isArray(post.selectedComponents)
+        ? post.selectedComponents
+        : (post.components || []).map(
+          (item) => item.index,
+        );
 
     const componentNumbers = components
       .map(Number)
-      .filter((value) => Number.isInteger(value) && value > 0);
+      .filter(
+        (value) =>
+          Number.isInteger(value) &&
+          value > 0,
+      );
 
-    /* Номер публикации получают только выбранные строки. */
-    const postNumber = isSelected
-     ? publicationNumbers.get(post.postId)
-     : null;
     const numberingByComponent = new Map();
+    const counterValuesByComponent = [];
 
-    if (numberingEnabled && postNumber !== null) {
-      if (post.componentCount <= 1) {
-        numberingByComponent.set(
-          1,
-          `${marker}${postNumber}`,
-        );
-      } else {
-        componentNumbers.forEach((componentNumber) => {
+    if (
+      numberingEnabled &&
+      isSelected &&
+      activeCounters.length
+    ) {
+      const targetComponentNumbers =
+        post.componentCount <= 1
+          ? [1]
+          : componentNumbers;
+
+      targetComponentNumbers.forEach(
+        (componentNumber) => {
+          const values = [];
+          const valuesByCounter = {};
+
+          activeCounters.forEach(
+            (counter) => {
+              const value =
+                counterValueForComponent({
+                  counter,
+                  post,
+                  componentNumber,
+                  publicationCounterValues,
+                });
+
+              if (
+                Number.isInteger(value) &&
+                value > 0
+              ) {
+                values.push(value);
+                valuesByCounter[counter.id] =
+                  value;
+              }
+            },
+          );
+
+          if (!values.length) {
+            return;
+          }
+
           numberingByComponent.set(
             componentNumber,
-            `${marker}${postNumber}-${componentNumber}`,
+            `${marker}${values.join('-')}`,
           );
-        });
-      }
+
+          counterValuesByComponent[
+            componentNumber - 1
+          ] = valuesByCounter;
+        },
+      );
     }
 
     const numberingParts = [
@@ -420,7 +690,8 @@ export function buildNames({
       post.description,
       extraDescription,
     ]
-      .map((part) => String(part || '').trim())
+      .map((part) =>
+        String(part || '').trim())
       .filter(Boolean)
       .join('\n\n');
 
@@ -428,64 +699,138 @@ export function buildNames({
     let description = baseDescription;
 
     if (numberingParts.length) {
-      const numberingText = numberingParts.join('\n');
+      const numberingText =
+        numberingParts.join('\n');
 
       if (destination === 'name') {
         name = numberingParts
-          .map((part) => `${post.username} ${part}`)
+          .map(
+            (part) =>
+              `${post.username} ${part}`,
+          )
           .join('\n');
-      } else if (destination === 'description') {
+      } else if (
+        destination === 'description'
+      ) {
         description = [
           numberingText,
           baseDescription,
-        ].filter(Boolean).join('\n\n');
+        ]
+          .filter(Boolean)
+          .join('\n\n');
       } else {
         name = numberingParts
-          .map((part) => `${post.username} ${part}`)
+          .map(
+            (part) =>
+              `${post.username} ${part}`,
+          )
           .join('\n');
 
         description = [
           numberingText,
           baseDescription,
-        ].filter(Boolean).join('\n\n');
+        ]
+          .filter(Boolean)
+          .join('\n\n');
       }
     }
 
-    /* Массивы намеренно сохраняют исходные позиции карусели.
-       Компонент №3 записывается в позицию 2, даже если №2 не выбран. */
+    /*
+     * Массивы сохраняют исходные позиции:
+     * компонент №3 находится в позиции 2.
+     */
     const componentNames = [];
     const componentDescriptions = [];
 
     if (post.componentCount <= 1) {
       componentNames[0] = name;
-      componentDescriptions[0] = description;
+      componentDescriptions[0] =
+        description;
     } else {
-      componentNumbers.forEach((componentNumber) => {
-        const componentIndex = componentNumber - 1;
-        const numberingPart =
-          numberingByComponent.get(componentNumber);
+      componentNumbers.forEach(
+        (componentNumber) => {
+          const componentIndex =
+            componentNumber - 1;
 
-        componentNames[componentIndex] =
-          numberingPart &&
-          (destination === 'name' || destination === 'both')
-            ? `${post.username} ${numberingPart}`
-            : post.username;
+          const numberingPart =
+            numberingByComponent.get(
+              componentNumber,
+            );
 
-        componentDescriptions[componentIndex] =
-          numberingPart &&
-          (destination === 'description' || destination === 'both')
-            ? [
-              numberingPart,
-              baseDescription,
-            ].filter(Boolean).join('\n\n')
-            : baseDescription;
-      });
+          componentNames[componentIndex] =
+            numberingPart &&
+            (
+              destination === 'name' ||
+              destination === 'both'
+            )
+              ? `${post.username} ${numberingPart}`
+              : post.username;
+
+          componentDescriptions[
+            componentIndex
+          ] =
+            numberingPart &&
+            (
+              destination ===
+                'description' ||
+              destination === 'both'
+            )
+              ? [
+                numberingPart,
+                baseDescription,
+              ]
+                .filter(Boolean)
+                .join('\n\n')
+              : baseDescription;
+        },
+      );
     }
+
+    /*
+     * postNumber пока сохраняется для
+     * совместимости с действующей историей
+     * глобальной нумерации.
+     */
+    const postNumber =
+      isSelected && globalCounter
+        ? publicationCounterValues
+          .get(globalCounter.id)
+          ?.get(post.postId) ?? null
+        : null;
+
+    const publicationCounterValuesForPost =
+      {};
+
+    activeCounters.forEach((counter) => {
+      if (
+        counter.mode ===
+        NUMBERING_COUNTER_MODES.CAROUSEL
+      ) {
+        return;
+      }
+
+      const value =
+        publicationCounterValues
+          .get(counter.id)
+          ?.get(post.postId);
+
+      if (
+        Number.isInteger(value) &&
+        value > 0
+      ) {
+        publicationCounterValuesForPost[
+          counter.id
+        ] = value;
+      }
+    });
 
     result.set(post.postId, {
       name,
       description,
       postNumber,
+      counterValues:
+        publicationCounterValuesForPost,
+      counterValuesByComponent,
       componentNames,
       componentDescriptions,
     });
