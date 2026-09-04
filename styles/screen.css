@@ -659,11 +659,6 @@
   white-space: pre-line;
   user-select: text;
 }
-.rs-cell--desc .rs-edit {
-  position: absolute;
-  right: 0;
-  top: 0;
-}
 
 /*
  * Кнопка названия закреплена относительно ячейки:
@@ -733,6 +728,150 @@
   color: var(--text-strong);
   user-select: text;
   cursor: text;
+}
+/*
+ * M1-T09H2
+ *
+ * В обычном состоянии прокручивается содержимое ячейки.
+ * Во время редактирования прокручивается только textarea,
+ * а прокрутка родительской ячейки отключается.
+ */
+
+/* Кнопка описания должна иметь такой же отступ от скролла,
+   как кнопка названия. */
+.rs-cell--desc > .rs-edit {
+  position: absolute;
+  top: 0;
+  right: 10px;
+  z-index: 2;
+  margin: 0;
+}
+
+/* При редактировании родительская ячейка больше не скроллится. */
+.rs-cell--name:has(> textarea.rs-editable),
+.rs-cell--desc:has(> textarea.rs-editable) {
+  padding-right: 0;
+  overflow: hidden;
+}
+
+/*
+ * Постоянная зона для индикатора редактирования.
+ *
+ * Точка не участвует в потоке и поэтому:
+ * — не сдвигает первую строку названия;
+ * — не переносит описание вниз;
+ * — не изменяет размеры ячейки.
+ */
+.rs-cell--name,
+.rs-cell--desc {
+  position: relative;
+  box-sizing: border-box;
+  padding-left: 15px;
+}
+
+/* Полностью заменяем старое текстовое отображение точки. */
+.rs-cell--name.is-edited::before,
+.rs-cell--desc.is-edited::before {
+  content: '';
+
+  position: absolute;
+  top: 5px;
+  left: 0;
+
+  display: block;
+  width: 5px;
+  height: 5px;
+  margin: 0;
+
+  background: var(--accent);
+  border-radius: 50%;
+
+  line-height: 0;
+  pointer-events: none;
+  z-index: 3;
+}
+
+/* Кнопка редактирования внутри уже открытого редактора не нужна. */
+.rs-cell:has(> textarea.rs-editable) > .rs-edit {
+  display: none;
+}
+
+/*
+ * Редактор занимает ровно ту же область, что и содержимое ячейки.
+ * Визуально отдельное поле ввода не создаётся.
+ */
+textarea.rs-editable {
+  display: block;
+
+  width: 100%;
+  height: 50px;
+  min-height: 50px;
+  max-height: 50px;
+  box-sizing: border-box;
+
+  margin: 0;
+  padding: 0;
+
+  border: 0;
+  border-radius: 0;
+  outline: 0;
+  background: transparent;
+  box-shadow: none;
+
+  font-family: var(--font-table);
+  font-weight: 400;
+  font-size: 11px;
+  line-height: 12px;
+  letter-spacing: 0.1em;
+  color: var(--text-primary);
+
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+
+  overflow-x: hidden;
+  overflow-y: auto;
+  resize: none;
+}
+
+/*
+ * Скролл Figma.
+ * В Eagle используется Chromium, поэтому задаём точные размеры
+ * через ::-webkit-scrollbar.
+ */
+.rs-cell--name::-webkit-scrollbar,
+.rs-desc__text::-webkit-scrollbar,
+textarea.rs-editable::-webkit-scrollbar {
+  width: 4px;
+  height: 4px;
+}
+
+.rs-cell--name::-webkit-scrollbar-track,
+.rs-desc__text::-webkit-scrollbar-track,
+textarea.rs-editable::-webkit-scrollbar-track {
+  background: rgba(49, 49, 49, 0.3);
+  border-radius: 100px;
+}
+
+.rs-cell--name::-webkit-scrollbar-thumb,
+.rs-desc__text::-webkit-scrollbar-thumb,
+textarea.rs-editable::-webkit-scrollbar-thumb {
+  background: #313131;
+  border-radius: 100px;
+}
+
+.rs-cell--name::-webkit-scrollbar-button,
+.rs-desc__text::-webkit-scrollbar-button,
+textarea.rs-editable::-webkit-scrollbar-button {
+  display: none;
+  width: 0;
+  height: 0;
+}
+
+.rs-cell--name::-webkit-scrollbar-corner,
+.rs-desc__text::-webkit-scrollbar-corner,
+textarea.rs-editable::-webkit-scrollbar-corner {
+  background: transparent;
 }
 /* Отредактированное значение помечается точкой */
 .rs-cell.is-edited { color: var(--text-bright); }
