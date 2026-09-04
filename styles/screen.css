@@ -637,37 +637,6 @@
   cursor: text;
 }
 
-.rs-name__text {
-  flex: 1 1 auto;
-  min-width: 0;
-  height: 50px;
-  box-sizing: border-box;
-
-  /*
-   * Справа оставляем место под кнопку редактирования.
-   */
-  padding-right: 28px;
-
-  overflow-x: hidden;
-  overflow-y: auto;
-
-  font-family: var(--font-table);
-  font-weight: 400;
-  font-size: 11px;
-  line-height: 12px;
-  letter-spacing: 0.1em;
-  color: var(--text-primary);
-
-  /*
-   * pre-wrap сохраняет переносы и несколько пробелов подряд.
-   */
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
-  word-break: break-word;
-
-  user-select: text;
-}
-
 /* Описание в Eagle — 247×50 с прокруткой и кнопкой правки */
 .rs-cell--desc {
   position: relative;
@@ -700,10 +669,45 @@
  * Кнопка названия закреплена относительно ячейки:
  * 0px сверху и 10px от правой границы.
  */
-.rs-cell--name .rs-edit {
-  position: absolute;
+.rs-cell--name {
+  position: relative;
+  display: block;
+
+  width: 100%;
+  height: 50px;
+  max-height: 50px;
+  min-width: 0;
+  box-sizing: border-box;
+
+  /*
+   * Место под кнопку редактирования.
+   */
+  padding-right: 28px;
+
+  overflow-x: hidden;
+  overflow-y: auto;
+
+  color: var(--text-primary);
+  line-height: 12px;
+
+  /*
+   * Сохраняем пробелы и переносы строк.
+   */
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+
+  user-select: text;
+  cursor: text;
+}
+
+.rs-cell--name > .rs-edit {
+  position: absolute !important;
   top: 0;
   right: 10px;
+  z-index: 2;
+
+  margin: 0;
 }
 
 /*

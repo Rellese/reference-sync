@@ -2826,6 +2826,7 @@ if (isKnown) {
           nameCell,
           post.postId,
           'name',
+          true,
         );
       });
 
@@ -2849,6 +2850,7 @@ if (isKnown) {
         nameCell,
         post.postId,
         'name',
+        true,
       ),
     );
   }
