@@ -1,32 +1,41 @@
 /* ============================================================
-   Контейнеры источника Instagram
+   Instagram Saved Collections — GraphQL diagnostic
 
-   Общий интерфейс использует source.listContainers().
-   Instagram-специфичный мобильный API изолирован здесь.
+   Получает только список коллекций:
+   - название;
+   - collection_id;
+   - количество публикаций;
+   - обложки.
+
+   Общая лента Saved при этом не сканируется.
    ============================================================ */
 
 import {
   nodeApi,
 } from '../node-bridge.js';
 
-const API_HOST =
-  'i.instagram.com';
+const GRAPHQL_HOST =
+  'www.instagram.com';
 
-const API_PATH =
-  '/api/v1/collections/list/';
+const GRAPHQL_PATH =
+  '/graphql/query';
 
-const APP_ID =
-  '567067343352427';
+const SAVED_COLLECTIONS_DOC_ID =
+  '26523442937261068';
 
-const USER_AGENT =
-  'Instagram 428.0.0.47.67 ' +
-  'Android (34/14; 480dpi; 1344x2992; ' +
-  'Google/google; Pixel 8 Pro; husky; ' +
-  'husky; en_US; 961145276)';
+const FRIENDLY_NAME =
+  'PolarisProfileSavedTabContentQuery';
 
-function readInstagramCookies(
-  cookieFile,
-) {
+const WEB_APP_ID =
+  '1217981644879628';
+
+const ASBD_ID =
+  '359341';
+
+const SERVER_REVISION =
+  '1034642761';
+
+function readInstagramCookies(cookieFile) {
   if (
     !nodeApi.available ||
     !cookieFile ||
@@ -42,30 +51,29 @@ function readInstagramCookies(
   nodeApi.fs
     .readFileSync(cookieFile, 'utf8')
     .split(/\r?\n/)
-    .forEach((line) => {
-      const normalized =
-        line.startsWith('#HttpOnly_')
-          ? line.slice(
-            '#HttpOnly_'.length,
-          )
-          : line;
+    .forEach((sourceLine) => {
+      let line =
+        String(sourceLine || '').trim();
 
-      if (
-        !normalized ||
-        normalized.startsWith('#')
+      if (line.startsWith('#HttpOnly_')) {
+        line =
+          line.slice('#HttpOnly_'.length);
+      } else if (
+        !line ||
+        line.startsWith('#')
       ) {
         return;
       }
 
-      const parts =
-        normalized.split('\t');
+      const parts = line.split('\t');
 
       if (parts.length < 7) {
         return;
       }
 
       const domain =
-        String(parts[0] || '');
+        String(parts[0] || '')
+          .toLowerCase();
 
       if (
         !domain.endsWith(
@@ -76,26 +84,27 @@ function readInstagramCookies(
       }
 
       const name =
-        String(parts[5] || '');
+        String(parts[5] || '').trim();
 
       const value =
         String(
-          parts
-            .slice(6)
-            .join('\t'),
-        );
+          parts.slice(6).join('\t'),
+        ).trim();
 
-      if (name) {
-        cookies.set(
-          name,
-          value,
-        );
+      if (name && value) {
+        cookies.set(name, value);
       }
     });
 
   if (!cookies.get('sessionid')) {
     throw new Error(
       'В выбранном профиле отсутствует sessionid Instagram',
+    );
+  }
+
+  if (!cookies.get('csrftoken')) {
+    throw new Error(
+      'В выбранном профиле отсутствует csrftoken Instagram',
     );
   }
 
@@ -111,275 +120,87 @@ function cookieHeader(cookies) {
     .join('; ');
 }
 
-function randomHex(length) {
-  let result = '';
-
-  while (result.length < length) {
-    result += Math.floor(
-      Math.random() * 0x100000000,
-    )
-      .toString(16)
-      .padStart(8, '0');
-  }
-
-  return result.slice(0, length);
-}
-
-function randomUuid() {
-  const value = randomHex(32);
-
-  return [
-    value.slice(0, 8),
-    value.slice(8, 12),
-    `4${value.slice(13, 16)}`,
-    `8${value.slice(17, 20)}`,
-    value.slice(20, 32),
-  ].join('-');
-}
-
-function normalizeCollection(
-  item,
-  position,
-) {
-  const id =
-    item?.collection_id ??
-    item?.id ??
-    item?.pk;
-
+function browserUserAgent() {
   if (
-    id === undefined ||
-    id === null
+    typeof navigator !== 'undefined' &&
+    navigator.userAgent
   ) {
-    return null;
+    return navigator.userAgent;
   }
 
-  const name = String(
-    item?.collection_name ??
-    item?.name ??
-    item?.title ??
-    `Коллекция ${position}`,
-  ).trim();
-
-  const count = Number(
-    item?.media_count ??
-    item?.items_count ??
-    item?.count,
+  return (
+    'Mozilla/5.0 ' +
+    'AppleWebKit/537.36 ' +
+    '(KHTML, like Gecko) ' +
+    'Chrome/142.0.0.0 Safari/537.36'
   );
-
-  return {
-    id: String(id),
-    name:
-      name ||
-      `Коллекция ${position}`,
-    type: String(
-      item?.collection_type ??
-      item?.type ??
-      'MEDIA',
-    ),
-    mediaCount:
-      Number.isFinite(count)
-        ? count
-        : null,
-    position,
-  };
 }
 
-function requestPage({
-  cookies,
-  cursor,
+function requestText({
+  method,
+  path,
+  headers,
+  body = '',
   signal,
 }) {
-  const query =
-    new URLSearchParams();
-
-  query.set(
-    'collection_types',
-    JSON.stringify([
-      'ALL_MEDIA_AUTO_COLLECTION',
-      'PRODUCT_AUTO_COLLECTION',
-      'MEDIA',
-    ]),
-  );
-
-  if (cursor) {
-    query.set(
-      'max_id',
-      cursor,
-    );
-  }
-
-  const path =
-    `${API_PATH}?${query.toString()}`;
-
-  const uuid = randomUuid();
-  const androidId =
-    `android-${randomHex(16)}`;
-
   return new Promise(
     (resolve, reject) => {
       let settled = false;
+      let abortHandler = null;
 
       const finish = (
         callback,
         value,
       ) => {
         if (settled) return;
+
         settled = true;
+
+        if (
+          signal &&
+          abortHandler
+        ) {
+          signal.removeEventListener(
+            'abort',
+            abortHandler,
+          );
+        }
+
         callback(value);
       };
 
-      const headers = {
-        Accept: '*/*',
-
-        Cookie:
-          cookieHeader(cookies),
-
-        Host:
-          API_HOST,
-
-        'User-Agent':
-          USER_AGENT,
-
-        'X-IG-App-ID':
-          APP_ID,
-
-        'X-IG-Device-ID':
-          uuid,
-
-        'X-IG-Family-Device-ID':
-          uuid,
-
-        'X-IG-Android-ID':
-          androidId,
-
-        'X-Pigeon-Session-ID':
-          `UFS-${randomUuid()}-1`,
-
-        'X-Pigeon-Rawclienttime':
-          String(Date.now() / 1000),
-
-        'X-IG-App-Locale':
-          'en_US',
-
-        'X-IG-Device-Locale':
-          'en_US',
-
-        'X-IG-Mapped-Locale':
-          'en_US',
-
-        'X-IG-Timezone-Offset':
-          String(
-            -new Date()
-              .getTimezoneOffset() *
-            60,
-          ),
-
-        'X-IG-Connection-Type':
-          'WIFI',
-
-        'X-IG-Capabilities':
-          '3brTv10=',
-
-        'X-IG-WWW-Claim':
-          '0',
-
-        Connection:
-          'keep-alive',
-      };
-
-      const userId =
-        cookies.get('ds_user_id');
-
-      if (userId) {
-        headers['IG-U-DS-USER-ID'] =
-          userId;
-
-        headers[
-          'IG-INTENDED-USER-ID'
-        ] = userId;
-      }
-
-      const mid =
-        cookies.get('mid');
-
-      if (mid) {
-        headers['X-MID'] = mid;
-      }
-
       const request =
-        nodeApi.https.get(
+        nodeApi.https.request(
           {
             protocol: 'https:',
-            hostname: API_HOST,
+            hostname: GRAPHQL_HOST,
             path,
-            method: 'GET',
+            method,
             headers,
           },
           (response) => {
-            let body = '';
+            let responseBody = '';
 
-            response.setEncoding(
-              'utf8',
-            );
+            response.setEncoding('utf8');
 
             response.on(
               'data',
               (chunk) => {
-                body += chunk;
+                responseBody += chunk;
               },
             );
 
             response.on(
               'end',
               () => {
-                let payload = null;
-
-                try {
-                  payload =
-                    JSON.parse(body);
-                } catch (_) {
-                  /* Обработаем ниже. */
-                }
-
-                if (
-                  response.statusCode < 200 ||
-                  response.statusCode >= 300
-                ) {
-                  const detail =
-                    payload?.message ||
-                    payload?.error_title ||
-                    body
-                      .slice(0, 200)
-                      .trim() ||
-                    'без описания';
-
-                  finish(
-                    reject,
-                    new Error(
-                      `Instagram вернул код ` +
-                      `${response.statusCode}: ` +
-                      detail,
-                    ),
-                  );
-
-                  return;
-                }
-
-                if (!payload) {
-                  finish(
-                    reject,
-                    new Error(
-                      'Instagram вернул некорректный JSON',
-                    ),
-                  );
-
-                  return;
-                }
-
-                finish(
-                  resolve,
-                  payload,
-                );
+                finish(resolve, {
+                  statusCode:
+                    response.statusCode || 0,
+                  headers:
+                    response.headers || {},
+                  body:
+                    responseBody,
+                });
               },
             );
           },
@@ -390,7 +211,7 @@ function requestPage({
         () => {
           request.destroy(
             new Error(
-              'Instagram не ответил при загрузке коллекций',
+              'Instagram не ответил за 30 секунд',
             ),
           );
         },
@@ -399,34 +220,331 @@ function requestPage({
       request.on(
         'error',
         (error) => {
-          finish(
-            reject,
-            error,
-          );
+          finish(reject, error);
         },
       );
 
-      if (signal) {
-        const abort = () => {
-          request.destroy(
-            new Error(
-              'Операция остановлена',
-            ),
-          );
-        };
+      abortHandler = () => {
+        request.destroy(
+          new Error('Операция остановлена'),
+        );
+      };
 
+      if (signal) {
         if (signal.aborted) {
-          abort();
-        } else {
-          signal.addEventListener(
-            'abort',
-            abort,
-            { once: true },
-          );
+          abortHandler();
+          return;
         }
+
+        signal.addEventListener(
+          'abort',
+          abortHandler,
+          { once: true },
+        );
       }
+
+      if (body) {
+        request.write(body);
+      }
+
+      request.end();
     },
   );
+}
+
+function baseHeaders(
+  cookies,
+  wwwClaim = '0',
+) {
+  return {
+    Accept: '*/*',
+
+    Cookie:
+      cookieHeader(cookies),
+
+    Origin:
+      'https://www.instagram.com',
+
+    Referer:
+      'https://www.instagram.com/',
+
+    'User-Agent':
+      browserUserAgent(),
+
+    'X-CSRFToken':
+      cookies.get('csrftoken'),
+
+    'X-IG-App-ID':
+      WEB_APP_ID,
+
+    'X-ASBD-ID':
+      ASBD_ID,
+
+    'X-IG-WWW-Claim':
+      wwwClaim || '0',
+
+    'X-Instagram-AJAX':
+      SERVER_REVISION,
+
+    'X-Requested-With':
+      'XMLHttpRequest',
+
+    'Sec-Fetch-Dest':
+      'empty',
+
+    'Sec-Fetch-Mode':
+      'cors',
+
+    'Sec-Fetch-Site':
+      'same-origin',
+  };
+}
+
+async function warmUpSession({
+  cookies,
+  signal,
+}) {
+  const response =
+    await requestText({
+      method: 'GET',
+      path:
+        '/api/v1/web/fxcal/ig_sso_users/',
+      headers:
+        baseHeaders(cookies),
+      signal,
+    });
+
+  return String(
+    response.headers[
+      'x-ig-set-www-claim'
+    ] || '0',
+  );
+}
+
+async function requestCollectionsPage({
+  cookies,
+  cursor,
+  wwwClaim,
+  signal,
+}) {
+  const variables = {
+    collection_types: [
+      'ALL_MEDIA_AUTO_COLLECTION',
+      'MEDIA',
+      'AUDIO_AUTO_COLLECTION',
+    ],
+    count: 20,
+    get_cover_media_lists: true,
+  };
+
+  if (cursor) {
+    variables.after = cursor;
+  }
+
+  const form =
+    new URLSearchParams();
+
+  form.set(
+    'variables',
+    JSON.stringify(variables),
+  );
+
+  form.set(
+    'doc_id',
+    SAVED_COLLECTIONS_DOC_ID,
+  );
+
+  form.set(
+    'fb_api_caller_class',
+    'RelayModern',
+  );
+
+  form.set(
+    'server_timestamps',
+    'true',
+  );
+
+  form.set(
+    'fb_api_req_friendly_name',
+    FRIENDLY_NAME,
+  );
+
+  const body = form.toString();
+
+  const response =
+    await requestText({
+      method: 'POST',
+      path: GRAPHQL_PATH,
+      headers: {
+        ...baseHeaders(
+          cookies,
+          wwwClaim,
+        ),
+
+        'Content-Type':
+          'application/x-www-form-urlencoded',
+
+        'Content-Length':
+          String(
+            Buffer.byteLength(body),
+          ),
+      },
+      body,
+      signal,
+    });
+
+  let payload = null;
+
+  try {
+    payload =
+      JSON.parse(response.body);
+  } catch (_) {
+    /* Ниже будет понятная ошибка. */
+  }
+
+  if (
+    response.statusCode < 200 ||
+    response.statusCode >= 300
+  ) {
+    const detail =
+      payload?.message ||
+      payload?.error?.message ||
+      response.body
+        .slice(0, 200)
+        .trim() ||
+      'без описания';
+
+    throw new Error(
+      `Instagram GraphQL вернул код ` +
+      `${response.statusCode}: ${detail}`,
+    );
+  }
+
+  if (!payload) {
+    throw new Error(
+      'Instagram GraphQL вернул некорректный JSON',
+    );
+  }
+
+  if (
+    Array.isArray(payload.errors) &&
+    payload.errors.length
+  ) {
+    throw new Error(
+      payload.errors
+        .map(
+          (error) =>
+            error?.message ||
+            'GraphQL error',
+        )
+        .join('; '),
+    );
+  }
+
+  return {
+    payload,
+    wwwClaim:
+      String(
+        response.headers[
+          'x-ig-set-www-claim'
+        ] ||
+        wwwClaim ||
+        '0',
+      ),
+  };
+}
+
+function findCollectionsConnection(
+  payload,
+) {
+  const data =
+    payload?.data || payload;
+
+  if (
+    !data ||
+    typeof data !== 'object'
+  ) {
+    return null;
+  }
+
+  const exact =
+    data[
+      'xdt_api__v1__collections__list_graphql_connection'
+    ];
+
+  if (exact) {
+    return exact;
+  }
+
+  return Object.values(data)
+    .find(
+      (value) =>
+        value &&
+        typeof value === 'object' &&
+        Array.isArray(value.edges),
+    ) || null;
+}
+
+function normalizeCollection(
+  node,
+  position,
+) {
+  const id =
+    node?.collection_id ??
+    node?.id ??
+    node?.pk;
+
+  if (
+    id === undefined ||
+    id === null
+  ) {
+    return null;
+  }
+
+  const name =
+    String(
+      node?.collection_name ??
+      node?.name ??
+      node?.title ??
+      `Коллекция ${position}`,
+    ).trim();
+
+  const count =
+    Number(
+      node?.collection_media_count ??
+      node?.media_count ??
+      node?.items_count ??
+      node?.count,
+    );
+
+  return {
+    id: String(id),
+
+    name:
+      name ||
+      `Коллекция ${position}`,
+
+    type:
+      String(
+        node?.collection_type ??
+        node?.type ??
+        'MEDIA',
+      ),
+
+    mediaCount:
+      Number.isFinite(count)
+        ? count
+        : null,
+
+    position,
+
+    coverMediaList:
+      Array.isArray(
+        node?.cover_media_list,
+      )
+        ? node.cover_media_list
+        : [],
+  };
 }
 
 export async function listInstagramCollections({
@@ -435,9 +553,22 @@ export async function listInstagramCollections({
   maximumPages = 100,
 } = {}) {
   const cookies =
-    readInstagramCookies(
-      cookieFile,
-    );
+    readInstagramCookies(cookieFile);
+
+  let wwwClaim = '0';
+
+  try {
+    wwwClaim =
+      await warmUpSession({
+        cookies,
+        signal,
+      });
+  } catch (_) {
+    /*
+     * Warm-up вспомогательный.
+     * GraphQL всё равно проверяем с claim=0.
+     */
+  }
 
   const collections = [];
   const knownIds = new Set();
@@ -450,78 +581,93 @@ export async function listInstagramCollections({
     page < maximumPages;
     page += 1
   ) {
-    const payload =
-      await requestPage({
+    const response =
+      await requestCollectionsPage({
         cookies,
         cursor,
+        wwwClaim,
         signal,
       });
 
-    if (
-      !Array.isArray(
-        payload?.items,
-      )
-    ) {
+    wwwClaim =
+      response.wwwClaim;
+
+    const connection =
+      findCollectionsConnection(
+        response.payload,
+      );
+
+    if (!connection) {
+      const keys =
+        Object.keys(
+          response.payload?.data ||
+          response.payload ||
+          {},
+        ).join(', ');
+
       throw new Error(
-        payload?.message ||
-        'Instagram не вернул список коллекций',
+        'Instagram GraphQL не вернул список коллекций' +
+        (keys
+          ? `. Получены поля: ${keys}`
+          : ''),
       );
     }
 
-    payload.items.forEach(
-      (item) => {
+    const edges =
+      Array.isArray(connection.edges)
+        ? connection.edges
+        : [];
+
+    edges.forEach(
+      (edge) => {
+        const node =
+          edge?.node || edge;
+
         const collection =
           normalizeCollection(
-            item,
+            node,
             collections.length + 1,
           );
 
         if (
           !collection ||
-          knownIds.has(
-            collection.id,
-          )
+          knownIds.has(collection.id)
         ) {
           return;
         }
 
-        knownIds.add(
-          collection.id,
-        );
-
-        collections.push(
-          collection,
-        );
+        knownIds.add(collection.id);
+        collections.push(collection);
       },
     );
 
-    if (
-      !payload.more_available
-    ) {
+    const pageInfo =
+      connection.page_info || {};
+
+    if (!pageInfo.has_next_page) {
       break;
     }
 
     const nextCursor =
       String(
-        payload.next_max_id ??
-        payload.max_id ??
-        '',
+        pageInfo.end_cursor || '',
       ).trim();
 
     if (
       !nextCursor ||
-      knownCursors.has(
-        nextCursor,
-      )
+      knownCursors.has(nextCursor)
     ) {
       break;
     }
 
-    knownCursors.add(
-      nextCursor,
-    );
-
+    knownCursors.add(nextCursor);
     cursor = nextCursor;
+  }
+
+  if (!collections.length) {
+    throw new Error(
+      'Instagram GraphQL вернул пустой список коллекций',
+    );
   }
 
   return collections;

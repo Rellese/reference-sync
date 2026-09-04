@@ -1064,6 +1064,62 @@ async function runSearch() {
               operationController.signal,
           });
 
+        collections.forEach(
+          (collection) => {
+            const covers =
+              Array.isArray(
+                collection.coverMediaList,
+              )
+                ? collection.coverMediaList
+                : [];
+
+            const firstCover =
+              covers[0];
+
+            let fields = 'нет';
+
+            if (
+              firstCover &&
+              typeof firstCover === 'object'
+            ) {
+              fields =
+                Object.entries(firstCover)
+                  .map(
+                    ([key, value]) => {
+                      if (Array.isArray(value)) {
+                        return (
+                          `${key}[${value.length}]`
+                        );
+                      }
+
+                      if (
+                        value &&
+                        typeof value === 'object'
+                      ) {
+                        return (
+                          `${key}{` +
+                          Object.keys(value)
+                            .join('|') +
+                          '}'
+                        );
+                      }
+
+                      return key;
+                    },
+                  )
+                  .join(', ');
+            }
+
+            ui.log.add(
+              `[GraphQL collections] ` +
+              `${collection.name}: ` +
+              `всего ${collection.mediaCount ?? '?'}, ` +
+              `обложек ${covers.length}, ` +
+              `поля: ${fields}`,
+            );
+          },
+        );
+
         const selectedCollections =
           await openCollectionModal(
             collections,
