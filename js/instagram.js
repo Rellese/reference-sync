@@ -1008,7 +1008,9 @@ export async function discoverSaved({
       name: entry.name || entry.id,
       url: entry.id === 'ALL_MEDIA_AUTO_COLLECTION'
         ? savedUrl
-        : `https://www.instagram.com/${cleanUser}/saved/collection/${entry.id}/`,
+        : `https://www.instagram.com/${cleanUser}/saved/${encodeURIComponent(
+          entry.name || 'collection',
+        )}/${entry.id}/`,
     }))
     : [{ id: 'saved', name: 'Saved', url: savedUrl }];
 
