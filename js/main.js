@@ -867,20 +867,36 @@ async function requireMatchingInstagramSession(settings, signal) {
     'Проверка аккаунта Instagram…',
     'ReferenceSync проверяет выбранный профиль браузера',
   );
-    ui.status.progress.update({
-    lead: 'Проверяем профиль браузера',
-    trail: `Браузер: ${browserName}`,
-  });
 
-  await nextFrames(2);
+  const stopSessionMessages =
+    startProgressMessageRotation({
+      mode:
+        phase === 'importing'
+          ? 'downloading'
+          : 'search',
+      messages: [
+        'Проверяем профиль браузера',
+        'Подготавливаем данные авторизации',
+        'Проверяем соединение с Instagram',
+      ],
+      trail: `Браузер: ${browserName}`,
+      interval: 900,
+    });
 
-  const session = await verifyInstagramSession({
-    browser: settings.browser,
-    browserProfile: settings.browserProfile,
-    signal,
-    onLog: (line) => ui.log.add(line),
-    keepCookieFile: true,
-  });
+  let session;
+
+  try {
+    session = await verifyInstagramSession({
+      browser: settings.browser,
+      browserProfile:
+        settings.browserProfile,
+      signal,
+      onLog: (line) => ui.log.add(line),
+      keepCookieFile: true,
+    });
+  } finally {
+    stopSessionMessages();
+  }
   try{
     throwIfAborted(signal);
 
@@ -932,10 +948,8 @@ async function requireMatchingInstagramSession(settings, signal) {
 
     ui.status.progress.update({
       lead: 'Вход в Instagram подтверждён',
-      trail: 'Подготавливаем запрос',
+      trail: 'Запускаем следующий этап',
     });
-
-    await nextFrames(2);
 
     ui.log.add(
       `Проверен Instagram-аккаунт: @${session.username}`,
@@ -1064,23 +1078,7 @@ async function runSearch() {
 
     checkpointRecovery('ready');
     resetAllEdits();
-
-    ui.status.progress.update({
-      mode: 'reviewing',
-      lead: 'Подготавливаем названия публикаций',
-      trail: `Найдено: ${posts.length}`,
-    });
-
-    await nextFrames(2);
     refreshNames();
-
-    ui.status.progress.update({
-      mode: 'reviewing',
-      lead: 'Формируем таблицу результатов',
-      trail: `Публикаций: ${posts.length}`,
-    });
-
-    await nextFrames(2);
     renderTable();
 
     if (!posts.length) {
@@ -1182,6 +1180,36 @@ function nextFrames(count = 1) {
     };
     requestAnimationFrame(tick);
   });
+}
+
+function startProgressMessageRotation({
+  mode,
+  messages,
+  trail = '',
+  interval = 900,
+}) {
+  let index = 0;
+
+  function showMessage() {
+    ui.status.progress.update({
+      mode,
+      lead: messages[index],
+      trail,
+    });
+
+    index = (index + 1) % messages.length;
+  }
+
+  showMessage();
+
+  const timer = setInterval(
+    showMessage,
+    interval,
+  );
+
+  return () => {
+    clearInterval(timer);
+  };
 }
 
 /* ---------- Скачивание и импорт ---------- */
@@ -2398,10 +2426,12 @@ function syncFooterActionAvailability() {
   );
 }
 
-function updateTableSelectionTitle() {
+function updateTableSelectionTitle(
+  posts = visiblePosts(),
+) {
   ui.results.setTitle(
-    state.selected.size,
-    visiblePosts().length,
+    selectedVisiblePostCount(posts),
+    posts.length,
   );
 
   syncFooterActionAvailability();
