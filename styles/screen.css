@@ -990,3 +990,59 @@ textarea.rs-editable::-webkit-scrollbar-corner {
   gap: 10px;
 }
 .rs-modal__foot .rs-btn-ghost { min-width: 130px; }
+
+/* M1-T09I — установка Gallery-DL в пустой таблице */
+
+.rs-results__engine {
+  box-sizing: border-box;
+  min-height: 260px;
+  padding: 32px;
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  text-align: center;
+}
+
+.rs-results__engine[hidden] {
+  display: none !important;
+}
+
+.rs-results__engine-title {
+  color: var(--text-primary, #ffffff);
+  font-size: 16px;
+  font-weight: 600;
+  line-height: 1.4;
+}
+
+.rs-results__engine-description-row {
+  max-width: 520px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+.rs-results__engine-description {
+  color: var(--text-secondary, #9b9b9b);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.rs-results__engine-action {
+  margin-top: 8px;
+}
+
+.rs-results__engine-bar {
+  width: min(320px, 100%);
+  margin-top: 4px;
+}
+
+.rs-results__engine-detail {
+  max-width: 520px;
+  color: var(--text-secondary, #9b9b9b);
+  font-size: 12px;
+  line-height: 1.5;
+}

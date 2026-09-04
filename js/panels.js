@@ -731,100 +731,57 @@ export function buildSettings({ onChange, onFolderSearch }) {
 /* ============================================================
    4 блок — статус
    ============================================================ */
-export function buildStatus({ onInstall, onCommand } = {}) {
+export function buildStatus({ onCommand } = {}) {
   const root = el('div', 'rs-status');
-  const text = el('div', 'rs-status__text', 'Готов к работе');
-  const hint = el('div', 'rs-status__hint', 'Заполните шаг 1 и нажмите «Начать поиск»');
+  const text = el(
+    'div',
+    'rs-status__text',
+    'Готов к работе',
+  );
+  const hint = el(
+    'div',
+    'rs-status__hint',
+    'Заполните шаг 1 и нажмите «Начать поиск»',
+  );
 
-  /* Основной ряд блока 4 — ровно 43px по макету */
   const row = el('div', 'rs-status__row');
   row.append(text, hint);
   root.appendChild(row);
 
-  /* ---------- Прогресс-бар ----------
-     Все 7 состояний из Full_design/Scale *. Показывается только
-     во время работы: в покое блок 4 остаётся компактным. */
-  const progress = createProgressBar({ onCommand });
+  const progress = createProgressBar({
+    onCommand,
+  });
+
   progress.node.hidden = true;
   root.appendChild(progress.node);
 
-  /* ---------- Строка движка загрузки ----------
-     Движок (gallery-dl) плагин ставит себе сам, в свою
-     приватную папку. Пользователь не открывает терминал:
-     здесь показывается состояние и одна кнопка. */
-  const engine = el('div', 'rs-engine');
-  const engineDot = el('span', 'rs-engine__dot');
-  const engineText = el('div', 'rs-engine__text', 'Движок загрузки: проверяем…');
-  const engineHead = el('div', 'rs-engine__head');
-  engineHead.append(engineDot, engineText);
-
-  const engineButton = createGhostButton({
-    label: 'Подготовить движок',
-    onClick: () => { if (onInstall) onInstall(); },
-  });
-  engineButton.node.classList.add('rs-engine__action');
-  engineButton.node.hidden = true;
-
-  const bar = el('div', 'rs-engine__bar');
-  const barFill = el('div', 'rs-engine__fill');
-  bar.appendChild(barFill);
-  bar.hidden = true;
-
-  const detail = el('div', 'rs-engine__detail');
-  detail.hidden = true;
-
-  engine.append(engineHead, engineButton.node, bar, detail);
-  root.appendChild(engine);
-
-  const STATES = ['checking', 'ready', 'missing', 'working', 'error'];
-
   return {
     node: root,
+
     set(message, hintMessage, busy = false) {
       text.textContent = message;
-      if (hintMessage !== undefined && hintMessage !== null) {
+
+      if (
+        hintMessage !== undefined &&
+        hintMessage !== null
+      ) {
         hint.textContent = hintMessage;
       }
-      root.classList.toggle('is-busy', Boolean(busy));
+
+      root.classList.toggle(
+        'is-busy',
+        Boolean(busy),
+      );
     },
 
-    /* Прогресс-бар: показ/скрытие + прямой доступ к API */
     progress,
+
     showProgress(visible) {
       progress.node.hidden = !visible;
-      if (!visible) progress.setMode('idle');
-    },
 
-    engine: {
-      /* kind: checking | ready | missing | working | error */
-      setState(kind, message, {
-        detail: detailText = '',
-        button = null,
-        progress = null,
-      } = {}) {
-        STATES.forEach((name) => {
-          engine.classList.toggle(`is-${name}`, name === kind);
-        });
-        engineText.textContent = message;
-
-        detail.hidden = !detailText;
-        detail.textContent = detailText || '';
-
-        engineButton.node.hidden = !button;
-        if (button) {
-          engineButton.setLabel(button);
-          engineButton.setDisabled(kind === 'working');
-        }
-
-        bar.hidden = progress === null;
-        if (progress !== null) {
-          barFill.style.width = `${Math.max(0, Math.min(100, progress))}%`;
-        }
-      },
-      setProgress(percent) {
-        bar.hidden = false;
-        barFill.style.width = `${Math.max(0, Math.min(100, percent))}%`;
-      },
+      if (!visible) {
+        progress.setMode('idle');
+      }
     },
   };
 }
@@ -833,7 +790,7 @@ export function buildStatus({ onInstall, onCommand } = {}) {
    5 блок — таблица результатов
    ============================================================ */
 export function buildResults({ onClear, onToggleAll, onThumbnails, onRowToggle,
-  onEdit, onResetAll }) {
+  onEdit, onResetAll, onInstall,}) {
   const root = el('div', 'rs-results');
 
   /* Шапка */
@@ -890,7 +847,131 @@ export function buildResults({ onClear, onToggleAll, onThumbnails, onRowToggle,
   const body = el('div', 'rs-table__body rs-scroll');
   table.append(header, body);
 
-  root.append(head, table);
+  const engineEmpty = el(
+    'div',
+    'rs-results__engine',
+  );
+
+  const engineTitle = el(
+    'div',
+    'rs-results__engine-title',
+    'Проверяем движок загрузки…',
+  );
+
+  const engineDescriptionRow = el(
+    'div',
+    'rs-results__engine-description-row',
+  );
+
+  const engineDescription = el(
+    'div',
+    'rs-results__engine-description',
+    'Подождите, идёт проверка Gallery-DL.',
+  );
+
+  engineDescriptionRow.append(
+    engineDescription,
+    createInfo(TIP_ENGINE).node,
+  );
+
+  const engineButton = createGhostButton({
+    label: 'Скачать',
+    onClick: () => {
+      if (onInstall) onInstall();
+    },
+  });
+
+  engineButton.node.classList.add(
+    'rs-results__engine-action',
+  );
+  engineButton.node.hidden = true;
+
+  const engineBar = el(
+    'div',
+    'rs-engine__bar rs-results__engine-bar',
+  );
+
+  const engineBarFill = el(
+    'div',
+    'rs-engine__fill',
+  );
+
+  engineBar.appendChild(engineBarFill);
+  engineBar.hidden = true;
+
+  const engineDetail = el(
+    'div',
+    'rs-results__engine-detail',
+  );
+
+  engineDetail.hidden = true;
+
+  engineEmpty.append(
+    engineTitle,
+    engineDescriptionRow,
+    engineButton.node,
+    engineBar,
+    engineDetail,
+  );
+
+  const engineStates = [
+    'checking',
+    'ready',
+    'missing',
+    'working',
+    'error',
+  ];
+
+  function setEngineState(kind, message, {
+    detail = '',
+    button = null,
+    progress = null,
+  } = {}) {
+    const ready = kind === 'ready';
+
+    engineEmpty.hidden = ready;
+    head.hidden = !ready;
+    table.hidden = !ready;
+
+    engineStates.forEach((name) => {
+      engineEmpty.classList.toggle(
+        `is-${name}`,
+        name === kind,
+      );
+    });
+
+    engineTitle.textContent = message;
+
+    engineDescription.textContent =
+      detail ||
+      (kind === 'checking'
+        ? 'Подождите, идёт проверка Gallery-DL.'
+        : '');
+
+    engineButton.node.hidden = !button;
+
+    if (button) {
+      engineButton.setLabel(button);
+      engineButton.setDisabled(kind === 'working');
+    }
+
+    engineDetail.hidden = true;
+    engineDetail.textContent = '';
+
+    engineBar.hidden = progress === null;
+
+    if (progress !== null) {
+      engineBarFill.style.width =
+        `${Math.max(0, Math.min(100, progress))}%`;
+    }
+  }
+
+  setEngineState(
+    'checking',
+    'Проверяем движок загрузки…',
+  );
+
+  root.append(head, engineEmpty, table);
 
   return {
     node: root,
@@ -899,6 +980,15 @@ export function buildResults({ onClear, onToggleAll, onThumbnails, onRowToggle,
     selectAll,
     clearButton,
     resetAllButton,
+    engine: {
+      setState: setEngineState,
+
+      setProgress(percent) {
+        engineBar.hidden = false;
+        engineBarFill.style.width =
+          `${Math.max(0, Math.min(100, percent))}%`;
+      },
+    },
     setTitle(count, total) {
       title.textContent = total
         ? `Найденные публикации — ${count} из ${total}`

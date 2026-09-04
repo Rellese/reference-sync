@@ -538,11 +538,12 @@ async function boot() {
   });
 
   ui.status = buildStatus({
-    onInstall: () => prepareToolchain(),
-    onCommand: (name) => handleProgressCommand(name),
+    onCommand: (name) =>
+      handleProgressCommand(name),
   });
 
   ui.results = buildResults({
+    onInstall: () => prepareToolchain(),
     onClear: () => clearResults(),
     onToggleAll: (value) => toggleAll(value),
     onThumbnails: () => {
@@ -665,7 +666,7 @@ async function detectEnvironment() {
   if (!nodeApi.available) {
     ui.status.set('Демонстрационный режим',
       'Плагин открыт вне Eagle — поиск и импорт недоступны');
-    ui.status.engine.setState('error', 'Движок загрузки недоступен вне Eagle');
+    ui.results.engine.setState('error', 'Движок загрузки недоступен вне Eagle');
     ui.log.add(
       'Node.js API недоступен. Интерфейс работает в режиме просмотра дизайна.',
       'warn');
@@ -694,7 +695,7 @@ async function detectEnvironment() {
    Пользователь никогда не открывает терминал.
    ------------------------------------------------------------ */
 async function checkToolchain() {
-  ui.status.engine.setState('checking', 'Движок загрузки: проверяем…',
+  ui.results.engine.setState('checking', 'Движок загрузки: проверяем…',
     { progress: null });
 
   await detectToolchain({
@@ -702,19 +703,22 @@ async function checkToolchain() {
   });
 
   if (toolchain.ready) {
-    ui.status.engine.setState('ready',
+    ui.results.engine.setState('ready',
       `Движок загрузки готов · gallery-dl ${versionString(toolchain.version)}`,
       { button: 'Обновить' });
     return true;
   }
 
-  ui.status.engine.setState('missing',
-    'Движок загрузки не подготовлен',
+  ui.results.engine.setState(
+    'missing',
+    'Движок загрузки не готов',
     {
-      detail: 'Плагин скачает всё необходимое сам — примерно 1 МБ. '
-        + 'Терминал не потребуется.',
-      button: 'Подготовить движок',
-    });
+      detail:
+        'Для начала работы вам необходимо скачать Gallery-DL. ' +
+        'Нажмите кнопку «Скачать» ниже.',
+      button: 'Скачать',
+    },
+  );
   ui.log.add('Движок не найден. Нажмите «Подготовить движок».', 'warn');
   return false;
 }
@@ -727,7 +731,7 @@ async function prepareToolchain() {
   toolchainBusy = true;
 
   const isUpdate = toolchain.ready;
-  ui.status.engine.setState('working',
+  ui.results.engine.setState('working',
     isUpdate ? 'Обновляем движок загрузки…' : 'Готовим движок загрузки…',
     { detail: 'Идёт загрузка из репозитория PyPI', progress: 5 });
 
@@ -736,11 +740,11 @@ async function prepareToolchain() {
     await run({
       onLog: (line, kind) => ui.log.add(line, kind),
       onProgress: ({ percent }) => {
-        if (typeof percent === 'number') ui.status.engine.setProgress(percent);
+        if (typeof percent === 'number') ui.results.engine.setProgress(percent);
       },
     });
 
-    ui.status.engine.setState('ready',
+    ui.results.engine.setState('ready',
       `Движок загрузки готов · gallery-dl ${versionString(toolchain.version)}`,
       { button: 'Обновить', progress: 100 });
     ui.log.add('Движок готов к работе.', 'ok');
@@ -753,7 +757,7 @@ async function prepareToolchain() {
     return true;
   } catch (error) {
     const info = describeToolchainError(error);
-    ui.status.engine.setState('error', info.title, {
+    ui.results.engine.setState('error', info.title, {
       detail: info.text,
       button: info.action === 'install' ? 'Подготовить движок' : 'Повторить',
     });
@@ -1635,7 +1639,7 @@ function reportRunError(title, error) {
       error?.message === 'TOOLCHAIN_MISSING') {
     const info = describeToolchainError(error);
     ui.status.set(info.title, info.text);
-    ui.status.engine.setState('missing', info.title, {
+    ui.results.engine.setState('missing', info.title, {
       detail: info.text,
       button: 'Подготовить движок',
     });
