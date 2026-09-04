@@ -867,6 +867,12 @@ async function requireMatchingInstagramSession(settings, signal) {
     'Проверка аккаунта Instagram…',
     'ReferenceSync проверяет выбранный профиль браузера',
   );
+    ui.status.progress.update({
+    lead: 'Проверяем профиль браузера',
+    trail: `Браузер: ${browserName}`,
+  });
+
+  await nextFrames(2);
 
   const session = await verifyInstagramSession({
     browser: settings.browser,
@@ -923,6 +929,13 @@ async function requireMatchingInstagramSession(settings, signal) {
       error.code = 'INSTAGRAM_ACCOUNT_MISMATCH';
       throw error;
     }
+
+    ui.status.progress.update({
+      lead: 'Вход в Instagram подтверждён',
+      trail: 'Подготавливаем запрос',
+    });
+
+    await nextFrames(2);
 
     ui.log.add(
       `Проверен Instagram-аккаунт: @${session.username}`,
@@ -1045,10 +1058,29 @@ async function runSearch() {
     await nextFrames(2);
 
     state.posts = posts;
-    state.selected = new Set(posts.map((post) => post.postId));
+    state.selected = new Set(
+      posts.map((post) => post.postId),
+    );
+
     checkpointRecovery('ready');
     resetAllEdits();
+
+    ui.status.progress.update({
+      mode: 'reviewing',
+      lead: 'Подготавливаем названия публикаций',
+      trail: `Найдено: ${posts.length}`,
+    });
+
+    await nextFrames(2);
     refreshNames();
+
+    ui.status.progress.update({
+      mode: 'reviewing',
+      lead: 'Формируем таблицу результатов',
+      trail: `Публикаций: ${posts.length}`,
+    });
+
+    await nextFrames(2);
     renderTable();
 
     if (!posts.length) {
@@ -1507,10 +1539,7 @@ async function runImport() {
       'Скачать и добавить в Eagle',
     );
 
-    ui.footer.action.setDisabled(
-      currentSearchCompleted ||
-      state.selected.size === 0,
-    );
+    syncFooterActionAvailability();
 
     if (stopReason) {
       ui.status.set(`Импортировано: ${created.length}`, stopReason);
@@ -2351,11 +2380,31 @@ function selectedVisiblePostCount(posts) {
   return count;
 }
 
-function updateTableSelectionTitle(posts = visiblePosts()) {
-  ui.results.setTitle(
-    selectedVisiblePostCount(posts),
-    posts.length,
+function selectedImportablePostCount() {
+  return selectImportablePosts(
+    visiblePosts(),
+    state.selected,
+    state.knownPostIds,
+  ).length;
+}
+
+function syncFooterActionAvailability() {
+  if (phase !== 'ready') {
+    return;
+  }
+
+  ui.footer.action.setDisabled(
+    selectedImportablePostCount() === 0,
   );
+}
+
+function updateTableSelectionTitle() {
+  ui.results.setTitle(
+    state.selected.size,
+    visiblePosts().length,
+  );
+
+  syncFooterActionAvailability();
 }
 
 function scheduleTableSelectionTitleUpdate() {
