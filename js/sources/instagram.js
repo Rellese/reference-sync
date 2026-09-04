@@ -8,6 +8,10 @@
 
 import { discoverSaved, downloadPosts } from '../instagram.js';
 
+import {
+  listInstagramCollections,
+} from './instagram-containers.js';
+
 export default {
   code: 'instagram',
   title: 'Instagram',
@@ -32,6 +36,12 @@ export default {
 
   urlPattern: /(?:^|\/\/)(?:www\.)?instagram\.com\//i,
 
-  discover: (options) => discoverSaved(options),
-  download: (options) => downloadPosts(options),
+  listContainers: (options) =>
+    listInstagramCollections(options),
+
+  discover: (options) =>
+    discoverSaved(options),
+
+  download: (options) =>
+    downloadPosts(options),
 };

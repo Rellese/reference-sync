@@ -54,6 +54,10 @@ import {
 } from './instagram.js';
 
 import {
+  getSource,
+} from './sources/index.js';
+
+import {
   checkEagle,
   importToEagle,
   buildNames,
@@ -534,7 +538,6 @@ async function boot() {
         renderTable();
       }
     },
-    onFolderSearch: () => openCollectionModal(),
   });
 
   ui.status = buildStatus({
@@ -1026,7 +1029,67 @@ async function runSearch() {
     let discoveryResult;
 
     try {
-      discoveryResult = await discoverSaved({
+      if (s.folderSearch) {
+        const source =
+          getSource(s.platform);
+
+        if (
+          typeof source.listContainers !==
+          'function'
+        ) {
+          throw new Error(
+            `Источник ${source.title} не поддерживает выбор папок`,
+          );
+        }
+
+        ui.status.set(
+          'Получаем список коллекций…',
+          `Источник: ${source.title}`,
+          true,
+        );
+
+        ui.status.progress.update({
+          mode: 'search',
+          lead:
+            'Получаем список коллекций',
+          trail:
+            `Источник: ${source.title}`,
+        });
+
+        const collections =
+          await source.listContainers({
+            cookieFile:
+              session.cookieFile,
+            signal:
+              operationController.signal,
+          });
+
+        const selectedCollections =
+          await openCollectionModal(
+            collections,
+          );
+
+        if (!selectedCollections) {
+          const cancelled =
+            new Error(
+              'Выбор коллекций отменён',
+            );
+
+          cancelled.code = STOPPED;
+          throw cancelled;
+        }
+
+        if (!selectedCollections.length) {
+          throw new Error(
+            'Не выбрана ни одна коллекция',
+          );
+        }
+      } else {
+        state.collections = [];
+      }
+
+      discoveryResult =
+        await discoverSaved({
         username: s.username,
         browser: s.browser,
         browserProfile: s.browserProfile,
@@ -1710,52 +1773,153 @@ function reportRunError(title, error) {
 /* ------------------------------------------------------------
    Коллекции Instagram
    ------------------------------------------------------------ */
-async function openCollectionModal() {
+let collectionModalResolve = null;
+
+function openCollectionModal(
+  collections,
+) {
   const list = ui.modal.list;
   clear(list);
 
-  /* Реальный список коллекций требует отдельного запроса к
-     Instagram; пока предлагаем общую ленту и ручной ввод ID. */
-  const options = [
-    { id: 'ALL_MEDIA_AUTO_COLLECTION', name: 'Все сохранённые (общая лента)' },
-  ];
+  ui.modal.title.textContent =
+    'Выберите коллекции';
 
   const boxes = new Map();
-  options.forEach((option) => {
-    const box = createCheckbox({
-      checked: state.collections.some((entry) => entry.id === option.id),
-      label: option.name,
-    });
-    boxes.set(option.id, { box, option });
-    list.appendChild(box.row);
-  });
 
-  const hint = el('div', 'rs-hint',
-    'Список конкретных коллекций подключим вместе с разбором ' +
-    'instagram.com/api/v1/collections/list. Пока доступна общая лента.');
-  list.appendChild(hint);
+  collections.forEach(
+    (collection) => {
+      const countText =
+        collection.mediaCount === null
+          ? ''
+          : ` — ${collection.mediaCount}`;
 
-  ui.modal.confirmHandler = () => {
-    state.collections = [...boxes.values()]
-      .filter((entry) => entry.box.value)
-      .map((entry) => ({ id: entry.option.id, name: entry.option.name }));
-    ui.log.add(`Выбрано коллекций: ${state.collections.length}`);
+      const box = createCheckbox({
+        checked:
+          state.collections.some(
+            (entry) =>
+              entry.id === collection.id,
+          ),
+        label:
+          `${collection.name}${countText}`,
+        onChange: () => {
+          const selected =
+            [...boxes.values()].some(
+              (entry) =>
+                entry.box.value,
+            );
+
+          ui.modal.confirm.setDisabled(
+            !selected,
+          );
+        },
+      });
+
+      boxes.set(
+        collection.id,
+        {
+          box,
+          collection,
+        },
+      );
+
+      list.appendChild(box.row);
+    },
+  );
+
+  if (!collections.length) {
+    list.appendChild(
+      el(
+        'div',
+        'rs-hint',
+        'Доступные коллекции не найдены.',
+      ),
+    );
+  }
+
+  const syncConfirm = () => {
+    const selected =
+      [...boxes.values()].some(
+        (entry) =>
+          entry.box.value,
+      );
+
+    ui.modal.confirm.setDisabled(
+      !selected,
+    );
   };
 
-  ui.modal.node.classList.add('is-open');
+  ui.modal.confirmHandler = () => {
+    state.collections =
+      [...boxes.values()]
+        .filter(
+          (entry) =>
+            entry.box.value,
+        )
+        .map((entry) => ({
+          id: entry.collection.id,
+          name: entry.collection.name,
+          type: entry.collection.type,
+          mediaCount:
+            entry.collection.mediaCount,
+        }));
+
+    ui.log.add(
+      `Выбрано коллекций: ${state.collections.length}`,
+    );
+  };
+
+  syncConfirm();
+
+  ui.modal.node.classList.add(
+    'is-open',
+  );
+
+  return new Promise((resolve) => {
+    collectionModalResolve = resolve;
+  });
 }
 
 function confirmCollections() {
-  if (ui.modal.confirmHandler) ui.modal.confirmHandler();
-  closeCollectionModal(false);
+  if (ui.modal.confirmHandler) {
+    ui.modal.confirmHandler();
+  }
+
+  const resolve =
+    collectionModalResolve;
+
+  collectionModalResolve = null;
+  ui.modal.confirmHandler = null;
+
+  ui.modal.node.classList.remove(
+    'is-open',
+  );
+
+  if (resolve) {
+    resolve([
+      ...state.collections,
+    ]);
+  }
 }
 
 function closeCollectionModal(cancelled) {
-  ui.modal.node.classList.remove('is-open');
-  if (cancelled && !state.collections.length) {
-    /* Пользователь отказался — выключаем тумблер обратно */
-    setSetting('folderSearch', false);
-    ui.log.add('Поиск по папкам отменён');
+  ui.modal.node.classList.remove(
+    'is-open',
+  );
+
+  ui.modal.confirmHandler = null;
+
+  const resolve =
+    collectionModalResolve;
+
+  collectionModalResolve = null;
+
+  if (cancelled && resolve) {
+    resolve(null);
+
+    ui.log.add(
+      'Выбор коллекций отменён',
+      'warn',
+    );
   }
 }
 

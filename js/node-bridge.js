@@ -25,13 +25,21 @@ export const nodeApi = (() => {
   const fs = tryRequire('fs');
   const path = tryRequire('path');
   const os = tryRequire('os');
+  const https = tryRequire('https');
 
   return {
-    available: Boolean(childProcess && fs && path && os),
+    available: Boolean(
+      childProcess &&
+      fs &&
+      path &&
+      os &&
+      https
+    ),
     childProcess,
     fs,
     path,
     os,
+    https,
   };
 })();
 

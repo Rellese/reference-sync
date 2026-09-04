@@ -454,8 +454,17 @@ export function buildSettings({ onChange, onFolderSearch }) {
     label: 'Искать в выбранных папках',
     onChange: (value) => {
       setSetting('folderSearch', value);
-      if (value && onFolderSearch) onFolderSearch();
-      if (onChange) onChange('folderSearch', value);
+
+      if (!value) {
+        state.collections = [];
+      }
+
+      if (onChange) {
+        onChange(
+          'folderSearch',
+          value,
+        );
+      }
     },
   });
   const folderRow = el('div', 'rs-switch-row');
