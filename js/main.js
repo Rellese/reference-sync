@@ -2802,58 +2802,78 @@ if (isKnown) {
   }
 
   /* Название редактируется только до полного импорта */
-  const nameCell = el('div', 'rs-cell rs-cell--name');
+const nameCell = el(
+  'div',
+  'rs-cell rs-cell--name',
+);
 
-  nameCell.classList.toggle(
-    'is-edited',
-    !isKnown && isEdited(post.postId, 'name')
-  );
+const nameText = el(
+  'div',
+  'rs-cell__text',
+);
 
-  nameCell.classList.toggle(
-    'is-disabled',
-    isKnown,
-  );
+nameCell.classList.toggle(
+  'is-edited',
+  !isKnown &&
+    isEdited(post.postId, 'name'),
+);
 
-  nameCell.textContent = cellValue(
-    post.postId,
-    'name',
-  );
+nameCell.classList.toggle(
+  'is-disabled',
+  isKnown,
+);
 
-  if (!isKnown) {
-    const nameEditButton =
-      createEditButton(() => {
-        startEdit(
-          nameCell,
-          post.postId,
-          'name',
-          true,
-        );
-      });
+nameText.textContent = cellValue(
+  post.postId,
+  'name',
+);
 
-    nameCell.appendChild(
-      nameEditButton,
+nameCell.appendChild(nameText);
+
+if (!isKnown) {
+  const openNameEditor = () => {
+    startEdit(
+      nameText,
+      post.postId,
+      'name',
+      true,
     );
-  }
+  };
 
-  if (isKnown) {
-    nameCell.setAttribute(
-      'aria-disabled',
-      'true',
-    );
-  } else {
-    nameCell.title =
-      'Двойной щелчок — редактировать';
+  const nameEditButton =
+    createEditButton(openNameEditor);
+
+  nameCell.appendChild(
+    nameEditButton,
+  );
+
+  nameCell.title =
+    'Двойной щелчок — редактировать';
 
     nameCell.addEventListener(
-      'dblclick',
-      () => startEdit(
-        nameCell,
-        post.postId,
-        'name',
-        true,
-      ),
-    );
-  }
+    'dblclick',
+    (event) => {
+      /*
+       * Двойной клик работает по всей площади ячейки,
+       * но не запускает второй редактор поверх открытого.
+       */
+      if (
+        event.target.closest?.(
+          '.rs-edit, .rs-editable',
+        )
+      ) {
+        return;
+      }
+
+      openNameEditor();
+    },
+  );
+} else {
+  nameCell.setAttribute(
+    'aria-disabled',
+    'true',
+  );
+}
 
   /* Описание редактируется только до полного импорта */
   const descCell = el(
@@ -2990,7 +3010,7 @@ if (isKnown) {
 
   const descText = el(
     'div',
-    'rs-desc__text',
+    'rs-desc__text rs-cell__text',
     cellValue(post.postId, 'description'),
   );
 
@@ -3005,14 +3025,6 @@ if (isKnown) {
     isKnown,
   );
 
-  if (
-    !isKnown &&
-    isEdited(post.postId, 'description')
-  ) {
-    descText.style.color =
-      'var(--text-bright)';
-  }
-
   descCell.appendChild(descText);
 
   if (isKnown) {
@@ -3021,24 +3033,44 @@ if (isKnown) {
       'true',
     );
   } else {
-    descCell.appendChild(
-      createEditButton(() =>
-        startEdit(
-          descText,
-          post.postId,
-          'description',
-          true,
-        )),
-    );
-
-    descText.addEventListener(
-      'dblclick',
-      () => startEdit(
+    const openDescriptionEditor = () => {
+      startEdit(
         descText,
         post.postId,
         'description',
         true,
-      ),
+      );
+    };
+
+    const descEditButton =
+      createEditButton(
+        openDescriptionEditor,
+      );
+
+    descCell.appendChild(
+      descEditButton,
+    );
+
+    descCell.title =
+      'Двойной щелчок — редактировать';
+
+    descCell.addEventListener(
+      'dblclick',
+      (event) => {
+        /*
+         * Двойной клик работает по всей площади ячейки,
+         * но не создаёт новый редактор внутри открытого.
+         */
+        if (
+          event.target.closest?.(
+            '.rs-edit, .rs-editable',
+          )
+        ) {
+          return;
+        }
+
+        openDescriptionEditor();
+      },
     );
   }
 
@@ -3049,12 +3081,19 @@ if (isKnown) {
 
 /* Редактирование ячейки на месте */
 function startEdit(node, postId, field, multiline = false) {
+  if (
+    node.querySelector(
+      '.rs-editable',
+    )
+  ) {
+    return;
+  }
+
   const current = cellValue(postId, field);
 
   const editor = document.createElement(multiline ? 'textarea' : 'input');
   editor.className = 'rs-editable';
   editor.value = current;
-  if (multiline) editor.style.height = '48px';
 
   node.replaceChildren(editor);
   editor.focus();
@@ -3115,19 +3154,58 @@ function clearResults() {
    Горячие клавиши: Undo / Redo правок
    ------------------------------------------------------------ */
 function bindShortcuts() {
-  document.addEventListener('keydown', (event) => {
-    const meta = event.metaKey || event.ctrlKey;
-    if (!meta || event.key.toLowerCase() !== 'z') return;
+  window.addEventListener('keydown', (event) => {
+    const modifier =
+      event.ctrlKey ||
+      event.metaKey;
 
-    const tag = document.activeElement?.tagName;
-    if (tag === 'INPUT' || tag === 'TEXTAREA') return;
+    if (!modifier) return;
+
+    const key =
+      String(event.key || '')
+        .toLowerCase();
+
+    const target = event.target;
+
+    const isTextEditor =
+      target instanceof HTMLInputElement ||
+      target instanceof HTMLTextAreaElement ||
+      target?.isContentEditable === true;
+
+    /*
+     * Внутри любого поля оставляем браузеру его собственную
+     * посимвольную историю Ctrl/Cmd+Z и Ctrl/Cmd+Shift+Z.
+     */
+    if (isTextEditor) {
+      return;
+    }
+
+    const wantsUndo =
+      key === 'z' &&
+      !event.shiftKey;
+
+    const wantsRedo =
+      (
+        key === 'z' &&
+        event.shiftKey
+      ) ||
+      key === 'y';
+
+    if (!wantsUndo && !wantsRedo) {
+      return;
+    }
 
     event.preventDefault();
-    const done = event.shiftKey ? redoEdit() : undoEdit();
-    if (done) {
-      renderTable();
-      ui.log.add(event.shiftKey ? 'Правка возвращена' : 'Правка отменена');
-    }
+
+    const changed =
+      wantsRedo
+        ? redoEdit()
+        : undoEdit();
+
+    if (!changed) return;
+
+    refreshNames();
+    renderTable();
   });
 }
 

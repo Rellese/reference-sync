@@ -597,97 +597,74 @@
   display: none;
 }
 
-/* Ячейки таблицы — CommitMono 11/12 */
+/* ============================================================
+   Ячейки таблицы
+   ============================================================ */
+
 .rs-cell {
+  min-width: 0;
+
   font-family: var(--font-table);
   font-weight: 400;
   font-size: 11px;
   line-height: 12px;
   letter-spacing: 0.1em;
+
   color: var(--text-muted);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-/*
- * Ячейка карусели должна выпускать hover-shadow
- * за свои границы.
- */
+
 .rs-table__grid .rs-cell.rs-cell--carousel {
   position: relative;
-  overflow: visible !important;
   z-index: 2;
-}
-.rs-cell--author { color: var(--accent); }
-.rs-cell--name {
-  position: relative;
-  display: flex;
-  align-items: stretch;
-
-  width: 100%;
-  height: 50px;
-  max-height: 50px;
-  min-width: 0;
-  box-sizing: border-box;
-
-  color: var(--text-primary);
-  line-height: 12px;
-  white-space: normal;
-
-  cursor: text;
+  overflow: visible;
 }
 
-/* Описание в Eagle — 247×50 с прокруткой и кнопкой правки */
+.rs-cell--author {
+  color: var(--accent);
+}
+
+/* Название и описание имеют одинаковую геометрию. */
+.rs-cell--name,
 .rs-cell--desc {
   position: relative;
+
   width: 100%;
   height: 50px;
+  min-width: 0;
+
   box-sizing: border-box;
-  padding-right: 10px;
-  cursor: text;
-}
-.rs-desc__text {
-  height: 50px;
-  overflow-y: auto;
-  padding-right: 8px;
-  font-family: var(--font-table);
-  font-weight: 400;
-  font-size: 11px;
-  line-height: 12px;
-  letter-spacing: 0.1em;
+  overflow: hidden;
+
   color: var(--text-primary);
-  white-space: pre-line;
-  user-select: text;
+  cursor: text;
 }
 
 /*
- * Кнопка названия закреплена относительно ячейки:
- * 0px сверху и 10px от правой границы.
+ * Единственный прокручиваемый слой обычной ячейки.
+ *
+ * 15px слева постоянно зарезервированы для точки.
+ * Поэтому её появление никогда не сдвигает текст.
+ *
+ * 68px справа защищают текст от кнопки редактирования.
+ * Скролл при этом остаётся на правой границе ячейки.
  */
-.rs-cell--name {
-  position: relative;
-  display: block;
-
+.rs-cell__text {
   width: 100%;
   height: 50px;
-  max-height: 50px;
-  min-width: 0;
   box-sizing: border-box;
 
-  /*
-   * Место под кнопку редактирования.
-   */
-  padding-right: 28px;
+  padding: 0 68px 0 15px;
 
   overflow-x: hidden;
   overflow-y: auto;
 
-  color: var(--text-primary);
-  line-height: 12px;
+  font: inherit;
+  color: inherit;
+  letter-spacing: inherit;
 
-  /*
-   * Сохраняем пробелы и переносы строк.
-   */
   white-space: pre-wrap;
   overflow-wrap: anywhere;
   word-break: break-word;
@@ -696,80 +673,7 @@
   cursor: text;
 }
 
-.rs-cell--name > .rs-edit {
-  position: absolute !important;
-  top: 0;
-  right: 10px;
-  z-index: 2;
-
-  margin: 0;
-}
-
-/*
- * Каждая кнопка появляется только при наведении
- * на свою конкретную ячейку.
- */
-.rs-cell--name:hover > .rs-edit,
-.rs-cell--desc:hover > .rs-edit {
-  opacity: 1;
-}
-
-/* Редактируемая ячейка */
-.rs-editable {
-  width: 100%;
-  padding: 2px 4px;
-  border-radius: 4px;
-  background: rgba(38, 38, 38, 0.35);
-  border: 1px solid var(--field-border-pressed);
-  font-family: var(--font-table);
-  font-size: 11px;
-  line-height: 12px;
-  letter-spacing: 0.1em;
-  color: var(--text-strong);
-  user-select: text;
-  cursor: text;
-}
-/*
- * M1-T09H2
- *
- * В обычном состоянии прокручивается содержимое ячейки.
- * Во время редактирования прокручивается только textarea,
- * а прокрутка родительской ячейки отключается.
- */
-
-/* Кнопка описания должна иметь такой же отступ от скролла,
-   как кнопка названия. */
-.rs-cell--desc > .rs-edit {
-  position: absolute;
-  top: 0;
-  right: 10px;
-  z-index: 2;
-  margin: 0;
-}
-
-/* При редактировании родительская ячейка больше не скроллится. */
-.rs-cell--name:has(> textarea.rs-editable),
-.rs-cell--desc:has(> textarea.rs-editable) {
-  padding-right: 0;
-  overflow: hidden;
-}
-
-/*
- * Постоянная зона для индикатора редактирования.
- *
- * Точка не участвует в потоке и поэтому:
- * — не сдвигает первую строку названия;
- * — не переносит описание вниз;
- * — не изменяет размеры ячейки.
- */
-.rs-cell--name,
-.rs-cell--desc {
-  position: relative;
-  box-sizing: border-box;
-  padding-left: 15px;
-}
-
-/* Полностью заменяем старое текстовое отображение точки. */
+/* Индикатор ручного изменения. */
 .rs-cell--name.is-edited::before,
 .rs-cell--desc.is-edited::before {
   content: '';
@@ -777,28 +681,41 @@
   position: absolute;
   top: 5px;
   left: 0;
+  z-index: 3;
 
-  display: block;
   width: 5px;
   height: 5px;
-  margin: 0;
 
+  margin: 0;
   background: var(--accent);
   border-radius: 50%;
 
-  line-height: 0;
   pointer-events: none;
-  z-index: 3;
-}
-
-/* Кнопка редактирования внутри уже открытого редактора не нужна. */
-.rs-cell:has(> textarea.rs-editable) > .rs-edit {
-  display: none;
 }
 
 /*
- * Редактор занимает ровно ту же область, что и содержимое ячейки.
- * Визуально отдельное поле ввода не создаётся.
+ * Кнопка располагается между текстом и скроллом.
+ * Справа остаётся место до полосы прокрутки.
+ */
+.rs-cell--name > .rs-edit,
+
+.rs-cell--name:hover > .rs-edit,
+.rs-cell--desc:hover > .rs-edit,
+.rs-cell--name:focus-within > .rs-edit,
+.rs-cell--desc:focus-within > .rs-edit {
+  opacity: 1;
+  visibility: visible;
+}
+
+/* Во время редактирования внешний текстовый слой не прокручивается. */
+.rs-cell__text:has(> textarea.rs-editable) {
+  padding: 0;
+  overflow: hidden;
+}
+
+/*
+ * Редактор визуально остаётся частью ячейки.
+ * Прокрутка находится только внутри textarea.
  */
 textarea.rs-editable {
   display: block;
@@ -810,20 +727,18 @@ textarea.rs-editable {
   box-sizing: border-box;
 
   margin: 0;
-  padding: 0;
+  padding: 0 68px 0 15px;
 
   border: 0;
   border-radius: 0;
   outline: 0;
+
   background: transparent;
   box-shadow: none;
 
-  font-family: var(--font-table);
-  font-weight: 400;
-  font-size: 11px;
-  line-height: 12px;
-  letter-spacing: 0.1em;
-  color: var(--text-primary);
+  font: inherit;
+  color: inherit;
+  letter-spacing: inherit;
 
   white-space: pre-wrap;
   overflow-wrap: anywhere;
@@ -832,58 +747,52 @@ textarea.rs-editable {
   overflow-x: hidden;
   overflow-y: auto;
   resize: none;
+
+  user-select: text;
+  cursor: text;
 }
 
-/*
- * Скролл Figma.
- * В Eagle используется Chromium, поэтому задаём точные размеры
- * через ::-webkit-scrollbar.
- */
-.rs-cell--name::-webkit-scrollbar,
-.rs-desc__text::-webkit-scrollbar,
+/* Открытый редактор не должен показывать кнопку поверх текста. */
+.rs-cell:has(textarea.rs-editable) > .rs-edit {
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+}
+
+/* Отредактированное значение. */
+.rs-cell.is-edited {
+  color: var(--text-bright);
+}
+
+/* Скролл по макету Figma. */
+.rs-cell__text::-webkit-scrollbar,
 textarea.rs-editable::-webkit-scrollbar {
   width: 4px;
   height: 4px;
 }
 
-.rs-cell--name::-webkit-scrollbar-track,
-.rs-desc__text::-webkit-scrollbar-track,
+.rs-cell__text::-webkit-scrollbar-track,
 textarea.rs-editable::-webkit-scrollbar-track {
   background: rgba(49, 49, 49, 0.3);
   border-radius: 100px;
 }
 
-.rs-cell--name::-webkit-scrollbar-thumb,
-.rs-desc__text::-webkit-scrollbar-thumb,
+.rs-cell__text::-webkit-scrollbar-thumb,
 textarea.rs-editable::-webkit-scrollbar-thumb {
   background: #313131;
   border-radius: 100px;
 }
 
-.rs-cell--name::-webkit-scrollbar-button,
-.rs-desc__text::-webkit-scrollbar-button,
+.rs-cell__text::-webkit-scrollbar-button,
 textarea.rs-editable::-webkit-scrollbar-button {
   display: none;
   width: 0;
   height: 0;
 }
 
-.rs-cell--name::-webkit-scrollbar-corner,
-.rs-desc__text::-webkit-scrollbar-corner,
+.rs-cell__text::-webkit-scrollbar-corner,
 textarea.rs-editable::-webkit-scrollbar-corner {
   background: transparent;
-}
-/* Отредактированное значение помечается точкой */
-.rs-cell.is-edited { color: var(--text-bright); }
-.rs-cell.is-edited::before {
-  content: '';
-  display: inline-block;
-  width: 3px;
-  height: 3px;
-  margin-right: 4px;
-  border-radius: 50%;
-  background: var(--accent);
-  vertical-align: middle;
 }
 
 /* Пустое состояние таблицы */
