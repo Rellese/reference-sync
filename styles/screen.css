@@ -620,19 +620,52 @@
 }
 .rs-cell--author { color: var(--accent); }
 .rs-cell--name {
-  display: flex;
-  align-items: center;
   position: relative;
+  display: flex;
+  align-items: stretch;
+
   width: 100%;
   height: 50px;
   max-height: 50px;
+  min-width: 0;
   box-sizing: border-box;
 
   color: var(--text-primary);
-  white-space: pre-line;
   line-height: 12px;
+  white-space: normal;
 
   cursor: text;
+}
+
+.rs-name__text {
+  flex: 1 1 auto;
+  min-width: 0;
+  height: 50px;
+  box-sizing: border-box;
+
+  /*
+   * Справа оставляем место под кнопку редактирования.
+   */
+  padding-right: 28px;
+
+  overflow-x: hidden;
+  overflow-y: auto;
+
+  font-family: var(--font-table);
+  font-weight: 400;
+  font-size: 11px;
+  line-height: 12px;
+  letter-spacing: 0.1em;
+  color: var(--text-primary);
+
+  /*
+   * pre-wrap сохраняет переносы и несколько пробелов подряд.
+   */
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+
+  user-select: text;
 }
 
 /* Описание в Eagle — 247×50 с прокруткой и кнопкой правки */

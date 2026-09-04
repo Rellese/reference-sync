@@ -2802,7 +2802,18 @@ if (isKnown) {
   }
 
   /* Название редактируется только до полного импорта */
-  const nameCell = el('div', 'rs-cell rs-cell--name');
+  const nameCell = el(
+    'div',
+    'rs-cell rs-cell--name',
+  );
+
+  const nameText = el(
+    'div',
+    'rs-name__text',
+    cellValue(post.postId, 'name'),
+  );
+
+  nameCell.appendChild(nameText);
 
   nameCell.classList.toggle(
     'is-edited',
@@ -2811,7 +2822,7 @@ if (isKnown) {
 
   nameCell.classList.toggle(
     'is-disabled',
-    isKnown,
+    isKnown,а
   );
 
   nameCell.textContent = cellValue(
@@ -2826,6 +2837,7 @@ if (isKnown) {
           nameCell,
           post.postId,
           'name',
+          true,
         );
       });
 
