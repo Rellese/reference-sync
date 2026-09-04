@@ -3,6 +3,7 @@
    ============================================================ */
 
 import { SEARCH_MODES } from './instagram.js';
+import { createHistory } from './history.js';
 
 const STORAGE_KEY = 'reference-sync.settings.v1';
 
@@ -57,9 +58,6 @@ export const state = {
   edits: new Map(),
   /* Сгенерированные имена: postId → { name, description, ... } */
   generated: new Map(),
-  /* История правок для Cmd/Ctrl+Z */
-  undoStack: [],
-  redoStack: [],
   /* Коллекции Instagram, выбранные пользователем */
   collections: [],
   /* Уже импортированные ранее publikacii (для режима «только новые») */
@@ -73,6 +71,63 @@ export const state = {
   abortController: null,
   eagleAvailable: false,
 };
+
+export const appHistory = createHistory({
+  limit: 100,
+
+  apply(action, direction) {
+    const value =
+      direction === 'undo'
+        ? action.before
+        : action.after;
+
+    if (action.type === 'edit') {
+      setRaw(
+        action.postId,
+        action.field,
+        value,
+      );
+
+      return;
+    }
+
+    if (action.type === 'setting') {
+      state.settings[action.key] = value;
+      saveSettings();
+    }
+    if (action.type === 'selection') {
+      for (const change of action.changes) {
+        const next =
+          direction === 'undo'
+            ? change.before
+            : change.after;
+
+        if (next.selected) {
+          state.selected.add(change.postId);
+        } else {
+          state.selected.delete(change.postId);
+        }
+
+        const post = state.posts.find(
+          (item) =>
+            item.postId === change.postId,
+        );
+
+        if (!post) {
+      continue;
+        }
+
+        if (next.components === undefined) {
+          delete post.selectedComponents;
+        } else {
+          post.selectedComponents = [
+            ...next.components,
+          ];
+        }
+      }
+    }
+  },
+});
 
 export function loadSettings() {
   try {
@@ -104,9 +159,30 @@ export function saveSettings() {
   } catch (_) { /* локальное хранилище недоступно */ }
 }
 
-export function setSetting(key, value) {
+export function setSetting(
+  key,
+  value,
+  { record = true } = {},
+) {
+  const previous = state.settings[key];
+
+  if (Object.is(previous, value)) {
+    return false;
+  }
+
   state.settings[key] = value;
   saveSettings();
+
+  if (record) {
+    appHistory.record({
+      type: 'setting',
+      key,
+      before: previous,
+      after: value,
+    });
+  }
+
+  return true;
 }
 
 function positiveInteger(value, fallback = 1) {
@@ -269,8 +345,13 @@ export function applyEdit(postId, field, value) {
   edit[field] = value;
   state.edits.set(postId, edit);
 
-  state.undoStack.push({ postId, field, from: previous, to: value });
-  state.redoStack.length = 0;
+  appHistory.record({
+    type: 'edit',
+    postId,
+    field,
+    before: previous,
+    after: value,
+  });
 }
 
 export function removeEdit(postId, field, { record = true, previous } = {}) {
@@ -280,8 +361,13 @@ export function removeEdit(postId, field, { record = true, previous } = {}) {
   delete edit[field];
   if (!Object.keys(edit).length) state.edits.delete(postId);
   if (record) {
-    state.undoStack.push({ postId, field, from, to: undefined });
-    state.redoStack.length = 0;
+    appHistory.record({
+      type: 'edit',
+      postId,
+      field,
+      before: from,
+      after: undefined,
+    });
   }
 }
 
@@ -300,27 +386,96 @@ function setRaw(postId, field, value) {
 }
 
 export function undoEdit() {
-  const action = state.undoStack.pop();
-  if (!action) return false;
-  setRaw(action.postId, action.field, action.from);
-  state.redoStack.push(action);
-  return true;
+  return appHistory.undo();
 }
 
 export function redoEdit() {
-  const action = state.redoStack.pop();
-  if (!action) return false;
-  setRaw(action.postId, action.field, action.to);
-  state.undoStack.push(action);
-  return true;
+  return appHistory.redo();
 }
 
 export function resetAllEdits() {
   state.edits.clear();
-  state.undoStack.length = 0;
-  state.redoStack.length = 0;
+  appHistory.clear();
 }
 
 export function hasEdits() {
   return state.edits.size > 0;
+}
+
+export function recordSelectionChange(
+  changes,
+) {
+  const normalized = (changes || [])
+    .filter((change) => {
+      if (
+        !change ||
+        change.postId === undefined ||
+        !change.before ||
+        !change.after
+      ) {
+        return false;
+      }
+
+      const beforeComponents =
+        change.before.components;
+
+      const afterComponents =
+        change.after.components;
+
+      const sameComponents =
+        beforeComponents === undefined &&
+        afterComponents === undefined
+          ? true
+          : Array.isArray(beforeComponents) &&
+            Array.isArray(afterComponents) &&
+            beforeComponents.length ===
+              afterComponents.length &&
+            beforeComponents.every(
+              (value, index) =>
+                value ===
+                afterComponents[index],
+            );
+
+      return (
+        change.before.selected !==
+          change.after.selected ||
+        !sameComponents
+      );
+    })
+    .map((change) => ({
+      postId: change.postId,
+
+      before: {
+        selected:
+          Boolean(change.before.selected),
+
+        components:
+          Array.isArray(
+            change.before.components,
+          )
+            ? [...change.before.components]
+            : undefined,
+      },
+
+      after: {
+        selected:
+          Boolean(change.after.selected),
+
+        components:
+          Array.isArray(
+            change.after.components,
+          )
+            ? [...change.after.components]
+            : undefined,
+      },
+    }));
+
+  if (!normalized.length) {
+    return false;
+  }
+
+  return appHistory.record({
+    type: 'selection',
+    changes: normalized,
+  });
 }

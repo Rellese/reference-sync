@@ -41,6 +41,7 @@ import {
   redoEdit,
   resetAllEdits,
   hasEdits,
+  recordSelectionChange,
 } from './state.js';
 
 import {
@@ -1808,6 +1809,103 @@ const tableRangePreviewIds = new Set();
 
 let tableSelectionChanged = false;
 
+let tableSelectionHistoryChanges = null;
+
+function tablePostSelectionSnapshot(post) {
+  return {
+    selected:
+      state.selected.has(post.postId),
+
+    components:
+      Array.isArray(post.selectedComponents)
+        ? [...post.selectedComponents]
+        : undefined,
+  };
+}
+
+function sameSelectionSnapshot(
+  first,
+  second,
+) {
+  if (
+    first.selected !== second.selected
+  ) {
+    return false;
+  }
+
+  if (
+    first.components === undefined &&
+    second.components === undefined
+  ) {
+    return true;
+  }
+
+  if (
+    !Array.isArray(first.components) ||
+    !Array.isArray(second.components) ||
+    first.components.length !==
+      second.components.length
+  ) {
+    return false;
+  }
+
+  return first.components.every(
+    (value, index) =>
+      value === second.components[index],
+  );
+}
+
+function beginTableSelectionHistory() {
+  if (!tableSelectionHistoryChanges) {
+    tableSelectionHistoryChanges =
+      new Map();
+  }
+}
+
+function captureTableSelectionHistory(
+  post,
+  before,
+) {
+  if (!tableSelectionHistoryChanges) {
+    return;
+  }
+
+  const previous =
+    tableSelectionHistoryChanges.get(
+      post.postId,
+    );
+
+  tableSelectionHistoryChanges.set(
+    post.postId,
+    {
+      postId: post.postId,
+      before:
+        previous?.before || before,
+      after:
+        tablePostSelectionSnapshot(post),
+    },
+  );
+}
+
+function finishTableSelectionHistory() {
+  if (!tableSelectionHistoryChanges) {
+    return false;
+  }
+
+  const changes = [
+    ...tableSelectionHistoryChanges.values(),
+  ].filter((change) =>
+    !sameSelectionSnapshot(
+      change.before,
+      change.after,
+    ),
+  );
+
+  tableSelectionHistoryChanges = null;
+
+  return recordSelectionChange(changes);
+}
+
 let tableAutoScrollFrame = null;
 let tablePointerX = 0;
 let tablePointerY = 0;
@@ -2066,6 +2164,9 @@ function setTablePostChecked(post, checked) {
     return;
   }
 
+  const before =
+    tablePostSelectionSnapshot(post);
+
   const carouselState =
     currentCarouselState(post);
 
@@ -2086,6 +2187,11 @@ function setTablePostChecked(post, checked) {
       state.selected.delete(post.postId);
     }
 
+    captureTableSelectionHistory(
+      post,
+      before,
+    );
+
     return;
   }
 
@@ -2094,6 +2200,11 @@ function setTablePostChecked(post, checked) {
   } else {
     state.selected.delete(post.postId);
   }
+
+  captureTableSelectionHistory(
+    post,
+    before,
+  );
 }
 
 function syncTablePostCheckbox(post) {
@@ -2412,6 +2523,7 @@ function applyTableShiftSelection(
 function finishTableSelectionGesture() {
   stopTableAutoScroll();
   tableSelectionGesture.endDrag();
+  finishTableSelectionHistory();
 
   if (!tableSelectionChanged) {
     return;
@@ -2548,6 +2660,7 @@ const checkbox = createCheckbox({
   disabled: isKnown,
 
   onChange: (value, event) => {
+    beginTableSelectionHistory();
     const checked = parentMixed
       ? nextTablePostState(post)
       : value;
@@ -2571,6 +2684,7 @@ const checkbox = createCheckbox({
       syncTablePostCheckbox(post);
     }
 
+    finishTableSelectionHistory();
     scheduleTableSelectionTitleUpdate();
   },
 
@@ -2578,6 +2692,8 @@ const checkbox = createCheckbox({
     if (isKnown) {
       return false;
     }
+
+    beginTableSelectionHistory();
 
     const checked =
       nextTablePostState(post);
@@ -3103,6 +3219,7 @@ function startEdit(node, postId, field, multiline = false) {
    * Локальная посимвольная история открытого редактора.
    * В Eagle нельзя полагаться на системный Undo textarea.
    */
+  const EDITOR_HISTORY_LIMIT = 100;
   const editorHistory = [editor.value];
   let editorHistoryIndex = 0;
   let restoringEditorHistory = false;
@@ -3153,6 +3270,18 @@ function startEdit(node, postId, field, multiline = false) {
 
       editorHistory.push(value);
       editorHistoryIndex += 1;
+
+      if (
+        editorHistory.length >
+        EDITOR_HISTORY_LIMIT
+      ) {
+        const removeCount =
+          editorHistory.length -
+          EDITOR_HISTORY_LIMIT;
+
+        editorHistory.splice(0, removeCount);
+        editorHistoryIndex -= removeCount;
+      }
     },
   );
 
@@ -3221,6 +3350,7 @@ function startEdit(node, postId, field, multiline = false) {
 
 function toggleAll(value) {
   tableSelectionGesture.reset();
+  beginTableSelectionHistory();
   stopTableAutoScroll();
   stopTableSelectionSync();
 
@@ -3232,6 +3362,8 @@ function toggleAll(value) {
       value,
     );
   });
+
+  finishTableSelectionHistory();
 
   updateTableSelectionTitle();
   syncTableSelectionInBatches();
@@ -3253,6 +3385,7 @@ function clearResults() {
    Горячие клавиши: Undo / Redo правок
    ------------------------------------------------------------ */
 function bindShortcuts() {
+
   window.addEventListener('keydown', (event) => {
     const modifier =
       event.ctrlKey ||
@@ -3266,16 +3399,20 @@ function bindShortcuts() {
 
     const target = event.target;
 
-    const isTextEditor =
-      target instanceof HTMLInputElement ||
+    const isEditableInput =
       target instanceof HTMLTextAreaElement ||
+      (
+        target instanceof HTMLInputElement &&
+        !target.readOnly &&
+        !target.disabled
+      ) ||
       target?.isContentEditable === true;
 
     /*
-     * Внутри любого поля оставляем браузеру его собственную
-     * посимвольную историю Ctrl/Cmd+Z и Ctrl/Cmd+Shift+Z.
+     * Внутри текстовых полей работает локальная
+     * посимвольная история редактора.
      */
-    if (isTextEditor) {
+    if (isEditableInput) {
       return;
     }
 
@@ -3302,6 +3439,13 @@ function bindShortcuts() {
         : undoEdit();
 
     if (!changed) return;
+
+    /*
+     * Возвращаем визуальное состояние всех настроек.
+     * Методы sync не создают новые записи истории.
+     */
+    ui.settings?.sync?.(state.settings);
+    ui.naming?.sync?.(state.settings);
 
     refreshNames();
     renderTable();

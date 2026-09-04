@@ -496,6 +496,7 @@ export function buildSettings({ onChange, onFolderSearch }) {
   filtersBody.appendChild(el('div', 'rs-step__title', 'Фильтрация файлов'));
 
   const typeRow = el('div', 'rs-filter-row');
+  const typeCheckboxes = new Map();
   [
     ['filterPhoto', 'Фотографии'],
     ['filterVideo', 'Видео'],
@@ -509,6 +510,7 @@ export function buildSettings({ onChange, onFolderSearch }) {
         if (onChange) onChange(key, value);
       },
     });
+    typeCheckboxes.set(key, box);
     typeRow.appendChild(box.row);
   });
   filtersBody.appendChild(typeRow);
@@ -621,6 +623,70 @@ export function buildSettings({ onChange, onFolderSearch }) {
 
   return {
     node: root,
+    sync(nextSettings = state.settings) {
+      const next =
+        nextSettings || state.settings;
+
+      sourceGroup.set(next.source);
+
+      browserBlock.style.display =
+        next.source === 'browser'
+          ? ''
+          : 'none';
+
+      metaHint.style.display =
+        next.source === 'meta'
+          ? ''
+          : 'none';
+
+      accountField.set(next.username);
+      browserSelect.set(next.browser);
+      profileSelect.set(next.browserProfile);
+      speedSelect.set(next.speed);
+
+      recentSpinner.set(next.recentLimit);
+      modeGroup.set(next.searchMode);
+
+      recentSpinner.setDisabled(
+        next.searchMode !== SEARCH_MODES.RECENT,
+      );
+
+      folderSwitch.set(
+        next.folderSearch,
+        true,
+      );
+
+      filterSwitch.set(
+        next.extraFilters,
+        true,
+      );
+
+      filtersBody.style.display =
+        next.extraFilters
+          ? ''
+          : 'none';
+
+      typeCheckboxes.forEach(
+        (checkbox, key) => {
+          checkbox.set(
+            Boolean(next[key]),
+            true,
+          );
+        },
+      );
+
+      includeField.set(
+        normalizeAuthorFilterValue(
+          next.authorInclude,
+        ),
+      );
+
+      excludeField.set(
+        normalizeAuthorFilterValue(
+          next.authorExclude,
+        ),
+      );
+    },
 
     setUsername(value) {
       accountField.set(value);
@@ -1126,7 +1192,70 @@ export function buildNaming({ onChange }) {
   root.appendChild(body);
 
   return {
-     node: root,
+    node: root,
+
+    sync(nextSettings = state.settings) {
+      const next =
+        nextSettings || state.settings;
+
+      numberingSwitch.set(
+        next.numberingEnabled,
+        true,
+      );
+
+      numberingGrid.style.display =
+        next.numberingEnabled
+          ? ''
+          : 'none';
+
+      destinationSelect.set(
+        next.numberingDestination,
+      );
+
+      markerField.set(
+        next.numberingMarker,
+      );
+
+      counterOne.set(
+        next.counterOne,
+      );
+
+      counterOneStartSpinner.set(
+        next.counterOneStart,
+      );
+
+      counterTwo.set(
+        next.counterTwo,
+      );
+
+      counterTwoStartSpinner.set(
+        next.counterTwoStart,
+      );
+
+      descriptionSwitch.set(
+        next.descriptionEnabled,
+        true,
+      );
+
+      descriptionGrid.style.display =
+        next.descriptionEnabled
+          ? ''
+          : 'none';
+
+      descriptionDestination.set(
+        next.descriptionDestination,
+      );
+
+      placementGroup.set(
+        next.descriptionPlacement,
+      );
+
+      extraField.set(
+        next.extraDescription,
+      );
+
+      syncCounterAvailability();
+    },
   };
 }
 
