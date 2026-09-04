@@ -1015,7 +1015,7 @@ export async function discoverSaved({
     : [{ id: 'saved', name: 'Saved', url: savedUrl }];
 
   const posts = [];
-  const postsById = new Map();
+  const postsByKey = new Map();
   let stoppedEarly = false;
 
   for (const target of targets) {
@@ -1111,6 +1111,21 @@ export async function discoverSaved({
       collectPostRecords(parseJsonStream(buffer)),
     );
 
+    if (onLog) {
+      onLog(
+        `[collection-debug] ${target.name}: ` +
+        `${records.length} публикаций; ID: ` +
+        records
+          .map((record) =>
+            String(
+              record.post_id ??
+              record.external_id ??
+              '',
+            ),
+          )
+          .join(', '),
+      );
+    }
 
     for (const record of records) {
       const post = normalizePost(record, {
@@ -1120,15 +1135,57 @@ export async function discoverSaved({
       });
       if (!post) continue;
 
-      const occurrence = {
-        occurrenceId: `${target.id}:${post.postId}`,
-        collectionId: target.id,
-        collectionName: target.name,
-        isDuplicate: false,
-      };
+      const postUrl = String(
+  post.url || '',
+).replace(/[?#].*$/, '').replace(/\/+$/, '');
 
-      const existingPost =
-        postsById.get(post.postId);
+const shortcodeMatch =
+  postUrl.match(
+    /instagram\.com\/(?:p|reel|tv)\/([^/]+)/i,
+  );
+
+const postKey =
+  shortcodeMatch?.[1] ||
+  postUrl ||
+  String(post.postId);
+
+const postUrl = String(
+  post.url || '',
+).replace(/[?#].*$/, '').replace(/\/+$/, '');
+
+const shortcodeMatch =
+  postUrl.match(
+    /instagram\.com\/(?:p|reel|tv)\/([^/]+)/i,
+  );
+
+const postKey =
+  shortcodeMatch?.[1] ||
+  postUrl ||
+  String(post.postId);
+
+const postUrl = String(
+  post.url || '',
+).replace(/[?#].*$/, '').replace(/\/+$/, '');
+
+const shortcodeMatch =
+  postUrl.match(
+    /instagram\.com\/(?:p|reel|tv)\/([^/]+)/i,
+  );
+
+const postKey =
+  shortcodeMatch?.[1] ||
+  postUrl ||
+  String(post.postId);
+
+const occurrence = {
+  occurrenceId: `${target.id}:${postKey}`,
+  collectionId: target.id,
+  collectionName: target.name,
+  isDuplicate: false,
+};
+
+const existingPost =
+  postsByKey.get(postKey);
 
       if (existingPost) {
         occurrence.isDuplicate = true;
@@ -1169,7 +1226,7 @@ export async function discoverSaved({
         occurrence,
       ];
 
-      postsById.set(post.postId, post);
+      postsByKey.set(postKey, post);
       posts.push(post);
     }
 
