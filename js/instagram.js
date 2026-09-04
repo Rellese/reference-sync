@@ -1015,7 +1015,7 @@ export async function discoverSaved({
     : [{ id: 'saved', name: 'Saved', url: savedUrl }];
 
   const posts = [];
-  const seenIds = new Set();
+  const postsById = new Map();
   let stoppedEarly = false;
 
   for (const target of targets) {
@@ -1119,13 +1119,43 @@ export async function discoverSaved({
         collectionName: target.name,
       });
       if (!post) continue;
-      if (seenIds.has(post.postId)) continue;
+
+      const occurrence = {
+        occurrenceId: `${target.id}:${post.postId}`,
+        collectionId: target.id,
+        collectionName: target.name,
+        isDuplicate: false,
+      };
+
+      const existingPost =
+        postsById.get(post.postId);
+
+      if (existingPost) {
+        occurrence.isDuplicate = true;
+
+        existingPost.collectionOccurrences.push(
+          occurrence,
+        );
+
+        if (
+          !existingPost.containers.some(
+            (container) =>
+              container.id === target.id,
+          )
+        ) {
+          existingPost.containers.push(
+            ...post.containers,
+          );
+        }
+
+        continue;
+      }
 
       /*
-       * SMART и RECENT останавливаются на первой уже
-       * сохранённой публикации. FULL продолжает поиск,
-       * пропуская известные публикации.
-       */
+      * SMART и RECENT останавливаются на первой уже
+      * сохранённой публикации. FULL продолжает поиск,
+      * пропуская известные публикации.
+      */
       if (knownPostIds.has(post.postId)) {
         if (stopsAtKnownPost(searchMode)) {
           stoppedEarly = true;
@@ -1134,8 +1164,12 @@ export async function discoverSaved({
 
         continue;
       }
-      
-      seenIds.add(post.postId);
+
+      post.collectionOccurrences = [
+        occurrence,
+      ];
+
+      postsById.set(post.postId, post);
       posts.push(post);
     }
 
@@ -1150,7 +1184,30 @@ export async function discoverSaved({
       ? posts.slice(0, limit)
       : posts;
 
-  return { posts: outputPosts, stoppedEarly, savedUrl };
+  const occurrenceCount =
+    outputPosts.reduce(
+      (total, post) =>
+        total +
+        (
+          post.collectionOccurrences
+            ?.length || 1
+        ),
+      0,
+    );
+
+  if (onLog) {
+    onLog(
+      `Найдено: ${outputPosts.length} уникальных, ` +
+      `${occurrenceCount} вхождений в коллекции.`,
+    );
+  }
+
+  return {
+    posts: outputPosts,
+    stoppedEarly,
+    savedUrl,
+    occurrenceCount,
+  };
 }
 
 /* Диагностика ошибок. Перенос classify_failure() */
