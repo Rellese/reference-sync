@@ -3099,6 +3099,63 @@ function startEdit(node, postId, field, multiline = false) {
   editor.focus();
   editor.select();
 
+    /*
+   * Локальная посимвольная история открытого редактора.
+   * В Eagle нельзя полагаться на системный Undo textarea.
+   */
+  const editorHistory = [editor.value];
+  let editorHistoryIndex = 0;
+  let restoringEditorHistory = false;
+
+  const restoreEditorValue = (nextIndex) => {
+    if (
+      nextIndex < 0 ||
+      nextIndex >= editorHistory.length
+    ) {
+      return false;
+    }
+
+    restoringEditorHistory = true;
+    editorHistoryIndex = nextIndex;
+    editor.value =
+      editorHistory[editorHistoryIndex];
+
+    const caret = editor.value.length;
+
+    editor.setSelectionRange(
+      caret,
+      caret,
+    );
+
+    restoringEditorHistory = false;
+    return true;
+  };
+
+  editor.addEventListener(
+    'input',
+    () => {
+      if (restoringEditorHistory) {
+        return;
+      }
+
+      const value = editor.value;
+
+      if (
+        editorHistory[editorHistoryIndex] ===
+        value
+      ) {
+        return;
+      }
+
+      editorHistory.splice(
+        editorHistoryIndex + 1,
+      );
+
+      editorHistory.push(value);
+      editorHistoryIndex += 1;
+    },
+  );
+
   const commit = () => {
     const value = editor.value;
     if (value !== current) applyEdit(postId, field, value);
@@ -3108,6 +3165,48 @@ function startEdit(node, postId, field, multiline = false) {
 
   editor.addEventListener('blur', commit);
   editor.addEventListener('keydown', (event) => {
+        const modifier =
+      event.ctrlKey ||
+      event.metaKey;
+
+    const key =
+      String(event.key || '')
+        .toLowerCase();
+
+    if (
+      modifier &&
+      key === 'z'
+    ) {
+      event.preventDefault();
+      event.stopPropagation();
+
+      if (event.shiftKey) {
+        restoreEditorValue(
+          editorHistoryIndex + 1,
+        );
+      } else {
+        restoreEditorValue(
+          editorHistoryIndex - 1,
+        );
+      }
+
+      return;
+    }
+
+    if (
+      modifier &&
+      !event.shiftKey &&
+      key === 'y'
+    ) {
+      event.preventDefault();
+      event.stopPropagation();
+
+      restoreEditorValue(
+        editorHistoryIndex + 1,
+      );
+
+      return;
+    }
     /* Escape фиксирует правку, как в Python-версии */
     if (event.key === 'Escape' || (event.key === 'Enter' && !multiline)) {
       event.preventDefault();

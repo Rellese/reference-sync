@@ -697,7 +697,18 @@
  * Кнопка располагается между текстом и скроллом.
  * Справа остаётся место до полосы прокрутки.
  */
+/*
+ * Кнопка находится между текстом и полосой прокрутки.
+ * 12px справа дают визуальный зазор около 8px до скролла шириной 4px.
+ */
 .rs-cell--name > .rs-edit,
+.rs-cell--desc > .rs-edit {
+  position: absolute;
+  top: 0;
+  right: 12px;
+  z-index: 4;
+  margin: 0;
+}
 
 .rs-cell--name:hover > .rs-edit,
 .rs-cell--desc:hover > .rs-edit,
