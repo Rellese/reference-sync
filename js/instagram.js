@@ -1015,7 +1015,7 @@ export async function discoverSaved({
     : [{ id: 'saved', name: 'Saved', url: savedUrl }];
 
   const posts = [];
-  const postsByKey = new Map();
+  const seenIds = new Set();
   let stoppedEarly = false;
 
   for (const target of targets) {
@@ -1111,6 +1111,7 @@ export async function discoverSaved({
       collectPostRecords(parseJsonStream(buffer)),
     );
 
+
     for (const record of records) {
       const post = normalizePost(record, {
         accountUsername: cleanUser,
@@ -1118,57 +1119,13 @@ export async function discoverSaved({
         collectionName: target.name,
       });
       if (!post) continue;
-
-      const postUrl = String(
-        post.url || '',
-      )
-        .replace(/[?#].*$/, '')
-        .replace(/\/+$/, '');
-
-      const shortcodeMatch = postUrl.match(
-        /instagram\.com\/(?:p|reel|tv)\/([^/]+)/i,
-      );
-
-      const postKey =
-        shortcodeMatch?.[1] ||
-        postUrl ||
-        String(post.postId);
-
-      const occurrence = {
-        occurrenceId: `${target.id}:${postKey}`,
-        collectionId: target.id,
-        collectionName: target.name,
-        isDuplicate: false,
-      };
-
-      const existingPost =
-        postsByKey.get(postKey);
-      if (existingPost) {
-        occurrence.isDuplicate = true;
-
-        existingPost.collectionOccurrences.push(
-          occurrence,
-        );
-
-        if (
-          !existingPost.containers.some(
-            (container) =>
-              container.id === target.id,
-          )
-        ) {
-          existingPost.containers.push(
-            ...post.containers,
-          );
-        }
-
-        continue;
-      }
+      if (seenIds.has(post.postId)) continue;
 
       /*
-      * SMART и RECENT останавливаются на первой уже
-      * сохранённой публикации. FULL продолжает поиск,
-      * пропуская известные публикации.
-      */
+       * SMART и RECENT останавливаются на первой уже
+       * сохранённой публикации. FULL продолжает поиск,
+       * пропуская известные публикации.
+       */
       if (knownPostIds.has(post.postId)) {
         if (stopsAtKnownPost(searchMode)) {
           stoppedEarly = true;
@@ -1177,12 +1134,8 @@ export async function discoverSaved({
 
         continue;
       }
-
-      post.collectionOccurrences = [
-        occurrence,
-      ];
-
-      postsByKey.set(postKey, post);
+      
+      seenIds.add(post.postId);
       posts.push(post);
     }
 
@@ -1197,30 +1150,7 @@ export async function discoverSaved({
       ? posts.slice(0, limit)
       : posts;
 
-  const occurrenceCount =
-    outputPosts.reduce(
-      (total, post) =>
-        total +
-        (
-          post.collectionOccurrences
-            ?.length || 1
-        ),
-      0,
-    );
-
-  if (onLog) {
-    onLog(
-      `Найдено: ${outputPosts.length} уникальных, ` +
-      `${occurrenceCount} вхождений в коллекции.`,
-    );
-  }
-
-  return {
-    posts: outputPosts,
-    stoppedEarly,
-    savedUrl,
-    occurrenceCount,
-  };
+  return { posts: outputPosts, stoppedEarly, savedUrl };
 }
 
 /* Диагностика ошибок. Перенос classify_failure() */
