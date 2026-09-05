@@ -13,6 +13,12 @@ import {
 } from './checkbox-selection.js';
 
 import {
+  groupPostsByCollection,
+  collectionSelectionState,
+  collectionSelectionChanges,
+} from './collection-table.js';
+
+import {
   loadIcons, buildHeader, buildSocial, buildSettings,
   buildStatus, buildResults, buildNaming, buildFooter, buildLog,
   buildCollectionModal, buildMessageModal, buildCarouselModal,
@@ -135,6 +141,12 @@ let recoveredDownloaded = null;
  * счётчиков версии 2.
  */
 let counterHistoryRecords = new Map();
+
+/*
+ * Свёрнутые ветки дерева коллекций.
+ * Это состояние интерфейса, поэтому в настройки не записывается.
+ */
+const collapsedCollectionIds = new Set();
 
 /* Штатное закрытие не должно восстанавливаться как авария */
 let closingGracefully = false;
@@ -2878,6 +2890,355 @@ function syncTableThumbnailVisibility() {
   );
 }
 
+function collectionPostSelectable(post) {
+  /*
+   * Здесь намеренно используется тот же источник истины,
+   * что и в существующей таблице: публикация выбирается
+   * через state.selected.
+   *
+   * Уже импортированную публикацию можно повторно выбрать,
+   * только если в Eagle отсутствует хотя бы один компонент.
+   */
+  const imported =
+    state.knownPostIds.has(post.postId);
+
+  const hasMissingComponents =
+    state.missingComponents.has(
+      post.postId,
+    );
+
+  return (
+    !imported ||
+    hasMissingComponents
+  );
+}
+
+function applyCollectionSelectionChanges(
+  changes,
+) {
+  if (!Array.isArray(changes)) {
+    return;
+  }
+
+  const effectiveChanges =
+    changes.filter((change) => {
+      const post =
+        state.posts.find(
+          (item) =>
+            item.postId ===
+              change.postId,
+        );
+
+      return (
+        post &&
+        collectionPostSelectable(post)
+      );
+    });
+
+  if (!effectiveChanges.length) {
+    return;
+  }
+
+  for (
+    const change of
+      effectiveChanges
+  ) {
+    if (change.after.selected) {
+      state.selected.add(
+        change.postId,
+      );
+    } else {
+      state.selected.delete(
+        change.postId,
+      );
+    }
+  }
+
+  recordSelectionChange(
+    effectiveChanges,
+  );
+
+  refreshNames();
+  renderTable();
+}
+
+function createCollectionFolderIcon() {
+  const icon =
+    el(
+      'span',
+      'rs-collection__folder',
+    );
+
+  icon.setAttribute(
+    'aria-hidden',
+    'true',
+  );
+
+  return icon;
+}
+
+function createCollectionChevron(
+  expanded,
+) {
+  const chevron =
+    el(
+      'span',
+      'rs-collection__chevron',
+    );
+
+  chevron.setAttribute(
+    'aria-hidden',
+    'true',
+  );
+
+  chevron.classList.toggle(
+    'is-expanded',
+    expanded,
+  );
+
+  return chevron;
+}
+
+function createCollectionHeader(
+  group,
+) {
+  const collapsed =
+    collapsedCollectionIds.has(
+      group.id,
+    );
+
+  const selection =
+    collectionSelectionState(
+      group.posts,
+      state.selected,
+      collectionPostSelectable,
+    );
+
+  const root =
+    el(
+      'div',
+      'rs-collection__head',
+    );
+
+  root.classList.toggle(
+    'is-selected',
+    selection.selectedCount > 0,
+  );
+
+  root.setAttribute(
+    'role',
+    'button',
+  );
+
+  root.setAttribute(
+    'tabindex',
+    '0',
+  );
+
+  root.setAttribute(
+    'aria-expanded',
+    String(!collapsed),
+  );
+
+  const checkbox =
+    createCheckbox({
+      checked:
+        selection.checked,
+
+      mixed:
+        selection.mixed,
+
+      disabled:
+        selection.disabled,
+
+      onChange() {
+        const changes =
+          collectionSelectionChanges(
+            group.posts,
+            state.selected,
+            collectionPostSelectable,
+          );
+
+        applyCollectionSelectionChanges(
+          changes,
+        );
+      },
+    });
+
+  /*
+   * Нажатие checkbox не должно одновременно сворачивать папку.
+   */
+  checkbox.node.addEventListener(
+    'click',
+    (event) => {
+      event.stopPropagation();
+    },
+  );
+
+  checkbox.node.addEventListener(
+    'keydown',
+    (event) => {
+      event.stopPropagation();
+    },
+  );
+
+  const identity =
+    el(
+      'div',
+      'rs-collection__identity',
+    );
+
+  const name =
+    el(
+      'span',
+      'rs-collection__name',
+      group.name,
+    );
+
+  const count =
+    el(
+      'span',
+      'rs-collection__count',
+      String(group.posts.length),
+    );
+
+  identity.append(
+    createCollectionFolderIcon(),
+    name,
+    count,
+  );
+
+  const chevron =
+    createCollectionChevron(
+      !collapsed,
+    );
+
+  const toggle = () => {
+    if (
+      collapsedCollectionIds.has(
+        group.id,
+      )
+    ) {
+      collapsedCollectionIds.delete(
+        group.id,
+      );
+    } else {
+      collapsedCollectionIds.add(
+        group.id,
+      );
+    }
+
+    renderTable();
+  };
+
+  root.addEventListener(
+    'click',
+    toggle,
+  );
+
+  root.addEventListener(
+    'keydown',
+    (event) => {
+      if (
+        event.key !== 'Enter' &&
+        event.key !== ' '
+      ) {
+        return;
+      }
+
+      event.preventDefault();
+      toggle();
+    },
+  );
+
+  root.append(
+    checkbox.node,
+    identity,
+    chevron,
+  );
+
+  return root;
+}
+
+function renderCollectionGroups({
+  container,
+  groups,
+  createPostRow,
+}) {
+  for (const group of groups) {
+    const collection =
+      el(
+        'section',
+        'rs-collection',
+      );
+
+    const header =
+      createCollectionHeader(
+        group,
+      );
+
+    const children =
+      el(
+        'div',
+        'rs-collection__children',
+      );
+
+    const collapsed =
+      collapsedCollectionIds.has(
+        group.id,
+      );
+
+    collection.classList.toggle(
+      'is-collapsed',
+      collapsed,
+    );
+
+    for (const post of group.posts) {
+      const wrapper =
+        el(
+          'div',
+          'rs-collection__post',
+        );
+
+      wrapper.classList.toggle(
+        'is-selected',
+        state.selected.has(
+          post.postId,
+        ),
+      );
+
+      const branch =
+        el(
+          'span',
+          'rs-collection__branch',
+        );
+
+      branch.setAttribute(
+        'aria-hidden',
+        'true',
+      );
+
+      wrapper.append(
+        branch,
+        createPostRow(post),
+      );
+
+      children.appendChild(
+        wrapper,
+      );
+    }
+
+    collection.append(
+      header,
+      children,
+    );
+
+    container.appendChild(
+      collection,
+    );
+  }
+}
+
 function renderTable() {
   syncTableThumbnailVisibility();
 
@@ -2890,6 +3251,16 @@ function renderTable() {
   tableCheckboxes.clear();
 
   const posts = visiblePosts();
+  const folderTableEnabled =
+    state.settings.folderSearch === true &&
+    state.collections.length > 0;
+
+  const collectionGroups =
+    groupPostsByCollection(
+      posts,
+      state.collections,
+      folderTableEnabled,
+    );
   updateTableSelectionTitle(posts);
   ui.results.clearButton.setDisabled(!posts.length);
   if (phase === 'ready') {

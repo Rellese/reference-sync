@@ -1046,3 +1046,232 @@ textarea.rs-editable::-webkit-scrollbar-corner {
   font-size: 12px;
   line-height: 1.5;
 }
+
+/* ============================================================
+   M1-T09J — дерево выбранных коллекций в таблице результатов
+   ============================================================ */
+
+.rs-collection {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+}
+
+.rs-collection + .rs-collection {
+  border-top: 1px solid #212121;
+}
+
+.rs-collection__head {
+  position: sticky;
+  top: 0;
+  z-index: 4;
+
+  box-sizing: border-box;
+  display: grid;
+  grid-template-columns: 12px minmax(0, 1fr) 16px;
+  align-items: center;
+  column-gap: 10px;
+
+  width: 100%;
+  min-height: 50px;
+  padding: 0 20px;
+
+  background: #161616;
+  border-bottom: 1px solid #212121;
+
+  cursor: pointer;
+  user-select: none;
+}
+
+.rs-collection__head:hover {
+  background: #191919;
+}
+
+.rs-collection__head:focus-visible {
+  outline: 1px solid #484848;
+  outline-offset: -2px;
+}
+
+.rs-collection__head.is-selected {
+  background: #181818;
+}
+
+.rs-collection__identity {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.rs-collection__folder {
+  position: relative;
+  flex: none;
+  width: 16px;
+  height: 11px;
+
+  background: #b4b4b4;
+  border-radius: 1px 2px 2px 2px;
+  opacity: 0.9;
+}
+
+.rs-collection__folder::before {
+  content: '';
+  position: absolute;
+  left: 1px;
+  top: -3px;
+
+  width: 7px;
+  height: 4px;
+
+  background: #b4b4b4;
+  border-radius: 2px 2px 0 0;
+}
+
+.rs-collection__name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+
+  font-family: var(--font-mono);
+  font-weight: 400;
+  font-size: 11px;
+  line-height: 12px;
+  letter-spacing: 0.1em;
+
+  color: #b4b4b4;
+}
+
+.rs-collection__count {
+  flex: none;
+
+  font-family: var(--font-mono);
+  font-weight: 400;
+  font-size: 10px;
+  line-height: 12px;
+  letter-spacing: 0.08em;
+
+  color: #707070;
+}
+
+.rs-collection__chevron {
+  position: relative;
+  display: block;
+  width: 16px;
+  height: 7px;
+
+  transition:
+    transform 140ms ease;
+}
+
+.rs-collection__chevron::before,
+.rs-collection__chevron::after {
+  content: '';
+  position: absolute;
+  top: 3px;
+
+  width: 9px;
+  height: 1px;
+
+  background: #707070;
+  border-radius: 1px;
+}
+
+.rs-collection__chevron::before {
+  left: 0;
+  transform: rotate(35deg);
+  transform-origin: right center;
+}
+
+.rs-collection__chevron::after {
+  right: 0;
+  transform: rotate(-35deg);
+  transform-origin: left center;
+}
+
+.rs-collection__chevron.is-expanded {
+  transform: rotate(180deg);
+}
+
+.rs-collection__children {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+}
+
+.rs-collection.is-collapsed
+  .rs-collection__children {
+  display: none;
+}
+
+.rs-collection__post {
+  position: relative;
+  display: flex;
+  width: 100%;
+
+  /*
+   * Место под ветку дерева.
+   * Сама существующая строка продолжает занимать
+   * оставшуюся ширину.
+   */
+  padding-left: 26px;
+  box-sizing: border-box;
+}
+
+.rs-collection__post > :not(
+  .rs-collection__branch
+) {
+  width: 100%;
+  min-width: 0;
+}
+
+.rs-collection__branch {
+  position: absolute;
+  left: 12px;
+  top: 0;
+  bottom: 0;
+
+  width: 14px;
+
+  pointer-events: none;
+}
+
+.rs-collection__branch::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+
+  width: 1px;
+  background: #232323;
+}
+
+.rs-collection__branch::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 50%;
+
+  width: 14px;
+  height: 1px;
+
+  background: #232323;
+}
+
+.rs-collection__post.is-selected
+  .rs-collection__branch::before,
+.rs-collection__post.is-selected
+  .rs-collection__branch::after {
+  background: #484848;
+}
+
+/*
+ * Последняя ветка заканчивается на уровне
+ * соответствующей строки публикации.
+ */
+.rs-collection__post:last-child
+  .rs-collection__branch::before {
+  bottom: 50%;
+}
