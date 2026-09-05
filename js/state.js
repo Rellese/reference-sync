@@ -54,6 +54,20 @@ export const state = {
   posts: [],
   /* Выбранные postId */
   selected: new Set(),
+    /*
+   * postId → rowId выбранного вхождения.
+   * В state.selected по-прежнему хранятся
+   * уникальные Instagram postId.
+   */
+  selectedRows: new Map(),
+    /*
+   * postId → occurrenceId.
+   *
+   * state.selected хранит уникальные публикации,
+   * selectedOccurrences — конкретную строку/папку,
+   * выбранную для каждой публикации.
+   */
+  selectedOccurrences: new Map(),
   /* Правки пользователя: postId → { name, description } */
   edits: new Map(),
   /* Сгенерированные имена: postId → { name, description, ... } */

@@ -8,6 +8,9 @@ import {
   groupPostsByCollection,
   collectionSelectionState,
   collectionSelectionChanges,
+  ensureDefaultOccurrences,
+  occurrenceSelected,
+  selectOccurrence,
 } from '../../js/collection-table.js';
 
 test(
@@ -500,6 +503,249 @@ test(
     assert.equal(
       changes[0].after.selected,
       true,
+    );
+  },
+);
+
+test(
+  'лимит сохраняет результаты каждой папки',
+  () => {
+    const posts = [];
+
+    for (let index = 1; index <= 10; index += 1) {
+      posts.push({
+        postId: `main-${index}`,
+
+        collectionOccurrences: [{
+          occurrenceId:
+            `main:main-${index}`,
+
+          collectionId: 'main',
+          collectionName: 'Main',
+          isDuplicate: false,
+        }],
+      });
+    }
+
+    posts.push({
+      postId: 'folder-a-1',
+
+      collectionOccurrences: [{
+        occurrenceId:
+          'folder-a:folder-a-1',
+
+        collectionId: 'folder-a',
+        collectionName: 'Folder A',
+        isDuplicate: false,
+      }],
+    });
+
+    for (let index = 1; index <= 2; index += 1) {
+      posts.push({
+        postId: `folder-b-${index}`,
+
+        collectionOccurrences: [{
+          occurrenceId:
+            `folder-b:folder-b-${index}`,
+
+          collectionId: 'folder-b',
+          collectionName: 'Folder B',
+          isDuplicate: false,
+        }],
+      });
+    }
+
+    const groups =
+      groupPostsByCollection(
+        posts,
+        [
+          { id: 'main', name: 'Main' },
+          {
+            id: 'folder-a',
+            name: 'Folder A',
+          },
+          {
+            id: 'folder-b',
+            name: 'Folder B',
+          },
+        ],
+        true,
+      );
+
+    assert.deepEqual(
+      groups.map(
+        (group) =>
+          group.posts.length,
+      ),
+      [10, 1, 2],
+    );
+
+    assert.equal(
+      groups.reduce(
+        (total, group) =>
+          total + group.posts.length,
+        0,
+      ),
+      13,
+    );
+  },
+);
+
+test(
+  'по умолчанию выбирается первая копия после оригинала',
+  () => {
+    const post = {
+      postId: 'shared',
+
+      collectionOccurrences: [
+        {
+          occurrenceId: 'saved:shared',
+          collectionId: 'saved',
+          collectionName: 'Saved',
+          isDuplicate: false,
+        },
+        {
+          occurrenceId: 'a:shared',
+          collectionId: 'a',
+          collectionName: 'A',
+          isDuplicate: true,
+        },
+        {
+          occurrenceId: 'b:shared',
+          collectionId: 'b',
+          collectionName: 'B',
+          isDuplicate: true,
+        },
+      ],
+    };
+
+    const occurrences =
+      ensureDefaultOccurrences(
+        [post],
+        new Set(['shared']),
+        new Map(),
+      );
+
+    assert.equal(
+      occurrences.get('shared'),
+      'a:shared',
+    );
+  },
+);
+
+test(
+  'ручной выбор переносит checkbox между дубликатами',
+  () => {
+    const selected =
+      new Set(['shared']);
+
+    const occurrences =
+      new Map([
+        ['shared', 'a:shared'],
+      ]);
+
+    const result =
+      selectOccurrence({
+        row: {
+          postId: 'shared',
+          occurrenceId: 'b:shared',
+        },
+
+        selectedPostIds:
+          selected,
+
+        selectedOccurrences:
+          occurrences,
+
+        selected:
+          true,
+      });
+
+    assert.equal(
+      result.selectedPostIds.has(
+        'shared',
+      ),
+      true,
+    );
+
+    assert.equal(
+      result.selectedOccurrences.get(
+        'shared',
+      ),
+      'b:shared',
+    );
+
+    assert.equal(
+      occurrenceSelected(
+        {
+          postId: 'shared',
+          occurrenceId: 'a:shared',
+        },
+        result.selectedPostIds,
+        result.selectedOccurrences,
+      ),
+      false,
+    );
+
+    assert.equal(
+      occurrenceSelected(
+        {
+          postId: 'shared',
+          occurrenceId: 'b:shared',
+        },
+        result.selectedPostIds,
+        result.selectedOccurrences,
+      ),
+      true,
+    );
+  },
+);
+
+test(
+  'выбор папки не переносит уже выбранный дубликат',
+  () => {
+    const rows = [
+      {
+        postId: 'already-selected',
+        occurrenceId:
+          'folder-b:already-selected',
+        collectionId: 'folder-b',
+      },
+      {
+        postId: 'new-post',
+        occurrenceId:
+          'folder-b:new-post',
+        collectionId: 'folder-b',
+      },
+    ];
+
+    const changes =
+      collectionSelectionChanges(
+        rows,
+
+        new Set([
+          'already-selected',
+        ]),
+
+        new Map([
+          [
+            'already-selected',
+            'folder-a:already-selected',
+          ],
+        ]),
+      );
+
+    assert.deepEqual(
+      changes.map(
+        (change) =>
+          change.postId,
+      ),
+      ['new-post'],
+    );
+
+    assert.equal(
+      changes[0].after.occurrenceId,
+      'folder-b:new-post',
     );
   },
 );

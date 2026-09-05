@@ -16,6 +16,9 @@ import {
   groupPostsByCollection,
   collectionSelectionState,
   collectionSelectionChanges,
+  ensureDefaultOccurrences,
+  occurrenceSelected,
+  selectOccurrence,
 } from './collection-table.js';
 
 import {
@@ -147,6 +150,162 @@ let counterHistoryRecords = new Map();
  * Это состояние интерфейса, поэтому в настройки не записывается.
  */
 const collapsedCollectionIds = new Set();
+
+function collectionRowSelected(post) {
+  if (!post?.occurrenceId) {
+    return state.selected.has(post?.postId);
+  }
+
+  return occurrenceSelected(
+    post,
+    state.selected,
+    state.selectedOccurrences,
+  );
+}
+
+function syncDefaultCollectionOccurrences() {
+  if (
+    state.settings.folderSearch !== true ||
+    !state.collections.length
+  ) {
+    state.selectedOccurrences.clear();
+    return;
+  }
+
+  state.selectedOccurrences =
+    ensureDefaultOccurrences(
+      state.posts,
+      state.selected,
+      state.selectedOccurrences,
+    );
+}
+
+function setCollectionRowChecked(
+  post,
+  checked,
+) {
+  if (
+    !post ||
+    !collectionPostSelectable(post)
+  ) {
+    return;
+  }
+
+  const beforeSelected =
+    state.selected.has(post.postId);
+
+  const beforeOccurrence =
+    state.selectedOccurrences.get(
+      post.postId,
+    ) || null;
+
+  const result =
+    selectOccurrence({
+      row: post,
+
+      selectedPostIds:
+        state.selected,
+
+      selectedOccurrences:
+        state.selectedOccurrences,
+
+      selected:
+        checked,
+    });
+
+  state.selected =
+    result.selectedPostIds;
+
+  state.selectedOccurrences =
+    result.selectedOccurrences;
+
+  const afterSelected =
+    state.selected.has(post.postId);
+
+  const afterOccurrence =
+    state.selectedOccurrences.get(
+      post.postId,
+    ) || null;
+
+  if (
+    beforeSelected !== afterSelected
+  ) {
+    recordSelectionChange([{
+      postId:
+        post.postId,
+
+      before: {
+        selected:
+          beforeSelected,
+
+        components:
+          Array.isArray(
+            post.sourcePost
+              ?.selectedComponents,
+          )
+            ? [
+              ...post.sourcePost
+                .selectedComponents,
+            ]
+            : undefined,
+      },
+
+      after: {
+        selected:
+          afterSelected,
+
+        components:
+          Array.isArray(
+            post.sourcePost
+              ?.selectedComponents,
+          )
+            ? [
+              ...post.sourcePost
+                .selectedComponents,
+            ]
+            : undefined,
+      },
+    }]);
+  }
+
+  if (
+    beforeSelected !== afterSelected ||
+    beforeOccurrence !== afterOccurrence
+  ) {
+    refreshNames();
+    renderTable();
+  }
+}
+
+function applySelectedOccurrenceDestinations() {
+  for (const post of state.posts) {
+    const occurrenceId =
+      state.selectedOccurrences.get(
+        post.postId,
+      );
+
+    if (!occurrenceId) {
+      continue;
+    }
+
+    const occurrence =
+      post.collectionOccurrences?.find(
+        (item) =>
+          item.occurrenceId ===
+          occurrenceId,
+      );
+
+    if (!occurrence) {
+      continue;
+    }
+
+    post.collectionId =
+      occurrence.collectionId;
+
+    post.collectionName =
+      occurrence.collectionName;
+  }
+}
 
 /*
  * Версия последнего вызова renderTable().
@@ -1351,6 +1510,11 @@ function startProgressMessageRotation({
 
 /* ---------- Скачивание и импорт ---------- */
 async function runImport() {
+    /*
+   * Один postId импортируется один раз, но выбранная
+   * строка определяет Instagram-папку этого импорта.
+   */
+  applySelectedOccurrenceDestinations();
   const s = { ...state.settings };
 
   const {
@@ -2926,38 +3090,107 @@ function applyCollectionSelectionChanges(
     return;
   }
 
-  const effectiveChanges =
-    changes.filter((change) => {
-      const post =
-        state.posts.find(
-          (item) =>
-            item.postId ===
-              change.postId,
-        );
+  const effectiveChanges = [];
 
-      return (
-        post &&
-        collectionPostSelectable(post)
+  for (const change of changes) {
+    const post =
+      state.posts.find(
+        (item) =>
+          item.postId ===
+          change.postId,
       );
-    });
 
-  if (!effectiveChanges.length) {
-    return;
-  }
+    if (
+      !post ||
+      !collectionPostSelectable(post)
+    ) {
+      continue;
+    }
 
-  for (
-    const change of
-      effectiveChanges
-  ) {
+    const beforeSelected =
+      state.selected.has(
+        change.postId,
+      );
+
+    const beforeOccurrence =
+      state.selectedOccurrences.get(
+        change.postId,
+      ) || null;
+
+    /*
+     * При выборе папки не переносим postId,
+     * уже выбранный в другой папке.
+     */
+    if (
+      change.after.selected &&
+      beforeSelected
+    ) {
+      continue;
+    }
+
     if (change.after.selected) {
       state.selected.add(
         change.postId,
       );
-    } else {
+
+      state.selectedOccurrences.set(
+        change.postId,
+        change.after.occurrenceId,
+      );
+    } else if (
+      beforeOccurrence ===
+      change.before.occurrenceId
+    ) {
       state.selected.delete(
         change.postId,
       );
+
+      state.selectedOccurrences.delete(
+        change.postId,
+      );
+    } else {
+      continue;
     }
+
+    effectiveChanges.push({
+      postId:
+        change.postId,
+
+      before: {
+        selected:
+          beforeSelected,
+
+        components:
+          Array.isArray(
+            post.selectedComponents,
+          )
+            ? [
+              ...post.selectedComponents,
+            ]
+            : undefined,
+      },
+
+      after: {
+        selected:
+          state.selected.has(
+            change.postId,
+          ),
+
+        components:
+          Array.isArray(
+            post.selectedComponents,
+          )
+            ? [
+              ...post.selectedComponents,
+            ]
+            : undefined,
+      },
+    });
+  }
+
+  if (!effectiveChanges.length) {
+    renderTable();
+    return;
   }
 
   recordSelectionChange(
@@ -3014,9 +3247,10 @@ function createCollectionHeader(
     );
 
   const selection =
-    collectionSelectionState(
+    collectionSelectionChanges(
       group.posts,
       state.selected,
+      state.selectedOccurrences,
       collectionPostSelectable,
     );
 
@@ -3206,12 +3440,16 @@ function renderCollectionGroups({
           'rs-collection__post',
         );
 
+      const selected =
+        collectionRowSelected(post);
+
       wrapper.classList.toggle(
         'is-selected',
-        state.selected.has(
-          post.postId,
-        ),
+        selected,
       );
+
+      wrapper.dataset.occurrenceId =
+        post.occurrenceId;
 
       const branch =
         el(
@@ -3224,9 +3462,64 @@ function renderCollectionGroups({
         'true',
       );
 
+      const row =
+        createPostRow(post);
+
+      /*
+       * createPostRow использует общий postId.
+       * В дереве перехватываем только checkbox строки,
+       * остальные ячейки продолжают работать с исходным постом.
+       */
+      const checkboxNode =
+        row.querySelector(
+          '.rs-checkbox, ' +
+          '[role="checkbox"], ' +
+          'input[type="checkbox"]',
+        );
+
+      if (checkboxNode) {
+        const tableEntry =
+          tableCheckboxes.get(
+            post.postId,
+          );
+
+        if (tableEntry?.checkbox) {
+          tableEntry.checkbox.set(
+            selected,
+            true,
+          );
+
+          tableEntry.checkbox.setMixed(
+            false,
+          );
+        }
+
+        checkboxNode.addEventListener(
+          'pointerdown',
+          (event) => {
+            event.stopImmediatePropagation();
+          },
+          true,
+        );
+
+        checkboxNode.addEventListener(
+          'click',
+          (event) => {
+            event.preventDefault();
+            event.stopImmediatePropagation();
+
+            setCollectionRowChecked(
+              post,
+              !collectionRowSelected(post),
+            );
+          },
+          true,
+        );
+      }
+
       wrapper.append(
         branch,
-        createPostRow(post),
+        row,
       );
 
       children.appendChild(
@@ -3257,6 +3550,7 @@ function renderTable() {
   tableCheckboxes.clear();
 
   const posts = visiblePosts();
+  syncDefaultCollectionOccurrences();
   const folderTableEnabled =
     state.settings.folderSearch === true &&
     state.collections.length > 0;

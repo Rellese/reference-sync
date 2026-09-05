@@ -1014,9 +1014,18 @@ export async function discoverSaved({
     }))
     : [{ id: 'saved', name: 'Saved', url: savedUrl }];
 
-    const posts = [];
+  const posts = [];
   const postsByKey = new Map();
   let stoppedEarly = false;
+
+  const folderSearch =
+    Array.isArray(collections) &&
+    collections.length > 0;
+
+  const perFolderLimit =
+    searchMode === SEARCH_MODES.RECENT
+      ? Math.max(0, Number(limit) || 0)
+      : 0;
 
   for (const target of targets) {
     throwIfAborted(signal);
