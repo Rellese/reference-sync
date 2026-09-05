@@ -148,6 +148,12 @@ let counterHistoryRecords = new Map();
  */
 const collapsedCollectionIds = new Set();
 
+/*
+ * Версия последнего вызова renderTable().
+ * Не позволяет устаревшему рендеру перестроить новую таблицу.
+ */
+let collectionTableRenderVersion = 0;
+
 /* Штатное закрытие не должно восстанавливаться как авария */
 let closingGracefully = false;
 
@@ -3261,6 +3267,92 @@ function renderTable() {
       state.collections,
       folderTableEnabled,
     );
+
+  const tableRenderVersion =
+    ++collectionTableRenderVersion;
+
+  /*
+   * Существующий код renderTable() ниже самостоятельно создаёт
+   * рабочие строки публикаций со всеми обработчиками.
+   *
+   * После завершения синхронного рендера забираем эти готовые
+   * строки и помещаем их внутрь веток коллекций.
+   */
+  if (
+    folderTableEnabled &&
+    collectionGroups.length > 0 &&
+    posts.length > 0
+  ) {
+    Promise.resolve().then(() => {
+      /*
+       * Если renderTable() уже запускался повторно,
+       * этот результат использовать нельзя.
+       */
+      if (
+        tableRenderVersion !==
+        collectionTableRenderVersion
+      ) {
+        return;
+      }
+
+      const renderedRows =
+        Array.from(
+          ui.results.body.children,
+        );
+
+      /*
+       * Защитный режим: если штатный рендер создал другое
+       * количество элементов, оставляем плоскую таблицу.
+       */
+      if (
+        renderedRows.length !==
+        posts.length
+      ) {
+        return;
+      }
+
+      const rowsByPostId =
+        new Map();
+
+      posts.forEach(
+        (post, index) => {
+          rowsByPostId.set(
+            String(post.postId),
+            renderedRows[index],
+          );
+        },
+      );
+
+      const allRowsAvailable =
+        collectionGroups.every(
+          (group) =>
+            group.posts.every(
+              (post) =>
+                rowsByPostId.has(
+                  String(post.postId),
+                ),
+            ),
+        );
+
+      if (!allRowsAvailable) {
+        return;
+      }
+
+      renderCollectionGroups({
+        container:
+          ui.results.body,
+
+        groups:
+          collectionGroups,
+
+        createPostRow:
+          (post) =>
+            rowsByPostId.get(
+              String(post.postId),
+            ),
+      });
+    });
+  }
   updateTableSelectionTitle(posts);
   ui.results.clearButton.setDisabled(!posts.length);
   if (phase === 'ready') {
