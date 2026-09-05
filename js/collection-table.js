@@ -31,6 +31,76 @@ function selectedCollectionEntries(
     : [];
 }
 
+function postCollectionOccurrences(post) {
+  const occurrences =
+    Array.isArray(post?.collectionOccurrences)
+      ? post.collectionOccurrences
+      : [];
+
+  if (occurrences.length > 0) {
+    return occurrences
+      .map((occurrence) => ({
+        collectionId:
+          clean(occurrence?.collectionId),
+
+        collectionName:
+          clean(occurrence?.collectionName),
+      }))
+      .filter(
+        (occurrence) =>
+          Boolean(occurrence.collectionId),
+      );
+  }
+
+  /*
+   * Совместимость со старыми результатами,
+   * где collectionOccurrences ещё отсутствует.
+   */
+  return [{
+    collectionId:
+      normalizeCollectionKey(post),
+
+    collectionName:
+      clean(post?.collectionName) ||
+      FALLBACK_COLLECTION_NAME,
+  }];
+}
+
+function uniqueSelectablePosts(
+  posts,
+  selectablePredicate,
+) {
+  const result = [];
+  const seenPostIds = new Set();
+
+  for (
+    const post of
+    Array.isArray(posts) ? posts : []
+  ) {
+    if (!selectablePredicate(post)) {
+      continue;
+    }
+
+    const postId =
+      clean(post?.postId);
+
+    if (
+      postId &&
+      seenPostIds.has(postId)
+    ) {
+      continue;
+    }
+
+    if (postId) {
+      seenPostIds.add(postId);
+    }
+
+    result.push(post);
+  }
+
+  return result;
+}
+
 export function groupPostsByCollection(
   posts,
   selectedCollections = [],
@@ -50,6 +120,18 @@ export function groupPostsByCollection(
     }];
   }
 
+  const selectedEntries =
+    selectedCollectionEntries(
+      selectedCollections,
+    );
+
+  const selectedIds = new Set(
+    selectedEntries
+      .map((collection) =>
+        clean(collection?.id))
+      .filter(Boolean),
+  );
+
   const groupsById = new Map();
   const orderedGroups = [];
 
@@ -65,12 +147,16 @@ export function groupPostsByCollection(
       groupsById.get(normalizedId);
 
     if (existing) {
+      const normalizedName =
+        clean(name);
+
       if (
         existing.name ===
           FALLBACK_COLLECTION_NAME &&
-        clean(name)
+        normalizedName
       ) {
-        existing.name = clean(name);
+        existing.name =
+          normalizedName;
       }
 
       return existing;
@@ -78,15 +164,18 @@ export function groupPostsByCollection(
 
     const group = {
       id: normalizedId,
+
       name:
         clean(name) ||
         (
           normalizedId ===
-            FALLBACK_COLLECTION_ID
+          FALLBACK_COLLECTION_ID
             ? FALLBACK_COLLECTION_NAME
             : normalizedId
         ),
+
       posts: [],
+      postIds: new Set(),
       flat: false,
     };
 
@@ -101,67 +190,87 @@ export function groupPostsByCollection(
   };
 
   /*
-   * Сначала создаём группы в том порядке, в котором
-   * пользователь выбрал коллекции.
+   * Сначала создаём группы в порядке,
+   * в котором пользователь выбрал папки.
    */
-  for (
-    const collection of
-      selectedCollectionEntries(
-        selectedCollections,
-      )
-  ) {
-    const id =
+  for (const collection of selectedEntries) {
+    const collectionId =
       clean(collection?.id);
 
-    if (!id) continue;
+    if (!collectionId) {
+      continue;
+    }
 
     ensureGroup(
-      id,
+      collectionId,
       collection?.name,
     );
   }
 
-  /*
-   * Одна публикация должна появиться в таблице только один раз,
-   * даже если повреждённые/старые данные содержат дубликаты.
-   */
-  const renderedPostIds = new Set();
-
   for (const post of sourcePosts) {
-    const postId =
-      clean(post?.postId);
+    const occurrences =
+      postCollectionOccurrences(post);
 
-    if (
-      postId &&
-      renderedPostIds.has(postId)
-    ) {
-      continue;
-    }
+    for (const occurrence of occurrences) {
+      const collectionId =
+        occurrence.collectionId ||
+        FALLBACK_COLLECTION_ID;
 
-    if (postId) {
-      renderedPostIds.add(postId);
-    }
+      /*
+       * Если пользователь выбрал конкретные папки,
+       * в таблицу не должны попадать другие папки.
+       */
+      if (
+        selectedIds.size > 0 &&
+        !selectedIds.has(collectionId)
+      ) {
+        continue;
+      }
 
-    const collectionId =
-      normalizeCollectionKey(post);
-
-    const group =
-      ensureGroup(
+      const group = ensureGroup(
         collectionId,
-        post?.collectionName,
+        occurrence.collectionName,
       );
 
-    group.posts.push(post);
+      const postId =
+        clean(post?.postId);
+
+      /*
+       * Публикация может появляться в разных папках,
+       * но внутри одной папки строка должна быть одна.
+       */
+      if (
+        postId &&
+        group.postIds.has(postId)
+      ) {
+        continue;
+      }
+
+      if (postId) {
+        group.postIds.add(postId);
+      }
+
+      /*
+       * В папки помещается один и тот же объект post.
+       * Поэтому checkbox синхронизирован во всех строках.
+       */
+      group.posts.push(post);
+    }
   }
 
-  /*
-   * Пустые выбранные коллекции не нужны в таблице результатов:
-   * пользователь видит только папки, где что-то было найдено.
-   */
-  return orderedGroups.filter(
-    (group) =>
-      group.posts.length > 0,
-  );
+  return orderedGroups
+    .filter(
+      (group) =>
+        group.posts.length > 0,
+    )
+    .map((group) => {
+      const {
+        postIds,
+        ...publicGroup
+      } = group;
+
+      return publicGroup;
+    });
 }
 
 export function collectionSelectionState(
@@ -178,10 +287,16 @@ export function collectionSelectionState(
           : [],
       );
 
+  /*
+   * Одна публикация может присутствовать
+   * в нескольких папках. Для состояния checkbox
+   * считаем каждый postId только один раз.
+   */
   const selectablePosts =
-    (Array.isArray(posts) ? posts : [])
-      .filter((post) =>
-        selectablePredicate(post));
+    uniqueSelectablePosts(
+      posts,
+      selectablePredicate,
+    );
 
   const selectedCount =
     selectablePosts.reduce(
@@ -201,12 +316,15 @@ export function collectionSelectionState(
   return {
     total,
     selectedCount,
+
     checked:
       total > 0 &&
       selectedCount === total,
+
     mixed:
       selectedCount > 0 &&
       selectedCount < total,
+
     disabled:
       total === 0,
   };
@@ -227,9 +345,10 @@ export function collectionSelectionChanges(
       );
 
   const selectablePosts =
-    (Array.isArray(posts) ? posts : [])
-      .filter((post) =>
-        selectablePredicate(post));
+    uniqueSelectablePosts(
+      posts,
+      selectablePredicate,
+    );
 
   const selection =
     collectionSelectionState(
@@ -246,9 +365,11 @@ export function collectionSelectionChanges(
     !selection.checked;
 
   return selectablePosts
-    .filter((post) =>
-      selected.has(post.postId) !==
-        nextSelected)
+    .filter(
+      (post) =>
+        selected.has(post.postId) !==
+        nextSelected,
+    )
     .map((post) => ({
       postId: post.postId,
 
@@ -260,7 +381,9 @@ export function collectionSelectionChanges(
           Array.isArray(
             post.selectedComponents,
           )
-            ? [...post.selectedComponents]
+            ? [
+              ...post.selectedComponents,
+            ]
             : undefined,
       },
 
@@ -272,7 +395,9 @@ export function collectionSelectionChanges(
           Array.isArray(
             post.selectedComponents,
           )
-            ? [...post.selectedComponents]
+            ? [
+              ...post.selectedComponents,
+            ]
             : undefined,
       },
     }));

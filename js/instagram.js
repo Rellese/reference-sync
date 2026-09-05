@@ -1014,8 +1014,8 @@ export async function discoverSaved({
     }))
     : [{ id: 'saved', name: 'Saved', url: savedUrl }];
 
-  const posts = [];
-  const seenIds = new Set();
+    const posts = [];
+  const postsByKey = new Map();
   let stoppedEarly = false;
 
   for (const target of targets) {
@@ -1048,52 +1048,55 @@ export async function discoverSaved({
     let discovered = 0;
     let discoveryStderr = '';
     let result;
+    let targetStoppedEarly = false;
 
     try {
-    result = await runGallery(args, {
-      signal,
-      onStdout: (chunk) => {
-        buffer += chunk;
+      result = await runGallery(args, {
+        signal,
 
-        /* Прогресс по мере поступления записей */
-        const matches = chunk.match(
-          /"post_id"|"post_shortcode"/g,
+        onStdout: (chunk) => {
+          buffer += chunk;
+
+          const matches = chunk.match(
+            /"post_id"|"post_shortcode"/g,
+          );
+
+          if (matches && onProgress) {
+            discovered += matches.length;
+
+            onProgress({
+              stage: 'discover',
+              collection: target.name,
+              approximate: discovered,
+            });
+          }
+        },
+
+        onStderr: (chunk) => {
+          discoveryStderr += chunk;
+
+          const line = redact(chunk).trim();
+
+          if (line && onLog) {
+            onLog(line);
+          }
+        },
+      });
+    } catch (error) {
+      const evidence = [
+        discoveryStderr,
+        error?.message || error || '',
+      ].join('\n');
+
+      if (looksInstagramRateLimited(evidence)) {
+        throw makeInstagramRateLimitError(
+          'Instagram временно ограничил запросы во время поиска.',
         );
+      }
 
-        if (matches && onProgress) {
-          discovered += matches.length;
-
-          onProgress({
-            stage: 'discover',
-            collection: target.name,
-            approximate: discovered,
-          });
-        }
-      },
-      onStderr: (chunk) => {
-        discoveryStderr += chunk;
-
-        const line = redact(chunk).trim();
-
-        if (line && onLog) {
-          onLog(line);
-        }
-      },
-    });
-  } catch (error) {
-    const evidence = [
-      discoveryStderr,
-      error?.message || error || '',
-    ].join('\n');
-
-    if (looksInstagramRateLimited(evidence)) {
-      throw makeInstagramRateLimitError(
-        'Instagram временно ограничил запросы во время поиска.',
-      );
+      throw error;
     }
 
-    throw error;
-  }
     throwIfAborted(signal);
 
     const rateLimitEvidence = [
@@ -1107,10 +1110,11 @@ export async function discoverSaved({
       );
     }
 
-   const records = buildPostRecords(
-      collectPostRecords(parseJsonStream(buffer)),
+    const records = buildPostRecords(
+      collectPostRecords(
+        parseJsonStream(buffer),
+      ),
     );
-
 
     for (const record of records) {
       const post = normalizePost(record, {
@@ -1118,39 +1122,164 @@ export async function discoverSaved({
         collectionId: target.id,
         collectionName: target.name,
       });
+
       if (!post) continue;
-      if (seenIds.has(post.postId)) continue;
+
+      const postUrl = String(post.url || '')
+        .replace(/[?#].*$/, '')
+        .replace(/\/+$/, '');
+
+      const shortcodeMatch = postUrl.match(
+        /instagram\.com\/(?:p|reel|tv)\/([^/]+)/i,
+      );
 
       /*
-       * SMART и RECENT останавливаются на первой уже
-       * сохранённой публикации. FULL продолжает поиск,
-       * пропуская известные публикации.
+       * postId остаётся основным идентификатором публикации.
+       * URL/shortcode используются как запасной стабильный ключ,
+       * если Instagram вернул разные варианты идентификатора.
+       */
+      const postKey =
+        shortcodeMatch?.[1] ||
+        post.shortcode ||
+        postUrl ||
+        String(post.postId);
+
+      const occurrence = {
+        occurrenceId: `${target.id}:${postKey}`,
+        collectionId: String(target.id),
+        collectionName:
+          String(target.name || target.id),
+        isDuplicate: false,
+      };
+
+      const existingPost =
+        postsByKey.get(postKey);
+
+      if (existingPost) {
+        const alreadyRegistered =
+          existingPost.collectionOccurrences.some(
+            (item) =>
+              item.collectionId ===
+              occurrence.collectionId,
+          );
+
+        if (!alreadyRegistered) {
+          occurrence.isDuplicate = true;
+
+          existingPost.collectionOccurrences.push(
+            occurrence,
+          );
+        }
+
+        const alreadyHasContainer =
+          existingPost.containers.some(
+            (container) =>
+              String(container.id) ===
+              String(target.id),
+          );
+
+        if (!alreadyHasContainer) {
+          existingPost.containers.push(
+            ...post.containers,
+          );
+        }
+
+        continue;
+      }
+
+      /*
+       * SMART/RECENT останавливаются на известной публикации
+       * только внутри текущей коллекции.
+       *
+       * Следующие выбранные коллекции всё равно должны быть
+       * обработаны независимо.
        */
       if (knownPostIds.has(post.postId)) {
         if (stopsAtKnownPost(searchMode)) {
+          targetStoppedEarly = true;
           stoppedEarly = true;
           break;
         }
 
         continue;
       }
-      
-      seenIds.add(post.postId);
+
+      post.collectionOccurrences = [
+        occurrence,
+      ];
+
+      postsByKey.set(postKey, post);
       posts.push(post);
     }
 
-    if (result.code !== 0 && !posts.length) {
-      throw new Error(classifyFailure(result, browser));
+    /*
+     * Ошибка текущей коллекции не должна маскироваться
+     * публикациями, найденными в предыдущих коллекциях.
+     */
+    const targetHasPosts = posts.some(
+      (post) =>
+        Array.isArray(
+          post.collectionOccurrences,
+        ) &&
+        post.collectionOccurrences.some(
+          (occurrence) =>
+            occurrence.collectionId ===
+            String(target.id),
+        ),
+    );
+
+    if (
+      result.code !== 0 &&
+      !targetHasPosts &&
+      !targetStoppedEarly
+    ) {
+      throw new Error(
+        classifyFailure(result, browser),
+      );
     }
-    if (stoppedEarly) break;
+
+    /*
+     * Здесь намеренно нет break по stoppedEarly:
+     * каждая выбранная папка ищется отдельно.
+     */
   }
 
+  /*
+   * Для общей Saved-ленты RECENT ограничивается глобально.
+   * Для выбранных коллекций --post-range уже применялся
+   * отдельно к каждой коллекции.
+   */
   const outputPosts =
-    searchMode === SEARCH_MODES.RECENT && limit > 0
+    !collections.length &&
+    searchMode === SEARCH_MODES.RECENT &&
+    limit > 0
       ? posts.slice(0, limit)
       : posts;
 
-  return { posts: outputPosts, stoppedEarly, savedUrl };
+  const occurrenceCount =
+    outputPosts.reduce(
+      (total, post) =>
+        total +
+        (
+          post.collectionOccurrences
+            ?.length || 1
+        ),
+      0,
+    );
+
+  if (onLog) {
+    onLog(
+      `Найдено: ${outputPosts.length} уникальных, ` +
+      `${occurrenceCount} вхождений в коллекции.`,
+    );
+  }
+
+  return {
+    posts: outputPosts,
+    stoppedEarly,
+    savedUrl,
+    occurrenceCount,
+  };
 }
 
 /* Диагностика ошибок. Перенос classify_failure() */

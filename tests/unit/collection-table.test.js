@@ -153,20 +153,29 @@ test(
 );
 
 test(
-  'один postId не клонируется',
+  'один postId отображается во всех коллекциях',
   () => {
+    const sharedPost = {
+      postId: 'same',
+
+      collectionId: 'a',
+      collectionName: 'A',
+
+      collectionOccurrences: [
+        {
+          collectionId: 'a',
+          collectionName: 'A',
+        },
+        {
+          collectionId: 'b',
+          collectionName: 'B',
+        },
+      ],
+    };
+
     const groups =
       groupPostsByCollection(
-        [
-          {
-            postId: 'same',
-            collectionId: 'a',
-          },
-          {
-            postId: 'same',
-            collectionId: 'b',
-          },
-        ],
+        [sharedPost],
         [
           { id: 'a', name: 'A' },
           { id: 'b', name: 'B' },
@@ -174,15 +183,33 @@ test(
         true,
       );
 
-    const rendered =
-      groups.flatMap(
-        (group) => group.posts,
-      );
+    assert.deepEqual(
+      groups.map((group) => group.id),
+      ['a', 'b'],
+    );
 
-    assert.equal(rendered.length, 1);
     assert.equal(
-      rendered[0].postId,
-      'same',
+      groups[0].posts.length,
+      1,
+    );
+
+    assert.equal(
+      groups[1].posts.length,
+      1,
+    );
+
+    /*
+     * Обе строки ссылаются на один объект:
+     * выбор публикации остаётся синхронным.
+     */
+    assert.equal(
+      groups[0].posts[0],
+      sharedPost,
+    );
+
+    assert.equal(
+      groups[1].posts[0],
+      sharedPost,
     );
   },
 );
@@ -297,6 +324,182 @@ test(
           selected: false,
         },
       ],
+    );
+  },
+);
+
+test(
+  'one post is rendered in every collection occurrence',
+  () => {
+    const sharedPost = {
+      postId: 'post-shared',
+      collectionId: 'folder-a',
+      collectionName: 'Folder A',
+
+      collectionOccurrences: [
+        {
+          occurrenceId:
+            'folder-a:post-shared',
+
+          collectionId:
+            'folder-a',
+
+          collectionName:
+            'Folder A',
+
+          isDuplicate:
+            false,
+        },
+        {
+          occurrenceId:
+            'folder-b:post-shared',
+
+          collectionId:
+            'folder-b',
+
+          collectionName:
+            'Folder B',
+
+          isDuplicate:
+            true,
+        },
+      ],
+    };
+
+    const groups =
+      groupPostsByCollection(
+        [sharedPost],
+        [
+          {
+            id: 'folder-a',
+            name: 'Folder A',
+          },
+          {
+            id: 'folder-b',
+            name: 'Folder B',
+          },
+        ],
+        true,
+      );
+
+    assert.equal(groups.length, 2);
+
+    assert.equal(
+      groups[0].posts.length,
+      1,
+    );
+
+    assert.equal(
+      groups[1].posts.length,
+      1,
+    );
+
+    assert.equal(
+      groups[0].posts[0],
+      sharedPost,
+    );
+
+    assert.equal(
+      groups[1].posts[0],
+      sharedPost,
+    );
+  },
+);
+
+test(
+  'folder mode excludes occurrences from unselected collections',
+  () => {
+    const groups =
+      groupPostsByCollection(
+        [{
+          postId: 'post-001',
+
+          collectionOccurrences: [
+            {
+              collectionId: 'selected',
+              collectionName: 'Selected',
+            },
+            {
+              collectionId: 'not-selected',
+              collectionName: 'Not selected',
+            },
+          ],
+        }],
+        [{
+          id: 'selected',
+          name: 'Selected',
+        }],
+        true,
+      );
+
+    assert.deepEqual(
+      groups.map((group) => group.id),
+      ['selected'],
+    );
+
+    assert.deepEqual(
+      groups[0].posts.map(
+        (post) => post.postId,
+      ),
+      ['post-001'],
+    );
+  },
+);
+
+test(
+  'duplicate occurrences inside one collection create one row',
+  () => {
+    const groups =
+      groupPostsByCollection(
+        [{
+          postId: 'post-001',
+
+          collectionOccurrences: [
+            {
+              collectionId: 'folder-a',
+              collectionName: 'Folder A',
+            },
+            {
+              collectionId: 'folder-a',
+              collectionName: 'Folder A',
+            },
+          ],
+        }],
+        [{
+          id: 'folder-a',
+          name: 'Folder A',
+        }],
+        true,
+      );
+
+    assert.equal(groups.length, 1);
+    assert.equal(groups[0].posts.length, 1);
+  },
+);
+
+test(
+  'collection selection changes contain unique post ids',
+  () => {
+    const post = {
+      postId: 'post-001',
+      selectedComponents: [1],
+    };
+
+    const changes =
+      collectionSelectionChanges(
+        [post, post],
+        new Set(),
+      );
+
+    assert.equal(changes.length, 1);
+    assert.equal(
+      changes[0].postId,
+      'post-001',
+    );
+
+    assert.equal(
+      changes[0].after.selected,
+      true,
     );
   },
 );
