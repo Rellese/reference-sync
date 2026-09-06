@@ -1115,31 +1115,21 @@ M1-T09J(a) — дерево коллекций в таблице результ�
 
 /* Иконка папки */
 
+:root {
+  --rs-folder-icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='14' viewBox='0 0 16 14'%3E%3Cpath d='M1.5 1h4.2l1.3 1.6H14.5A1.5 1.5 0 0 1 16 4.1v8.4A1.5 1.5 0 0 1 14.5 14h-13A1.5 1.5 0 0 1 0 12.5v-10A1.5 1.5 0 0 1 1.5 1z' fill='black'/%3E%3C/svg%3E");
+  --rs-chevron-icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='7' viewBox='0 0 16 7'%3E%3Cpath d='M0.5 0.5 L8 6 L15.5 0.5 L14 0 L8 4.2 L2 0 Z' fill='black'/%3E%3C/svg%3E");
+}
+
 .rs-collection__folder {
-  position: relative;
   flex: none;
 
   width: 16px;
-  height: 11px;
+  height: 14px;
 
   background: #b4b4b4;
-  border-radius: 1px 2px 2px 2px;
 
-  opacity: 0.9;
-}
-
-.rs-collection__folder::before {
-  content: '';
-
-  position: absolute;
-  left: 1px;
-  top: -3px;
-
-  width: 7px;
-  height: 4px;
-
-  background: #b4b4b4;
-  border-radius: 2px 2px 0 0;
+  -webkit-mask: var(--rs-folder-icon) center / contain no-repeat;
+  mask: var(--rs-folder-icon) center / contain no-repeat;
 }
 
 .rs-collection__name {
@@ -1149,7 +1139,7 @@ M1-T09J(a) — дерево коллекций в таблице результ�
   text-overflow: ellipsis;
   white-space: nowrap;
 
-  font-family: var(--font-mono);
+  font-family: var(--font-table);
   font-weight: 400;
   font-size: 11px;
   line-height: 12px;
@@ -1173,52 +1163,22 @@ M1-T09J(a) — дерево коллекций в таблице результ�
 /* Шеврон */
 
 .rs-collection__chevron {
-  position: relative;
-
-  display: block;
+  flex: none;
 
   width: 16px;
   height: 7px;
 
-  transition:
-    transform 140ms ease;
-}
+  background: #333333;
 
-.rs-collection__chevron::before,
-.rs-collection__chevron::after {
-  content: '';
-
-  position: absolute;
-  top: 3px;
-
-  width: 9px;
-  height: 1px;
-
-  background: #707070;
-  border-radius: 1px;
+  -webkit-mask: var(--rs-chevron-icon) center / contain no-repeat;
+  mask: var(--rs-chevron-icon) center / contain no-repeat;
 
   transition:
+    transform 140ms ease,
     background 140ms ease;
 }
 
-.rs-collection__chevron::before {
-  left: 0;
-
-  transform: rotate(35deg);
-  transform-origin: right center;
-}
-
-.rs-collection__chevron::after {
-  right: 0;
-
-  transform: rotate(-35deg);
-  transform-origin: left center;
-}
-
-.rs-collection__head:hover
-.rs-collection__chevron::before,
-.rs-collection__head:hover
-.rs-collection__chevron::after {
+.rs-collection__head:hover .rs-collection__chevron {
   background: #b4b4b4;
 }
 

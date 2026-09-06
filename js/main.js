@@ -16,9 +16,6 @@ import {
   groupPostsByCollection,
   collectionSelectionState,
   collectionSelectionChanges,
-  ensureDefaultOccurrences,
-  occurrenceSelected,
-  selectOccurrence,
 } from './collection-table.js';
 
 import {
@@ -152,160 +149,10 @@ let counterHistoryRecords = new Map();
 const collapsedCollectionIds = new Set();
 
 function collectionRowSelected(post) {
-  if (!post?.occurrenceId) {
-    return state.selected.has(post?.postId);
-  }
-
-  return occurrenceSelected(
-    post,
-    state.selected,
-    state.selectedOccurrences,
-  );
+  return state.selected.has(post?.postId);
 }
 
-function syncDefaultCollectionOccurrences() {
-  if (
-    state.settings.folderSearch !== true ||
-    !state.collections.length
-  ) {
-    state.selectedOccurrences.clear();
-    return;
-  }
-
-  state.selectedOccurrences =
-    ensureDefaultOccurrences(
-      state.posts,
-      state.selected,
-      state.selectedOccurrences,
-    );
-}
-
-function setCollectionRowChecked(
-  post,
-  checked,
-) {
-  if (
-    !post ||
-    !collectionPostSelectable(post)
-  ) {
-    return;
-  }
-
-  const beforeSelected =
-    state.selected.has(post.postId);
-
-  const beforeOccurrence =
-    state.selectedOccurrences.get(
-      post.postId,
-    ) || null;
-
-  const result =
-    selectOccurrence({
-      row: post,
-
-      selectedPostIds:
-        state.selected,
-
-      selectedOccurrences:
-        state.selectedOccurrences,
-
-      selected:
-        checked,
-    });
-
-  state.selected =
-    result.selectedPostIds;
-
-  state.selectedOccurrences =
-    result.selectedOccurrences;
-
-  const afterSelected =
-    state.selected.has(post.postId);
-
-  const afterOccurrence =
-    state.selectedOccurrences.get(
-      post.postId,
-    ) || null;
-
-  if (
-    beforeSelected !== afterSelected
-  ) {
-    recordSelectionChange([{
-      postId:
-        post.postId,
-
-      before: {
-        selected:
-          beforeSelected,
-
-        components:
-          Array.isArray(
-            post.sourcePost
-              ?.selectedComponents,
-          )
-            ? [
-              ...post.sourcePost
-                .selectedComponents,
-            ]
-            : undefined,
-      },
-
-      after: {
-        selected:
-          afterSelected,
-
-        components:
-          Array.isArray(
-            post.sourcePost
-              ?.selectedComponents,
-          )
-            ? [
-              ...post.sourcePost
-                .selectedComponents,
-            ]
-            : undefined,
-      },
-    }]);
-  }
-
-  if (
-    beforeSelected !== afterSelected ||
-    beforeOccurrence !== afterOccurrence
-  ) {
-    refreshNames();
-    renderTable();
-  }
-}
-
-function applySelectedOccurrenceDestinations() {
-  for (const post of state.posts) {
-    const occurrenceId =
-      state.selectedOccurrences.get(
-        post.postId,
-      );
-
-    if (!occurrenceId) {
-      continue;
-    }
-
-    const occurrence =
-      post.collectionOccurrences?.find(
-        (item) =>
-          item.occurrenceId ===
-          occurrenceId,
-      );
-
-    if (!occurrence) {
-      continue;
-    }
-
-    post.collectionId =
-      occurrence.collectionId;
-
-    post.collectionName =
-      occurrence.collectionName;
-  }
-}
+const NO_OCCURRENCES = new Map();
 
 /*
  * Версия последнего вызова renderTable().
@@ -1514,7 +1361,7 @@ async function runImport() {
    * Один postId импортируется один раз, но выбранная
    * строка определяет Instagram-папку этого импорта.
    */
-  applySelectedOccurrenceDestinations();
+  applySelectedOccurrenceDestinations()
   const s = { ...state.settings };
 
   const {
@@ -3083,108 +2930,35 @@ function collectionPostSelectable(post) {
   );
 }
 
-function applyCollectionSelectionChanges(
-  changes,
-) {
-  if (!Array.isArray(changes)) {
-    return;
-  }
+function applyCollectionSelectionChanges(changes) {
+  if (!Array.isArray(changes)) return;
 
   const effectiveChanges = [];
 
   for (const change of changes) {
-    const post =
-      state.posts.find(
-        (item) =>
-          item.postId ===
-          change.postId,
-      );
+    const post = state.posts.find(
+      (item) => item.postId === change.postId,
+    );
 
-    if (
-      !post ||
-      !collectionPostSelectable(post)
-    ) {
-      continue;
-    }
+    if (!post || !collectionPostSelectable(post)) continue;
 
-    const beforeSelected =
-      state.selected.has(
-        change.postId,
-      );
-
-    const beforeOccurrence =
-      state.selectedOccurrences.get(
-        change.postId,
-      ) || null;
-
-    /*
-     * При выборе папки не переносим postId,
-     * уже выбранный в другой папке.
-     */
-    if (
-      change.after.selected &&
-      beforeSelected
-    ) {
-      continue;
-    }
+    const beforeSelected = state.selected.has(change.postId);
+    if (beforeSelected === change.after.selected) continue;
 
     if (change.after.selected) {
-      state.selected.add(
-        change.postId,
-      );
-
-      state.selectedOccurrences.set(
-        change.postId,
-        change.after.occurrenceId,
-      );
-    } else if (
-      beforeOccurrence ===
-      change.before.occurrenceId
-    ) {
-      state.selected.delete(
-        change.postId,
-      );
-
-      state.selectedOccurrences.delete(
-        change.postId,
-      );
+      state.selected.add(change.postId);
     } else {
-      continue;
+      state.selected.delete(change.postId);
     }
 
+    const components = Array.isArray(post.selectedComponents)
+      ? [...post.selectedComponents]
+      : undefined;
+
     effectiveChanges.push({
-      postId:
-        change.postId,
-
-      before: {
-        selected:
-          beforeSelected,
-
-        components:
-          Array.isArray(
-            post.selectedComponents,
-          )
-            ? [
-              ...post.selectedComponents,
-            ]
-            : undefined,
-      },
-
-      after: {
-        selected:
-          state.selected.has(
-            change.postId,
-          ),
-
-        components:
-          Array.isArray(
-            post.selectedComponents,
-          )
-            ? [
-              ...post.selectedComponents,
-            ]
-            : undefined,
-      },
+      postId: change.postId,
+      before: { selected: beforeSelected, components },
+      after: { selected: state.selected.has(change.postId), components },
     });
   }
 
@@ -3193,10 +2967,7 @@ function applyCollectionSelectionChanges(
     return;
   }
 
-  recordSelectionChange(
-    effectiveChanges,
-  );
-
+  recordSelectionChange(effectiveChanges);
   refreshNames();
   renderTable();
 }
@@ -3250,7 +3021,7 @@ function createCollectionHeader(
     collectionSelectionState(
       group.posts,
       state.selected,
-      state.selectedOccurrences,
+      NO_OCCURRENCES,
       collectionPostSelectable,
     );
 
@@ -3296,7 +3067,7 @@ function createCollectionHeader(
           collectionSelectionChanges(
             group.posts,
             state.selected,
-            state.selectedOccurrences,
+            NO_OCCURRENCES,
             collectionPostSelectable,
           );
 
@@ -3401,141 +3172,37 @@ function createCollectionHeader(
   return root;
 }
 
-function renderCollectionGroups({
-  container,
-  groups,
-  createPostRow,
-}) {
+function renderCollectionGroups({ container, groups, createPostRow }) {
   for (const group of groups) {
-    const collection =
-      el(
-        'section',
-        'rs-collection',
-      );
+    const collection = el('section', 'rs-collection');
+    const header = createCollectionHeader(group);
+    const children = el('div', 'rs-collection__children');
 
-    const header =
-      createCollectionHeader(
-        group,
-      );
+    const collapsed = collapsedCollectionIds.has(group.id);
+    collection.classList.toggle('is-collapsed', collapsed);
 
-    const children =
-      el(
-        'div',
-        'rs-collection__children',
-      );
-
-    const collapsed =
-      collapsedCollectionIds.has(
-        group.id,
-      );
-
-    collection.classList.toggle(
-      'is-collapsed',
-      collapsed,
-    );
+    const seen = new Set();
 
     for (const post of group.posts) {
-      const wrapper =
-        el(
-          'div',
-          'rs-collection__post',
-        );
+      const postId = String(post.postId);
+      if (seen.has(postId)) continue;
+      seen.add(postId);
 
-      const selected =
-        collectionRowSelected(post);
+      const wrapper = el('div', 'rs-collection__post');
+      wrapper.dataset.postId = postId;
 
-      wrapper.classList.toggle(
-        'is-selected',
-        selected,
-      );
+      const branch = el('span', 'rs-collection__branch');
+      branch.setAttribute('aria-hidden', 'true');
 
-      wrapper.dataset.occurrenceId =
-        post.occurrenceId;
+      const row = createPostRow(post);
 
-      const branch =
-        el(
-          'span',
-          'rs-collection__branch',
-        );
-
-      branch.setAttribute(
-        'aria-hidden',
-        'true',
-      );
-
-      const row =
-        createPostRow(post);
-
-      /*
-       * createPostRow использует общий postId.
-       * В дереве перехватываем только checkbox строки,
-       * остальные ячейки продолжают работать с исходным постом.
-       */
-      const checkboxNode =
-        row.querySelector(
-          '.rs-checkbox, ' +
-          '[role="checkbox"], ' +
-          'input[type="checkbox"]',
-        );
-
-      if (checkboxNode) {
-        const tableEntry =
-          tableCheckboxes.get(
-            post.postId,
-          );
-
-        if (tableEntry?.checkbox) {
-          tableEntry.checkbox.set(
-            selected,
-            true,
-          );
-
-          tableEntry.checkbox.setMixed(
-            false,
-          );
-        }
-
-        checkboxNode.addEventListener(
-          'pointerdown',
-          (event) => {
-            event.stopImmediatePropagation();
-          },
-          true,
-        );
-
-        checkboxNode.addEventListener(
-          'click',
-          (event) => {
-            event.preventDefault();
-            event.stopImmediatePropagation();
-
-            setCollectionRowChecked(
-              post,
-              !collectionRowSelected(post),
-            );
-          },
-          true,
-        );
-      }
-
-      wrapper.append(
-        branch,
-        row,
-      );
-
-      children.appendChild(
-        wrapper,
-      );
+      wrapper.classList.toggle('is-selected', collectionRowSelected(post));
+      wrapper.append(branch, row);
+      children.appendChild(wrapper);
     }
 
-    collection.append(
-      header,
-      children,
-    );
-
-    container.appendChild(
-      collection,
-    );
+    collection.append(header, children);
+    container.appendChild(collection);
   }
 }
 
@@ -3551,113 +3218,18 @@ function renderTable() {
   tableCheckboxes.clear();
 
   const posts = visiblePosts();
-  syncDefaultCollectionOccurrences();
+
   const folderTableEnabled =
     state.settings.folderSearch === true &&
     state.collections.length > 0;
 
-  const collectionGroups =
-    groupPostsByCollection(
-      posts,
-      state.collections,
-      folderTableEnabled,
-    );
-
-  const tableRenderVersion =
-    ++collectionTableRenderVersion;
-
-  /*
-   * Существующий код renderTable() ниже самостоятельно создаёт
-   * рабочие строки публикаций со всеми обработчиками.
-   *
-   * После завершения синхронного рендера забираем эти готовые
-   * строки и помещаем их внутрь веток коллекций.
-   */
-  if (
-    folderTableEnabled &&
-    collectionGroups.length > 0 &&
-    posts.length > 0
-  ) {
-    Promise.resolve().then(() => {
-      /*
-       * Если renderTable() уже запускался повторно,
-       * этот результат использовать нельзя.
-       */
-      if (
-        tableRenderVersion !==
-        collectionTableRenderVersion
-      ) {
-        return;
-      }
-
-      const renderedRows =
-        Array.from(
-          ui.results.body.children,
-        );
-
-      /*
-       * Защитный режим: если штатный рендер создал другое
-       * количество элементов, оставляем плоскую таблицу.
-       */
-      if (
-        renderedRows.length !==
-        posts.length
-      ) {
-        return;
-      }
-
-      const rowsByPostId =
-        new Map();
-
-      posts.forEach(
-        (post, index) => {
-          rowsByPostId.set(
-            String(post.postId),
-            renderedRows[index],
-          );
-        },
-      );
-
-      const allRowsAvailable =
-        collectionGroups.every(
-          (group) =>
-            group.posts.every(
-              (post) =>
-                rowsByPostId.has(
-                  String(post.postId),
-                ),
-            ),
-        );
-
-      if (!allRowsAvailable) {
-        return;
-      }
-
-      renderCollectionGroups({
-        container:
-          ui.results.body,
-
-        groups:
-          collectionGroups,
-
-        createPostRow:
-          (post) =>
-            rowsByPostId.get(
-              String(post.postId),
-            ),
-      });
-    });
-  }
   updateTableSelectionTitle(posts);
   ui.results.clearButton.setDisabled(!posts.length);
   if (phase === 'ready') {
-    ui.footer.action.setDisabled(
-      state.selected.size === 0,
-    );
+    ui.footer.action.setDisabled(state.selected.size === 0);
   }
   ui.results.resetAllButton.node.style.display = hasEdits() ? '' : 'none';
 
-  /* Состояние чекбокса «Выбрать всё» */
   const selectedVisible = posts.filter((post) => state.selected.has(post.postId));
   if (!posts.length) ui.results.selectAll.set(false, true);
   else if (selectedVisible.length === posts.length) ui.results.selectAll.set(true, true);
@@ -3674,6 +3246,21 @@ function renderTable() {
           : 'Заполните шаг 1, выберите режим поиска и нажмите «Начать поиск».'),
     );
     body.appendChild(empty);
+    return;
+  }
+
+  if (folderTableEnabled) {
+    const collectionGroups = groupPostsByCollection(
+      posts,
+      state.collections,
+      true,
+    );
+
+    renderCollectionGroups({
+      container: body,
+      groups: collectionGroups,
+      createPostRow: (post) => renderRow(post),
+    });
     return;
   }
 
