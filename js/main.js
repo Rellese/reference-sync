@@ -3247,7 +3247,7 @@ function createCollectionHeader(
     );
 
   const selection =
-    collectionSelectionChanges(
+    collectionSelectionState(
       group.posts,
       state.selected,
       state.selectedOccurrences,
@@ -3296,6 +3296,7 @@ function createCollectionHeader(
           collectionSelectionChanges(
             group.posts,
             state.selected,
+            state.selectedOccurrences,
             collectionPostSelectable,
           );
 
