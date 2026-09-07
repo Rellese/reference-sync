@@ -194,6 +194,7 @@ function activeNumberingCounters(
 
 function currentNumberingContext(
   settings = state.settings,
+  { ignoreSeeds = false } = {},
 ) {
   const counters =
     activeNumberingCounters(settings);
@@ -201,13 +202,15 @@ function currentNumberingContext(
   return {
     counters,
     counterSeeds:
-      counterHistorySeeds({
-        records:
-          counterHistoryRecords,
-        platform:
-          settings.platform,
-        counters,
-      }),
+      ignoreSeeds
+        ? new Map()
+        : counterHistorySeeds({
+            records:
+              counterHistoryRecords,
+            platform:
+              settings.platform,
+            counters,
+          }),
   };
 }
 
@@ -1357,11 +1360,6 @@ function startProgressMessageRotation({
 
 /* ---------- Скачивание и импорт ---------- */
 async function runImport() {
-    /*
-   * Один postId импортируется один раз, но выбранная
-   * строка определяет Instagram-папку этого импорта.
-   */
-  applySelectedOccurrenceDestinations()
   const s = { ...state.settings };
 
   const {
@@ -1672,6 +1670,20 @@ async function runImport() {
     const {
       counters: importedCounters,
     } = currentNumberingContext(s);
+
+    /*
+     * Ручной старт перебивает историю: перед сохранением
+     * очищаем прежние записи затронутых счётчиков, чтобы
+     * новая серия начиналась строго с введённого числа.
+     */
+    for (const counter of importedCounters) {
+      for (const key of [...counterHistoryRecords.keys()]) {
+        if (key.includes(`::${counter.id}::`)) {
+          counterHistoryRecords.delete(key);
+        }
+      }
+    }
+    saveCounterHistoryRecords(counterHistoryRecords);
 
     rememberImportedCounterHistory(
       s,
@@ -2017,7 +2029,7 @@ function refreshNames() {
   const {
     counters,
     counterSeeds,
-  } = currentNumberingContext(s);
+  } = currentNumberingContext(s, { ignoreSeeds: true });
 
   state.generated = buildNames({
     posts: state.posts,
