@@ -814,6 +814,13 @@ async function ensureToolchain() {
    Главная кнопка: поиск → импорт
    ------------------------------------------------------------ */
 async function runAction() {
+  /* Выбор коллекций в таблице — приоритетнее всего */
+  if (collectionPickerActive) {
+    if (!collectionPickerChecked.size) return;
+    confirmCollectionPicker();
+    return;
+  }
+
   if (phase === 'searching' || phase === 'importing') {
     state.abortController?.abort();
     ui.log.add('Остановка по запросу пользователя', 'warn');
@@ -822,7 +829,6 @@ async function runAction() {
 
   if (phase === 'ready') {
     if (!state.selected.size) return;
-
     await runImport();
     return;
   }
@@ -1147,12 +1153,12 @@ async function runSearch() {
           },
         );
 
-        const selectedCollections =
-          await openCollectionModal(
+        const pickedIds =
+          await selectCollectionsInTable(
             collections,
           );
 
-        if (!selectedCollections) {
+        if (!pickedIds) {
           const cancelled =
             new Error(
               'Выбор коллекций отменён',
@@ -1162,11 +1168,21 @@ async function runSearch() {
           throw cancelled;
         }
 
-        if (!selectedCollections.length) {
+        if (!pickedIds.length) {
           throw new Error(
             'Не выбрана ни одна коллекция',
           );
         }
+
+        state.collections = collections
+          .filter((collection) =>
+            pickedIds.includes(collection.id))
+          .map((collection) => ({
+            id: collection.id,
+            name: collection.name,
+            type: collection.type,
+            mediaCount: collection.mediaCount,
+          }));
       } else {
         state.collections = [];
       }
@@ -1871,6 +1887,116 @@ function reportRunError(title, error) {
    Коллекции Instagram
    ------------------------------------------------------------ */
 let collectionModalResolve = null;
+
+/* Выбор коллекций прямо в теле таблицы вместо модалки.
+   Показывает строки-папки (чекбокс, иконка, имя, chevron).
+   Резолвится, когда пользователь жмёт оранжевую кнопку. */
+let collectionPickerResolve = null;
+let collectionPickerActive = false;
+const collectionPickerChecked = new Set();
+
+let collectionPickerTotal = 0;
+
+function updateCollectionPickerTitle() {
+  ui.results.setTitle?.(
+    collectionPickerChecked.size,
+    collectionPickerTotal,
+  );
+}
+
+function confirmCollectionPicker() {
+  if (!collectionPickerActive) return;
+
+  const chosen = [...collectionPickerChecked];
+  const resolve = collectionPickerResolve;
+
+  collectionPickerActive = false;
+  collectionPickerResolve = null;
+
+  if (resolve) resolve(chosen);
+}
+
+function selectCollectionsInTable(collections) {
+  collectionPickerActive = true;
+  collectionPickerChecked.clear();
+  collectionPickerTotal = collections.length;
+
+  const body = ui.results.body;
+  clear(body);
+  updateCollectionPickerTitle();
+  ui.results.clearButton?.setDisabled?.(true);
+
+  if (!collections.length) {
+    const empty = el('div', 'rs-empty');
+    empty.append(
+      el('div', 'rs-empty__title', 'Коллекции не найдены'),
+      el('div', 'rs-empty__text',
+        'В этом аккаунте нет доступных коллекций.'),
+    );
+    body.appendChild(empty);
+  } else {
+    for (const collection of collections) {
+      body.appendChild(
+        createCollectionPickerRow(collection),
+      );
+    }
+  }
+
+  /* Оранжевая кнопка внизу переключается в режим «Продолжить поиск» */
+  ui.footer.action.setLabel('Продолжить поиск');
+  ui.footer.action.setDisabled(true);
+
+  return new Promise((resolve) => {
+    collectionPickerResolve = resolve;
+  });
+}
+
+function createCollectionPickerRow(collection) {
+  const root = el('div', 'rs-collection__head');
+  root.setAttribute('role', 'button');
+  root.setAttribute('tabindex', '0');
+
+  const checkbox = createCheckbox({
+    checked: false,
+    onChange: (value) => {
+      if (value) {
+        collectionPickerChecked.add(collection.id);
+      } else {
+        collectionPickerChecked.delete(collection.id);
+      }
+      root.classList.toggle('is-selected', value);
+      ui.footer.action.setDisabled(
+        collectionPickerChecked.size === 0,
+      );
+      updateCollectionPickerTitle();
+    },
+  });
+
+  checkbox.node.addEventListener('click', (event) => {
+    event.stopPropagation();
+  });
+
+  const identity = el('div', 'rs-collection__identity');
+  const folder = el('span', 'rs-collection__folder');
+  folder.setAttribute('aria-hidden', 'true');
+  const name = el('span', 'rs-collection__name', collection.name);
+  const count = el(
+    'span',
+    'rs-collection__count',
+    collection.mediaCount === null || collection.mediaCount === undefined
+      ? ''
+      : String(collection.mediaCount),
+  );
+  identity.append(folder, name, count);
+
+  /* Клик по строке (не по чекбоксу) тоже переключает выбор */
+  root.addEventListener('click', () => {
+    checkbox.set(!checkbox.value);
+  });
+
+  root.append(checkbox.node, identity);
+  return root;
+}
 
 function openCollectionModal(
   collections,
