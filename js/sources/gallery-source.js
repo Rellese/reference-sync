@@ -304,6 +304,7 @@ export function createGallerySource(spec) {
   async function discover({
     username,
     browser = 'chrome',
+    browserProfile = '',
     searchMode = 'smart',
     limit = 50,
     speedProfile = 'safe',
@@ -343,10 +344,14 @@ export function createGallerySource(spec) {
         ...paceArgs(profile),
         ...extraDiscoverArgs,
       ];
-      if (cookies) args.push('--cookies-from-browser', browserCookieSpec(browser));
-      if (searchMode === 'recent' && limit > 0) {
-        args.push('--post-range', `1-${limit}`);
+      if (cookies) {
+        args.push(
+          '--cookies-from-browser',
+          browserCookieSpec(browser, browserProfile),
+        );
       }
+      /* Pinterest allpins не переносит --post-range (даёт пустую
+         выдачу). Лимит применяется после сбора, на стороне main.js. */
       args.push(target.url);
 
       if (onLog) onLog(`gallery-dl: ${target.name} (${target.url})`);
@@ -403,6 +408,7 @@ export function createGallerySource(spec) {
   async function download({
     posts,
     browser = 'chrome',
+    browserProfile = '',
     speedProfile = 'safe',
     onProgress,
     onLog,
@@ -450,7 +456,12 @@ export function createGallerySource(spec) {
         '--filename', '{num}.{extension}',
         '--directory', '',
       ];
-      if (cookies) args.push('--cookies-from-browser', browserCookieSpec(browser));
+      if (cookies) {
+        args.push(
+          '--cookies-from-browser',
+          browserCookieSpec(browser, browserProfile),
+        );
+      }
       args.push(post.url);
 
       let error = null;
@@ -536,11 +547,17 @@ export function createGallerySource(spec) {
 }
 
 /* Cookies браузера — общий формат gallery-dl */
-export function browserCookieSpec(browser) {
+export function browserCookieSpec(browser, browserProfile = '') {
   const known = new Set(['chrome', 'chromium', 'edge', 'firefox', 'safari',
     'brave', 'opera', 'vivaldi']);
   const name = String(browser || 'chrome').trim().toLowerCase();
-  return known.has(name) ? name : 'chrome';
+  const base = known.has(name) ? name : 'chrome';
+
+  const profile = String(browserProfile || '').trim();
+  if (!profile) return base;
+
+  /* Формат gallery-dl: browser:profile (например «chrome:Profile 1») */
+  return `${base}:${profile}`;
 }
 
 /* Человеческое объяснение неудачи вместо кода выхода */

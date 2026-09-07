@@ -1006,10 +1006,25 @@ async function runSearch() {
   await refreshImportRegistry();
   const s = { ...state.settings };
 
+  let activeSource;
+  try {
+    activeSource = getSource(s.platform);
+  } catch (error) {
+    ui.log.add(`Платформа ${s.platform} не зарегистрирована.`, 'warn');
+    ui.status.set('Платформа недоступна', 'Выберите другой источник');
+    return;
+  }
 
-  if (s.platform !== 'instagram') {
-    ui.log.add(`Платформа ${s.platform} ещё не подключена.`, 'warn');
-    ui.status.set('Платформа недоступна', 'Пока работает только Instagram');
+  if (!activeSource.ready) {
+    ui.log.add(
+      `Платформа ${activeSource.title} ещё не подключена.`,
+      'warn',
+    );
+    ui.status.set(
+      'Платформа недоступна',
+      activeSource.notReadyReason ||
+        'Источник появится в следующих версиях плагина',
+    );
     return;
   }
 
@@ -1041,7 +1056,11 @@ async function runSearch() {
   control = createJobControl();
   const operationController = state.abortController;
   ui.footer.action.setLabel('Остановить');
-  ui.status.set('Поиск публикаций…', 'Идёт обращение к Instagram', true);
+  ui.status.set(
+    'Поиск публикаций…',
+    `Идёт обращение к ${activeSource.title}`,
+    true,
+  );
   ui.log.add(`Поиск: @${s.username}, режим ${s.searchMode}`);
 
   /* Состояние 6 — «Search for Publications»: бегущая полоса
@@ -1053,11 +1072,24 @@ async function runSearch() {
     trail: 'Найдено: 0',
   });
 
-  try {
-    const session = await requireMatchingInstagramSession(
-      s,
-      operationController.signal,
+  const isInstagram = activeSource.code === 'instagram';
+
+  if (s.folderSearch && !isInstagram) {
+    ui.log.add(
+      `Режим папок для ${activeSource.title} пока не поддерживается — ` +
+      'ищем все публикации целиком.',
+      'warn',
     );
+    s.folderSearch = false;
+  }
+
+  try {
+    const session = isInstagram
+      ? await requireMatchingInstagramSession(
+          s,
+          operationController.signal,
+        )
+      : { cookieFile: '', username: s.username };
 
     let discoveryResult;
 
@@ -1194,8 +1226,12 @@ async function runSearch() {
         state.collections = [];
       }
 
+      const runDiscover = isInstagram
+        ? discoverSaved
+        : activeSource.discover;
+
       discoveryResult =
-        await discoverSaved({
+        await runDiscover({
         username: s.username,
         browser: s.browser,
         browserProfile: s.browserProfile,
@@ -1229,7 +1265,20 @@ async function runSearch() {
       removeInstagramCookieSnapshot(session.cookieFile);
     }
 
-    const { posts, stoppedEarly } = discoveryResult;
+    let { posts, stoppedEarly } = discoveryResult;
+
+    /* Ограничение «Только новые/N последних» для источников,
+       которые не умеют --post-range (Pinterest и др.):
+       обрезаем список после сбора. */
+    if (
+      !isInstagram &&
+      s.searchMode === 'recent' &&
+      s.recentLimit > 0 &&
+      posts.length > s.recentLimit
+    ) {
+      posts = posts.slice(0, s.recentLimit);
+      stoppedEarly = true;
+    }
 
     /* Состояние 7 — «Reviewing Publications»: полоса идёт
        из конца в начало, пока список нормализуется */
@@ -1385,6 +1434,14 @@ function startProgressMessageRotation({
 async function runImport() {
   const s = { ...state.settings };
 
+  let activeImportSource;
+  try {
+    activeImportSource = getSource(s.platform);
+  } catch (error) {
+    ui.status.set('Платформа недоступна', 'Выберите другой источник');
+    return;
+  }
+
   const {
     counters: importCounters,
     counterSeeds: importCounterSeeds,
@@ -1435,10 +1492,12 @@ async function runImport() {
   });
 
   try {
-    const session = await requireMatchingInstagramSession(
-      s,
-      state.abortController.signal,
-    );
+    const session = activeImportSource.code === 'instagram'
+      ? await requireMatchingInstagramSession(
+          s,
+          state.abortController.signal,
+        )
+      : { cookieFile: '' };
 
     sessionCookieFile = session.cookieFile;
 
@@ -1458,10 +1517,14 @@ async function runImport() {
 
     const completedDownloads = [...restoredResults];
 
+    const runDownload = activeImportSource.code === 'instagram'
+      ? downloadPosts
+      : activeImportSource.download;
+
     const {
       results: newResults,
       stopReason: downloadStopReason,
-    } = await downloadPosts({
+    } = await runDownload({
       posts: postsToDownload,
       stagingRoot: recoveryState?.stagingRoot || '',
       browser: s.browser,
@@ -1602,7 +1665,7 @@ async function runImport() {
             componentDescriptions[componentIndex] ??
             annotation,
           tags: [
-            s.platform,
+            ...(activeImportSource.defaultTags || [s.platform]),
           ].filter(Boolean),
           postId: entry.post.postId,
           component: String(componentIndex),

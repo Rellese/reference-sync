@@ -34,12 +34,14 @@ export default createGallerySource({
   buildTargets({ username, collections }) {
     const base = `https://www.pinterest.com/${username}`;
     if (!collections.length) {
-      return [{ id: 'boards', name: 'Все доски', url: `${base}/` }];
+      /* Сплошная лента всех сохранённых пинов —
+         личный раздел «Пины», формат /USER/_pins/ */
+      return [{ id: 'allpins', name: 'Все пины', url: `${base}/pins/` }];
     }
     return collections.map((entry) => ({
       id: entry.id,
       name: entry.name || entry.id,
-      /* id раздела приходит как «board/section» */
+      /* доска: /USER/board-slug/ */
       url: `${base}/${entry.id}/`,
     }));
   },
