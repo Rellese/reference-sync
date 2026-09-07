@@ -1302,3 +1302,11 @@ M1-T09J(a) — дерево коллекций в таблице результ�
     transition: none;
   }
 }
+
+.rs-progress__label-key {
+  color: #707070;
+}
+
+.rs-progress__label-value {
+  color: #B4B4B4;
+}

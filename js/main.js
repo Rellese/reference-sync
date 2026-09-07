@@ -1097,6 +1097,13 @@ async function runSearch() {
               operationController.signal,
           });
 
+        collectionPickerFoundCount = collections.length;
+        ui.status.progress.update({
+          mode: 'idle',
+          lead: `Найдено: ${collectionPickerFoundCount} коллекций`,
+          trail: 'Выбрано: 0 коллекций',
+        });
+
         collections.forEach(
           (collection) => {
             const covers =
@@ -1896,12 +1903,19 @@ let collectionPickerActive = false;
 const collectionPickerChecked = new Set();
 
 let collectionPickerTotal = 0;
+let collectionPickerFoundCount = 0;
 
 function updateCollectionPickerTitle() {
-  ui.results.setTitle?.(
-    collectionPickerChecked.size,
-    collectionPickerTotal,
-  );
+  const count = collectionPickerChecked.size;
+  const total = collectionPickerTotal;
+  ui.results.title.textContent = total
+    ? `Найденные коллекции — ${count} из ${total}`
+    : 'Найденные коллекции';
+
+  ui.status.progress.update({
+    lead: `Найдено: ${collectionPickerFoundCount} коллекций`,
+    trail: `Выбрано: ${count} коллекций`,
+  });
 }
 
 function confirmCollectionPicker() {
@@ -1912,6 +1926,14 @@ function confirmCollectionPicker() {
 
   collectionPickerActive = false;
   collectionPickerResolve = null;
+
+  ui.results.setTitle(0, 0);
+  ui.status.showProgress(true);
+  ui.status.progress.update({
+    mode: 'search',
+    lead: 'Поиск публикаций в выбранных коллекциях',
+    trail: 'Найдено: 0',
+  });
 
   if (resolve) resolve(chosen);
 }

@@ -372,6 +372,22 @@ export function createProgressBar({ onCommand } = {}) {
 
   paintStatic(0);
 
+  function paintSplitLabel(node, text) {
+    node.textContent = '';
+    const idx = text.indexOf(':');
+    if (idx === -1) {
+      const only = el('span', 'rs-progress__label-value');
+      only.textContent = text;
+      node.appendChild(only);
+      return;
+    }
+    const before = el('span', 'rs-progress__label-key');
+    before.textContent = text.slice(0, idx + 1);
+    const after = el('span', 'rs-progress__label-value');
+    after.textContent = text.slice(idx + 1);
+    node.append(before, after);
+  }
+
   return {
     node: root,
 
@@ -384,8 +400,8 @@ export function createProgressBar({ onCommand } = {}) {
       interest: interestText,
     } = {}) {
       if (kind) setMode(kind);
-      if (lead !== undefined) leadText.textContent = lead || '';
-      if (trail !== undefined) trailText.textContent = trail || '';
+      if (lead !== undefined) paintSplitLabel(leadText, lead || '');
+      if (trail !== undefined) paintSplitLabel(trailText, trail || '');
       if (found !== undefined) foundText.textContent = found || '';
       if (displayed !== undefined) displayedText.textContent = displayed || '';
       if (selected !== undefined) selectedText.textContent = selected || '';
