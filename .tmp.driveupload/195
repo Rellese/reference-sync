@@ -1,0 +1,162 @@
+0000000000000000000000000000000000000000 3df2026232f2d1ce236a2f8785e1938fdb7cda66 Rellese <38435973+Rellese@users.noreply.github.com> 1786677200 +0300	commit (initial): 1
+3df2026232f2d1ce236a2f8785e1938fdb7cda66 18f46deb556aa189221403f979ec0e54227e8597 Rellese <38435973+Rellese@users.noreply.github.com> 1787496427 +0300	pull --tags origin main: Fast-forward
+18f46deb556aa189221403f979ec0e54227e8597 f8cc54dfde212978cf8e44320023612cfe1ea99b Rellese <38435973+Rellese@users.noreply.github.com> 1787496668 +0300	commit: M0-T06: record successful test baseline
+f8cc54dfde212978cf8e44320023612cfe1ea99b a21fc1b4e39f515ccc10a09048e6cf22c8f84255 Rellese <38435973+Rellese@users.noreply.github.com> 1787500351 +0300	commit: M0-T07: record Eagle baseline and download blocker
+a21fc1b4e39f515ccc10a09048e6cf22c8f84255 982f7491cbe8cb97b530b32ad7bd5d2ce5ad291f Rellese <38435973+Rellese@users.noreply.github.com> 1787501102 +0300	commit: M0-T08: remove obsolete project files
+982f7491cbe8cb97b530b32ad7bd5d2ce5ad291f e99c135eacc9c8de973b141c472bc0ffc115daca Rellese <38435973+Rellese@users.noreply.github.com> 1787502973 +0300	commit: M0-T08: complete foundation stage
+e99c135eacc9c8de973b141c472bc0ffc115daca 312c1845d32c950dada03c7ceb53373c5044b36a Rellese <38435973+Rellese@users.noreply.github.com> 1787504630 +0300	commit: M1-T01: document Python and JS download differences
+312c1845d32c950dada03c7ceb53373c5044b36a dfca70fe8f8fd3fbc40147ff61f23a91e103bfa4 Rellese <38435973+Rellese@users.noreply.github.com> 1787531910 +0300	commit: M1-T02: test and fix download error classification
+dfca70fe8f8fd3fbc40147ff61f23a91e103bfa4 58b75c1a3514c3056883bc61e3691766b8c35129 Rellese <38435973+Rellese@users.noreply.github.com> 1787533903 +0300	commit: M1-T03: restore Instagram discovery grouping
+58b75c1a3514c3056883bc61e3691766b8c35129 b98038a5989e64050c9bb9432e7fededd466b1b9 Rellese <38435973+Rellese@users.noreply.github.com> 1787537696 +0300	commit: M1-T03: record live Instagram discovery verification
+b98038a5989e64050c9bb9432e7fededd466b1b9 74d7a99bd1d6d7373d5e39434331701d2605974b Rellese <38435973+Rellese@users.noreply.github.com> 1787539706 +0300	commit: M1-T04: continue queue after publication errors
+74d7a99bd1d6d7373d5e39434331701d2605974b 1938cd0cbe414522ef06c4bb4bd3ec8c12a2e31d Rellese <38435973+Rellese@users.noreply.github.com> 1787585360 +0300	commit: M1-T05A: verify browser profile and Instagram account
+1938cd0cbe414522ef06c4bb4bd3ec8c12a2e31d 0e7b1ba42def4564c0b7f33c264289b2fc130a4d Rellese <38435973+Rellese@users.noreply.github.com> 1787585653 +0300	commit: M1-T05A: remove obsolete browser profile fallback
+0e7b1ba42def4564c0b7f33c264289b2fc130a4d 0e7b1ba42def4564c0b7f33c264289b2fc130a4d Rellese <38435973+Rellese@users.noreply.github.com> 1787600134 +0300	checkout: moving from main to fix/operation-safety-recovery
+0e7b1ba42def4564c0b7f33c264289b2fc130a4d 64284f5fcf07ccecd01ecb8701183df576997c50 Rellese <38435973+Rellese@users.noreply.github.com> 1787600172 +0300	commit: WIP: fix cancellation, deduplication and recovery foundation
+64284f5fcf07ccecd01ecb8701183df576997c50 e3a8e69c7cc947beb0bcb6f33c42c425b95cdfed Rellese <38435973+Rellese@users.noreply.github.com> 1787609139 +0300	commit: Integrate crash recovery and graceful cleanup
+e3a8e69c7cc947beb0bcb6f33c42c425b95cdfed 8c7c0929583df424d1c43d3031d5e493a8ce1c6b Rellese <38435973+Rellese@users.noreply.github.com> 1787612556 +0300	commit: WIP: complete recovery callbacks
+8c7c0929583df424d1c43d3031d5e493a8ce1c6b a91034ce1959e5873bd72b467a79599934578fa1 Rellese <38435973+Rellese@users.noreply.github.com> 1787613119 +0300	commit: Finalize recovery reconciliation and cleanup
+a91034ce1959e5873bd72b467a79599934578fa1 03d5979fc4bf7f2ecfe54739b5b0ce9081cec8a1 Rellese <38435973+Rellese@users.noreply.github.com> 1787613488 +0300	commit: Cover final recovery states
+03d5979fc4bf7f2ecfe54739b5b0ce9081cec8a1 dd06ac236143836a1739487796ff35ee58ccf1fe Rellese <38435973+Rellese@users.noreply.github.com> 1787631910 +0300	commit: Improve completed import state and summary
+dd06ac236143836a1739487796ff35ee58ccf1fe 2d0f640076bd3be5177b7d31808440163642c738 Rellese <38435973+Rellese@users.noreply.github.com> 1787632900 +0300	commit: Update status after operation safety verification
+2d0f640076bd3be5177b7d31808440163642c738 0e7b1ba42def4564c0b7f33c264289b2fc130a4d Rellese <38435973+Rellese@users.noreply.github.com> 1787635964 +0300	checkout: moving from fix/operation-safety-recovery to main
+0e7b1ba42def4564c0b7f33c264289b2fc130a4d b10123fbc5c665ae4ee614693ec95ca2ba08903e Rellese <38435973+Rellese@users.noreply.github.com> 1787636589 +0300	pull origin main: Fast-forward
+b10123fbc5c665ae4ee614693ec95ca2ba08903e b10123fbc5c665ae4ee614693ec95ca2ba08903e Rellese <38435973+Rellese@users.noreply.github.com> 1787637754 +0300	checkout: moving from main to docs/update-project-roadmap
+b10123fbc5c665ae4ee614693ec95ca2ba08903e d321f6013268a9913b661dea5d5078a850e1a92c Rellese <38435973+Rellese@users.noreply.github.com> 1787677884 +0300	commit: Update project roadmap after M1 safety merge
+d321f6013268a9913b661dea5d5078a850e1a92c caf47a04b5043eb01627fbace49e16d2917ab3d0 Rellese <38435973+Rellese@users.noreply.github.com> 1787684106 +0300	commit: Remove stale roadmap duplicates
+caf47a04b5043eb01627fbace49e16d2917ab3d0 b10123fbc5c665ae4ee614693ec95ca2ba08903e Rellese <38435973+Rellese@users.noreply.github.com> 1787685059 +0300	checkout: moving from docs/update-project-roadmap to main
+b10123fbc5c665ae4ee614693ec95ca2ba08903e 5a3e18151698a46eb8ef4089d5366b41a9f70b8a Rellese <38435973+Rellese@users.noreply.github.com> 1787685060 +0300	pull origin main: Fast-forward
+5a3e18151698a46eb8ef4089d5366b41a9f70b8a 5a3e18151698a46eb8ef4089d5366b41a9f70b8a Rellese <38435973+Rellese@users.noreply.github.com> 1787685060 +0300	checkout: moving from main to fix/carousel-thumbnail-modal
+5a3e18151698a46eb8ef4089d5366b41a9f70b8a 7ec6db1ca7a8446c581b1d50ad37c4e9309f0962 Rellese <38435973+Rellese@users.noreply.github.com> 1787760299 +0300	merge agents/carousel-thumbnail-modal-implementation: Fast-forward
+7ec6db1ca7a8446c581b1d50ad37c4e9309f0962 5a3e18151698a46eb8ef4089d5366b41a9f70b8a Rellese <38435973+Rellese@users.noreply.github.com> 1787760399 +0300	checkout: moving from fix/carousel-thumbnail-modal to main
+5a3e18151698a46eb8ef4089d5366b41a9f70b8a 7ec6db1ca7a8446c581b1d50ad37c4e9309f0962 Rellese <38435973+Rellese@users.noreply.github.com> 1787760419 +0300	checkout: moving from main to fix/carousel-thumbnail-modal
+7ec6db1ca7a8446c581b1d50ad37c4e9309f0962 e3aa6abee6f2e9eead7a76ccb4b11e365e63c837 Rellese <38435973+Rellese@users.noreply.github.com> 1787763839 +0300	commit: Polish carousel modal layout
+e3aa6abee6f2e9eead7a76ccb4b11e365e63c837 18247e7d6c0e86dedb390871e28c3693a74585dd Rellese <38435973+Rellese@users.noreply.github.com> 1787764002 +0300	commit: Document carousel modal completion
+18247e7d6c0e86dedb390871e28c3693a74585dd 5a3e18151698a46eb8ef4089d5366b41a9f70b8a Rellese <38435973+Rellese@users.noreply.github.com> 1787764163 +0300	checkout: moving from fix/carousel-thumbnail-modal to main
+5a3e18151698a46eb8ef4089d5366b41a9f70b8a 18247e7d6c0e86dedb390871e28c3693a74585dd Rellese <38435973+Rellese@users.noreply.github.com> 1787764175 +0300	merge fix/carousel-thumbnail-modal: Fast-forward
+18247e7d6c0e86dedb390871e28c3693a74585dd 4153820d030bc2b8f385013dd1f287ed26e82e72 Rellese <38435973+Rellese@users.noreply.github.com> 1787765093 +0300	commit: M1-T06A: clean completion status
+4153820d030bc2b8f385013dd1f287ed26e82e72 4153820d030bc2b8f385013dd1f287ed26e82e72 Rellese <38435973+Rellese@users.noreply.github.com> 1787768116 +0300	checkout: moving from main to fix/partial-carousel-state
+4153820d030bc2b8f385013dd1f287ed26e82e72 5694b82c6a66b36e1e248ebb34227e62b0a0e7b7 Rellese <38435973+Rellese@users.noreply.github.com> 1787780615 +0300	commit: fix: add partial carousel import state
+5694b82c6a66b36e1e248ebb34227e62b0a0e7b7 4153820d030bc2b8f385013dd1f287ed26e82e72 Rellese <38435973+Rellese@users.noreply.github.com> 1787780617 +0300	checkout: moving from fix/partial-carousel-state to main
+4153820d030bc2b8f385013dd1f287ed26e82e72 db608ae68b64478a74645e3d7852e51ff44897c8 Rellese <38435973+Rellese@users.noreply.github.com> 1787780618 +0300	merge fix/partial-carousel-state: Merge made by the 'ort' strategy.
+db608ae68b64478a74645e3d7852e51ff44897c8 143ff38ec37c9b1f0167372bb344060f268679fd Rellese <38435973+Rellese@users.noreply.github.com> 1787785333 +0300	commit: fix: keep carousel selection coordinates consistent
+143ff38ec37c9b1f0167372bb344060f268679fd 452755ab7abedf0d2c1899f743ee637a09c65854 Rellese <38435973+Rellese@users.noreply.github.com> 1787787365 +0300	commit: M1-T06A: clear selections after successful import
+452755ab7abedf0d2c1899f743ee637a09c65854 3fb5e01fc669c5b7772e780241d6db355e0e6947 Rellese <38435973+Rellese@users.noreply.github.com> 1787787457 +0300	commit: M1-T06A: apply edited carousel names during import
+3fb5e01fc669c5b7772e780241d6db355e0e6947 98abf2b459735ef4767a0a7ec130281d89126b69 Rellese <38435973+Rellese@users.noreply.github.com> 1787787548 +0300	commit: M1-T06A: unify name and description editors
+98abf2b459735ef4767a0a7ec130281d89126b69 f5b33a1af32cdd36f8db862e60110518b2ecf522 Rellese <38435973+Rellese@users.noreply.github.com> 1787787844 +0300	commit: M1-T06A: localize carousel import status and spacing
+f5b33a1af32cdd36f8db862e60110518b2ecf522 b37ed79a3b0d8a212fa6eaef36f2092401888f75 Rellese <38435973+Rellese@users.noreply.github.com> 1787787954 +0300	commit: M1-T06A: restore carousel status separator
+b37ed79a3b0d8a212fa6eaef36f2092401888f75 606303dd50bc4943bf20bbb076f1890b17c7a3c2 Rellese <38435973+Rellese@users.noreply.github.com> 1787789490 +0300	commit: M1-T07D: handle native Eagle window close
+606303dd50bc4943bf20bbb076f1890b17c7a3c2 207c183b9027a912f6a423f11acc9beb605b0900 Rellese <38435973+Rellese@users.noreply.github.com> 1787792511 +0300	commit: M1-T07D: remove redundant custom window controls
+207c183b9027a912f6a423f11acc9beb605b0900 aefe4abc5c9b1af1348c8cd2b2bd18ceea1f039a Rellese <38435973+Rellese@users.noreply.github.com> 1787796928 +0300	commit: M1-T06A: normalize carousel separator spacing
+aefe4abc5c9b1af1348c8cd2b2bd18ceea1f039a caa6e2df04c60a47bd63a4b04721d93e5cc16cf6 Rellese <38435973+Rellese@users.noreply.github.com> 1787797275 +0300	commit: M1-T06G: record successful mixed carousel verification
+caa6e2df04c60a47bd63a4b04721d93e5cc16cf6 cecbc5e8940ec1913005e3fa1eafa751182fb503 Rellese <38435973+Rellese@users.noreply.github.com> 1787800808 +0300	commit: M1-T05B: stop smart discovery at first known post
+cecbc5e8940ec1913005e3fa1eafa751182fb503 bd28a72a5240a40f4c415b53250701246178f07d Rellese <38435973+Rellese@users.noreply.github.com> 1787805903 +0300	commit: M1-T05B: retry transient browser cookie reads
+bd28a72a5240a40f4c415b53250701246178f07d cd68939bd8f0bb1a693937668175a4657ec37433 Rellese <38435973+Rellese@users.noreply.github.com> 1787805954 +0300	commit: M1-T05B: remove numeric discovery limit
+cd68939bd8f0bb1a693937668175a4657ec37433 48883e9c3220e647e65952cfa34b64be6a113f17 Rellese <38435973+Rellese@users.noreply.github.com> 1787809497 +0300	commit: M1-T07E: keep only source tag on Eagle items
+48883e9c3220e647e65952cfa34b64be6a113f17 55e00acd44f772616afe41f06d5a229bb41957ac Rellese <38435973+Rellese@users.noreply.github.com> 1787814266 +0300	commit: M1-T07F: number selected publications oldest first
+55e00acd44f772616afe41f06d5a229bb41957ac a47e49acdbcf2a185127e713ecff1a5223019268 Rellese <38435973+Rellese@users.noreply.github.com> 1787839678 +0300	commit: M1-T07G: persist numbering continuation state
+a47e49acdbcf2a185127e713ecff1a5223019268 44d77ab3efaa099a954fc3f9cf3fdea8da366057 Rellese <38435973+Rellese@users.noreply.github.com> 1787845421 +0300	commit: M1-T07H: continue numbering and import oldest first
+44d77ab3efaa099a954fc3f9cf3fdea8da366057 d42d12674a71f6e57abcacab10b81dab7a9e996b Rellese <38435973+Rellese@users.noreply.github.com> 1787848246 +0300	commit: M1-T07I: process publications oldest first
+d42d12674a71f6e57abcacab10b81dab7a9e996b 4c2ddf7b06440b48e431686de1ee215f86c08acb Rellese <38435973+Rellese@users.noreply.github.com> 1787850346 +0300	commit: docs: document pending AE-style checkbox behavior
+4c2ddf7b06440b48e431686de1ee215f86c08acb 8aff03de2b6a843b6458d5090150d41a18a958a1 Rellese <38435973+Rellese@users.noreply.github.com> 1787851073 +0300	commit: docs: clarify AE-style checkbox interactions and roadmap
+8aff03de2b6a843b6458d5090150d41a18a958a1 cecd83a3a2de9f0ccbec995ef8c01ab8da035902 Rellese <38435973+Rellese@users.noreply.github.com> 1787855187 +0300	commit: M1-T07M: add checkbox range selection model
+cecd83a3a2de9f0ccbec995ef8c01ab8da035902 27edc267b250ab09459ee7c29b4d8a0ab0ac8ad3 Rellese <38435973+Rellese@users.noreply.github.com> 1787896077 +0300	commit: M1-T07M: extend checkbox interaction API
+27edc267b250ab09459ee7c29b4d8a0ab0ac8ad3 b62b9a6db98efd86223a0fc67640ab164b079bf8 Rellese <38435973+Rellese@users.noreply.github.com> 1787898434 +0300	commit: M1-T07M: integrate shift selection in carousel
+b62b9a6db98efd86223a0fc67640ab164b079bf8 aa644ef3744da3e5adbdb5193b7a2b124b900116 Rellese <38435973+Rellese@users.noreply.github.com> 1787898567 +0300	commit: fix: close carousel checkbox configuration
+aa644ef3744da3e5adbdb5193b7a2b124b900116 a836ba7065e05372c64533791cb08f08ca43629d Rellese <38435973+Rellese@users.noreply.github.com> 1787899608 +0300	commit: WIP: connect carousel pointer selection
+a836ba7065e05372c64533791cb08f08ca43629d 6bab02598b9151b2482fdf18dea86bd31b9236de Rellese <38435973+Rellese@users.noreply.github.com> 1787901465 +0300	commit: M1-T07M: add table checkbox range and drag selection
+6bab02598b9151b2482fdf18dea86bd31b9236de 1ec6654dafdf5f8c2b3190d457feb66d5426e2ae Rellese <38435973+Rellese@users.noreply.github.com> 1787902976 +0300	commit: M1-T07N: add table drag auto-scroll
+1ec6654dafdf5f8c2b3190d457feb66d5426e2ae c3ee06b81168590c8c3e7ceac92f1f4b04e4c5bb Rellese <38435973+Rellese@users.noreply.github.com> 1787903378 +0300	commit: docs: close AE-style checkbox selection tasks
+c3ee06b81168590c8c3e7ceac92f1f4b04e4c5bb 1f55fecc11c0a0c9ad2d27a924a50542de45c810 Rellese <38435973+Rellese@users.noreply.github.com> 1787905809 +0300	commit: Update on Next Steps for m1
+1f55fecc11c0a0c9ad2d27a924a50542de45c810 f08a89c19405ce175df47e99ebd483ee96b21639 Rellese <38435973+Rellese@users.noreply.github.com> 1787907491 +0300	commit: Update on Next Steps for M1, Part 2
+f08a89c19405ce175df47e99ebd483ee96b21639 b3af1a22c2684dc1c51a9415c1fadf05a22a89f3 Rellese <38435973+Rellese@users.noreply.github.com> 1787910088 +0300	commit: Update on Next Steps for M1, Part 3
+b3af1a22c2684dc1c51a9415c1fadf05a22a89f3 c1763c0bdc3ac1c97f51dff2cce871f32e47ec5e Rellese <38435973+Rellese@users.noreply.github.com> 1787915925 +0300	commit: docs: clean completed checkbox roadmap
+c1763c0bdc3ac1c97f51dff2cce871f32e47ec5e 8621712b627603b59f769011463f919a3989d5d8 Rellese <38435973+Rellese@users.noreply.github.com> 1787928829 +0300	commit: M1-T05B: reuse cookie snapshot for account verification
+8621712b627603b59f769011463f919a3989d5d8 9a5fc32b9a2cb31e7330f2b75824298c2579f6d3 Rellese <38435973+Rellese@users.noreply.github.com> 1787932877 +0300	commit: M1-T05B: reuse cookie snapshot during discovery
+9a5fc32b9a2cb31e7330f2b75824298c2579f6d3 51a0ef0eff9bb07aee11c219fca25f7560efc5c5 Rellese <38435973+Rellese@users.noreply.github.com> 1787933337 +0300	commit: M1-T05B: reuse cookie snapshot during discovery
+51a0ef0eff9bb07aee11c219fca25f7560efc5c5 2c08e4774b28b36c4d4e8d5b0527dba348c1feb9 Rellese <38435973+Rellese@users.noreply.github.com> 1787935573 +0300	commit: fuck
+2c08e4774b28b36c4d4e8d5b0527dba348c1feb9 813b79e6f3a80bd8af2364f3e8456aa21c43bb07 Rellese <38435973+Rellese@users.noreply.github.com> 1787939614 +0300	commit: docs: record M1-T05B performance results
+813b79e6f3a80bd8af2364f3e8456aa21c43bb07 3714ae83b5bf0ec579a444e8099788189b8d1c56 Rellese <38435973+Rellese@users.noreply.github.com> 1787943005 +0300	commit: M1-T05B: disable gallery-dl default delay in lightning mode
+3714ae83b5bf0ec579a444e8099788189b8d1c56 faff41a2b60b1fe5aaee61d15f24fb4af8f0bd64 Rellese <38435973+Rellese@users.noreply.github.com> 1787943639 +0300	commit: M1-T05B: stop publication queue on Instagram rate limits
+faff41a2b60b1fe5aaee61d15f24fb4af8f0bd64 4de0bcc9989bdec9dd56a5079db4dcd4116bd583 Rellese <38435973+Rellese@users.noreply.github.com> 1787945717 +0300	commit: M1-T05B: connect Instagram rate-limit protection to imports
+4de0bcc9989bdec9dd56a5079db4dcd4116bd583 680197848a9bdac62c602e851826f75af8a53fcd Rellese <38435973+Rellese@users.noreply.github.com> 1787946009 +0300	commit: fix: correct Instagram rate-limit error handling
+680197848a9bdac62c602e851826f75af8a53fcd 500937bc9f463c8b4f545f7345bbfa48051fb616 Rellese <38435973+Rellese@users.noreply.github.com> 1787977400 +0300	commit: M1-T05B: stop discovery on Instagram rate limits
+500937bc9f463c8b4f545f7345bbfa48051fb616 09bb8adf7dc107cc9efbff2b1f0c7b29fd844155 Rellese <38435973+Rellese@users.noreply.github.com> 1787977851 +0300	commit: fix: prevent false Instagram rate-limit detection
+09bb8adf7dc107cc9efbff2b1f0c7b29fd844155 cefb73b680e9cd4b305d38ccd711dfb4505d2fac Rellese <38435973+Rellese@users.noreply.github.com> 1787978195 +0300	commit: fix: use strict rate-limit classification consistently
+cefb73b680e9cd4b305d38ccd711dfb4505d2fac 6acf5cd30a301ed94a6649ab525fee574896b9bc Rellese <38435973+Rellese@users.noreply.github.com> 1787979682 +0300	commit: fall check
+6acf5cd30a301ed94a6649ab525fee574896b9bc 58c4d4db1cbacad08ac2cac7e0f4cb986a973254 Rellese <38435973+Rellese@users.noreply.github.com> 1787979971 +0300	commit: fix: acquire cookie snapshot before import
+58c4d4db1cbacad08ac2cac7e0f4cb986a973254 6979ea6d44b85f0bd88524b8fd93c8938aeabbfb Rellese <38435973+Rellese@users.noreply.github.com> 1787984424 +0300	commit: M1-T05B: record speed profile verification
+6979ea6d44b85f0bd88524b8fd93c8938aeabbfb 4c9870ea7cb7aa361ec2b50892fcba453a3f5dba Rellese <38435973+Rellese@users.noreply.github.com> 1787986965 +0300	commit: M1-T05B: reuse discovery URLs for downloads
+4c9870ea7cb7aa361ec2b50892fcba453a3f5dba 3d1628152f8493c245317789d742887afc4a0b05 Rellese <38435973+Rellese@users.noreply.github.com> 1787987484 +0300	commit: fix: correct direct-download fallback logger
+3d1628152f8493c245317789d742887afc4a0b05 540476d8ad845c22e40ad27db2d347de9e0e2355 Rellese <38435973+Rellese@users.noreply.github.com> 1787988563 +0300	commit: M1-T05B: complete discovery download optimization
+540476d8ad845c22e40ad27db2d347de9e0e2355 dd23510dadc34e598171372a0c4c572e50802088 Rellese <38435973+Rellese@users.noreply.github.com> 1788020358 +0300	commit: M1-T05B: complete discovery download optimization
+dd23510dadc34e598171372a0c4c572e50802088 1e4343b6d02b154fae16937e3e594155a1a1ebe9 Rellese <38435973+Rellese@users.noreply.github.com> 1788026224 +0300	commit: M1-T08A(a): add carousel drag auto-scroll
+1e4343b6d02b154fae16937e3e594155a1a1ebe9 70b16b4385146aabcf829e5a3f4e94b14a4911dc Rellese <38435973+Rellese@users.noreply.github.com> 1788029693 +0300	commit: M1-T08A(b): optimize large table selection
+70b16b4385146aabcf829e5a3f4e94b14a4911dc 3e95e20906e4c4dbdd581cccacda53214b859142 Rellese <38435973+Rellese@users.noreply.github.com> 1788030447 +0300	commit: M1-T08E: improve large table interaction rendering
+3e95e20906e4c4dbdd581cccacda53214b859142 d8899b2949547b192468b147971fb7c28ec2a82e Rellese <38435973+Rellese@users.noreply.github.com> 1788040001 +0300	commit: M1-T08G/H: add range preview and row drag selection
+d8899b2949547b192468b147971fb7c28ec2a82e 58aca3ebdc38d378117450f69d0e1093c383ad2a Rellese <38435973+Rellese@users.noreply.github.com> 1788041734 +0300	commit: M1-T08G/T09H(a): fix carousel preview and checkbox press states
+58aca3ebdc38d378117450f69d0e1093c383ad2a b1b5249bcbc56c25c88213dd4712b141344f0626 Rellese <38435973+Rellese@users.noreply.github.com> 1788043351 +0300	commit: fix: restore checkbox pointer enter handler
+b1b5249bcbc56c25c88213dd4712b141344f0626 8d04ccfd271a3f5ab02f6a5d2f1b61801d4425dd Rellese <38435973+Rellese@users.noreply.github.com> 1788060430 +0300	commit: M1-T08G/T09H(a): polish checkbox and row states
+8d04ccfd271a3f5ab02f6a5d2f1b61801d4425dd 4d1665b68fd97a75aa291e0805cdd341fc69d7bd Rellese <38435973+Rellese@users.noreply.github.com> 1788368903 +0300	commit: M1-T09H (a) - bad realization
+4d1665b68fd97a75aa291e0805cdd341fc69d7bd f95024eb04566ad1bd9df4b05a687a9c144c15ac Rellese <38435973+Rellese@users.noreply.github.com> 1788372291 +0300	commit: "M1-T09H(a): finalize checkbox range and row interactions"
+f95024eb04566ad1bd9df4b05a687a9c144c15ac c954543767959863315a2ce5c167cf7478d934ac Rellese <38435973+Rellese@users.noreply.github.com> 1788377586 +0300	commit: M1-T08Q: stop recent discovery at first known post
+c954543767959863315a2ce5c167cf7478d934ac 73f19237eb13b7a8719b2b186f3de3ef2a42740a Rellese <38435973+Rellese@users.noreply.github.com> 1788377610 +0300	commit: M1-T08Q: stop recent discovery at first known post1
+73f19237eb13b7a8719b2b186f3de3ef2a42740a 06c4c1e36a6950c5c4b1e885c03be45af28b8693 Rellese <38435973+Rellese@users.noreply.github.com> 1788377647 +0300	commit: M1-T08Q: stop recent discovery at first known post2
+06c4c1e36a6950c5c4b1e885c03be45af28b8693 6a7a0cbc98ea7be0bed3fc54a630ab87c17b0ae6 Rellese <38435973+Rellese@users.noreply.github.com> 1788378569 +0300	commit: M1-T08Q: stop recent discovery at first known post3
+6a7a0cbc98ea7be0bed3fc54a630ab87c17b0ae6 48a9cdb0c38891947887ae416c7c4f32094f521d Rellese <38435973+Rellese@users.noreply.github.com> 1788405925 +0300	commit: M1-T08R: Modifying the behavior of miniatures in the main table
+48a9cdb0c38891947887ae416c7c4f32094f521d 2bf0141e3c351adfd9d2b776422a517d59617542 Rellese <38435973+Rellese@users.noreply.github.com> 1788408211 +0300	commit: M1-T09A: File Filtering Adjustment
+2bf0141e3c351adfd9d2b776422a517d59617542 a20da37c9f453385f9255fa0c37f89f75eaf6e33 Rellese <38435973+Rellese@users.noreply.github.com> 1788410993 +0300	commit: M1-T09B(a):Correction to the numbering
+a20da37c9f453385f9255fa0c37f89f75eaf6e33 b2d70ba3f85d8a13671f4a6fcdf44f132e5a9499 Rellese <38435973+Rellese@users.noreply.github.com> 1788413660 +0300	commit: M1-T09C: Updating the Authors Field
+b2d70ba3f85d8a13671f4a6fcdf44f132e5a9499 3270b8568c6570abef6c3ca78c05207dace34614 Rellese <38435973+Rellese@users.noreply.github.com> 1788422386 +0300	commit: M1-T09D(a): add universal numbering counter engine
+3270b8568c6570abef6c3ca78c05207dace34614 c3f808464e1203a2d041cc5ea531c9d378da0d88 Rellese <38435973+Rellese@users.noreply.github.com> 1788424020 +0300	commit: M1-T09D(b): add persistent counter histories
+c3f808464e1203a2d041cc5ea531c9d378da0d88 8ebf7b70b739da54714ea497dca705c04716ab40 Rellese <38435973+Rellese@users.noreply.github.com> 1788424526 +0300	commit: M1-T09D(c1): add independent counter settings
+8ebf7b70b739da54714ea497dca705c04716ab40 871b4566049fc9bcd9693bbfa073d0a672bc38bb Rellese <38435973+Rellese@users.noreply.github.com> 1788425647 +0300	commit: M1-T09D(c2): connect counters to import and history
+871b4566049fc9bcd9693bbfa073d0a672bc38bb 9f572cc3fd3d478f34c03f8490f7f199642821f9 Rellese <38435973+Rellese@users.noreply.github.com> 1788430201 +0300	commit: M1-T09E тест
+9f572cc3fd3d478f34c03f8490f7f199642821f9 a87ec19fdcc8f1ac3b0d44fc14fc037a17675e3d Rellese <38435973+Rellese@users.noreply.github.com> 1788431718 +0300	commit: M1-T09E тест 2
+a87ec19fdcc8f1ac3b0d44fc14fc037a17675e3d e26fe8f09cc6eb0e75fb6ce0abb8627e571ac3af Rellese <38435973+Rellese@users.noreply.github.com> 1788433357 +0300	commit: M1-T09E: Add description setting
+e26fe8f09cc6eb0e75fb6ce0abb8627e571ac3af 139bde498398a2338751baa5080aeb142d515051 Rellese <38435973+Rellese@users.noreply.github.com> 1788434369 +0300	commit: M1-T09F: update tooltip accent color
+139bde498398a2338751baa5080aeb142d515051 bfdf00616ab43436c09bbcd468f5f9acbb317f7a Rellese <38435973+Rellese@users.noreply.github.com> 1788452132 +0300	commit: M1‑T09G: test
+bfdf00616ab43436c09bbcd468f5f9acbb317f7a 45dd1807edf458e87b1f524d96bfccb52281b4ed Rellese <38435973+Rellese@users.noreply.github.com> 1788452978 +0300	commit: M1-T09G: Add an “Edit” button to the title cell
+45dd1807edf458e87b1f524d96bfccb52281b4ed f9c6fc694a169acac6987b7240720332744a12d3 Rellese <38435973+Rellese@users.noreply.github.com> 1788453959 +0300	commit: M1-T09G/G: test carousel button
+f9c6fc694a169acac6987b7240720332744a12d3 95b4b661492479b200eee5eb8bfc8481ddd8851b Rellese <38435973+Rellese@users.noreply.github.com> 1788454550 +0300	commit: M1-T09G/G: test 2
+95b4b661492479b200eee5eb8bfc8481ddd8851b ee760a6e59007a067298e67fb4ee49d88ce8e1cc Rellese <38435973+Rellese@users.noreply.github.com> 1788459212 +0300	commit: [x] M1-T09G/G: Change the carousel button
+ee760a6e59007a067298e67fb4ee49d88ce8e1cc 5afdb103eb595cd5bd7c82fac4679a4c94d26ff2 Rellese <38435973+Rellese@users.noreply.github.com> 1788460082 +0300	commit: M1-T09G/G2: Change the visual style of the input field
+5afdb103eb595cd5bd7c82fac4679a4c94d26ff2 8f0bc9a20f07a00cb4b2e064c5a136ee45a507a6 Rellese <38435973+Rellese@users.noreply.github.com> 1788461095 +0300	commit: fix: clear select pressed state on close
+8f0bc9a20f07a00cb4b2e064c5a136ee45a507a6 9229e6c7057a489f891c37c6c4c3ac7c884ddfa1 Rellese <38435973+Rellese@users.noreply.github.com> 1788495851 +0300	commit: m1 t09g bag
+9229e6c7057a489f891c37c6c4c3ac7c884ddfa1 072a274092dcecc2043588972c0e70e9e2f4ce40 Rellese <38435973+Rellese@users.noreply.github.com> 1788496818 +0300	commit: fix: restore results table rendering
+072a274092dcecc2043588972c0e70e9e2f4ce40 2529fb10c830a92e90e28185288b5b986a1d33ef Rellese <38435973+Rellese@users.noreply.github.com> 1788499394 +0300	commit: M1-T09H: Add a scroll bar to the title cell
+2529fb10c830a92e90e28185288b5b986a1d33ef f25db2d3efb0e438a890d299db4893cafac81f98 Rellese <38435973+Rellese@users.noreply.github.com> 1788501993 +0300	commit: M1-T09H2: match cell scrollbars to Figma
+f25db2d3efb0e438a890d299db4893cafac81f98 159d203c64be6cf02d4fc694d7ba737b646d93cd Rellese <38435973+Rellese@users.noreply.github.com> 1788505737 +0300	commit: M1-T09H2: unify editable cell layout and scrollbars
+159d203c64be6cf02d4fc694d7ba737b646d93cd 94e7165145049672052da26a437b1110f70f0120 Rellese <38435973+Rellese@users.noreply.github.com> 1788507794 +0300	commit: M1‑T09H2: cells, buttons, scrolling, and the editor's local Undo feature.
+94e7165145049672052da26a437b1110f70f0120 5643b89476632d1ed73e996158cda42a111464b7 Rellese <38435973+Rellese@users.noreply.github.com> 1788517122 +0300	commit: M1-T09H3: add bounded global undo redo history
+5643b89476632d1ed73e996158cda42a111464b7 874c1e982c305cdfb5094122146420b8b4b6ad65 Rellese <38435973+Rellese@users.noreply.github.com> 1788518190 +0300	commit: M1-T09I: Optimize the progress bar
+874c1e982c305cdfb5094122146420b8b4b6ad65 6a28d2311cdbdb5935d70415e7d7bbd109cea980 Rellese <38435973+Rellese@users.noreply.github.com> 1788523209 +0300	commit: M1-T09I(а) test
+6a28d2311cdbdb5935d70415e7d7bbd109cea980 271efb720f11dca971c4d908bea9533a1c48d035 Rellese <38435973+Rellese@users.noreply.github.com> 1788523644 +0300	commit: M1-T09I(а): Optimize the progress bar final
+271efb720f11dca971c4d908bea9533a1c48d035 fc6e812ba80ed665372a08b5b5a8dc0e6959605b Rellese <38435973+Rellese@users.noreply.github.com> 1788541973 +0300	commit: M1-T09I(a): final
+fc6e812ba80ed665372a08b5b5a8dc0e6959605b 805fc9ff413cedbb64f4b733f21f79a9c2c5da08 Rellese <38435973+Rellese@users.noreply.github.com> 1788546431 +0300	commit: m1 тестовый комит папок
+805fc9ff413cedbb64f4b733f21f79a9c2c5da08 164d061ae0169ee0011dcc0b32001c1ad70ae71f Rellese <38435973+Rellese@users.noreply.github.com> 1788549967 +0300	commit: M1-T09J: GraphQL collection list test
+164d061ae0169ee0011dcc0b32001c1ad70ae71f 34336ddaf71bf1af405e45a9c0ef6e0b0cac9715 Rellese <38435973+Rellese@users.noreply.github.com> 1788552371 +0300	commit: M1-T09K: fix direct Instagram collection search
+34336ddaf71bf1af405e45a9c0ef6e0b0cac9715 c161d241567afc45f9f98025956d6b885405c081 Rellese <38435973+Rellese@users.noreply.github.com> 1788555522 +0300	commit: Актуальный
+c161d241567afc45f9f98025956d6b885405c081 1f69e6a291af27539358c948725b7302238cbd78 Rellese <38435973+Rellese@users.noreply.github.com> 1788557124 +0300	commit: bad test
+1f69e6a291af27539358c948725b7302238cbd78 cba9a0a3cd69c2e2af52671e6f20901291148274 Rellese <38435973+Rellese@users.noreply.github.com> 1788557710 +0300	commit: M1-T09L: preserve Instagram collection occurrences
+cba9a0a3cd69c2e2af52671e6f20901291148274 18be61bbdb563bd4c57d329f836b6bc3655383ba Rellese <38435973+Rellese@users.noreply.github.com> 1788557989 +0300	commit: Cleanup accidental Drive upload file
+18be61bbdb563bd4c57d329f836b6bc3655383ba c30e7c62ad5c3c7aaf78f37c05cd4da52c2f1bc2 Rellese <38435973+Rellese@users.noreply.github.com> 1788591538 +0300	commit: M1-T09J: test
+c30e7c62ad5c3c7aaf78f37c05cd4da52c2f1bc2 bb758b5215e3a6a9ba174d89f5fc99ddcbd5544a Rellese <38435973+Rellese@users.noreply.github.com> 1788592654 +0300	commit: M1-T09J: test 2
+bb758b5215e3a6a9ba174d89f5fc99ddcbd5544a 18be61bbdb563bd4c57d329f836b6bc3655383ba Rellese <38435973+Rellese@users.noreply.github.com> 1788595811 +0300	reset: moving to 18be61bbdb563bd4c57d329f836b6bc3655383ba
+18be61bbdb563bd4c57d329f836b6bc3655383ba 18be61bbdb563bd4c57d329f836b6bc3655383ba Rellese <38435973+Rellese@users.noreply.github.com> 1788596838 +0300	checkout: moving from main to main
+18be61bbdb563bd4c57d329f836b6bc3655383ba 2aba55b97183ae93c61272b30781d46a4cb74286 Rellese <38435973+Rellese@users.noreply.github.com> 1788596847 +0300	commit: M1-T09J: restore stable collection search deduplication
+2aba55b97183ae93c61272b30781d46a4cb74286 ae3e5629aae06ee08f840c633fc53b253f8bfa0e Rellese <38435973+Rellese@users.noreply.github.com> 1788602039 +0300	commit: M1-T09J: mark collection search as completed
+ae3e5629aae06ee08f840c633fc53b253f8bfa0e 938e05764d9b8745c7eb6c5f335123710f7f0824 Rellese <38435973+Rellese@users.noreply.github.com> 1788619102 +0300	commit: test new
+938e05764d9b8745c7eb6c5f335123710f7f0824 e9932eca82f868019be86e1604d5499f323b5b93 Rellese <38435973+Rellese@users.noreply.github.com> 1788621472 +0300	commit: рабочий вариант веток
+e9932eca82f868019be86e1604d5499f323b5b93 91d3e39b0cebc9ccc8906c4958645cfad615c6f8 Rellese <38435973+Rellese@users.noreply.github.com> 1788621857 +0300	commit: тестовый
+91d3e39b0cebc9ccc8906c4958645cfad615c6f8 acd0a4a1bc7c1dbf437c68e73fb806d13b78b0fb Rellese <38435973+Rellese@users.noreply.github.com> 1788623018 +0300	commit: M1-TO9J: bad
+acd0a4a1bc7c1dbf437c68e73fb806d13b78b0fb e9932eca82f868019be86e1604d5499f323b5b93 Rellese <38435973+Rellese@users.noreply.github.com> 1788623467 +0300	reset: moving to e9932eca82f868019be86e1604d5499f323b5b93
+e9932eca82f868019be86e1604d5499f323b5b93 dbc96872e2fe747ed9b615b6c4dca7b143a82f39 Rellese <38435973+Rellese@users.noreply.github.com> 1788630205 +0300	commit: Рабочий билд
+dbc96872e2fe747ed9b615b6c4dca7b143a82f39 00cdd812af409b40f8caf6cc6016fa40a4525743 Rellese <38435973+Rellese@users.noreply.github.com> 1788631037 +0300	commit: коректировка задания
+00cdd812af409b40f8caf6cc6016fa40a4525743 bbf76b133e05ade7ac5bd162671bd9025565737b Rellese <38435973+Rellese@users.noreply.github.com> 1788642071 +0300	commit: WIP M1-T09J current folder tree state
+bbf76b133e05ade7ac5bd162671bd9025565737b 414d1a2fa9a105c65c31a1d7226b020bc1e09ca2 Rellese <38435973+Rellese@users.noreply.github.com> 1788643270 +0300	commit: Плохой патч
+414d1a2fa9a105c65c31a1d7226b020bc1e09ca2 185d925730f6f03672dbf9ba22048807eb7e3e34 Rellese <38435973+Rellese@users.noreply.github.com> 1788657884 +0300	commit: M1-T09J(a): complete
+185d925730f6f03672dbf9ba22048807eb7e3e34 9c2a15bfd0061d6de86b4973a7b0a9ce82291bea Rellese <38435973+Rellese@users.noreply.github.com> 1788674650 +0300	commit: актуальный сломаный
+9c2a15bfd0061d6de86b4973a7b0a9ce82291bea 13a254e3e291e465812533b2a0313fbfb94b266c Rellese <38435973+Rellese@users.noreply.github.com> 1788769786 +0300	commit: Готовая версия для отката
+13a254e3e291e465812533b2a0313fbfb94b266c 0e4851628765667aa062eb484c5996fe5440af15 Rellese <38435973+Rellese@users.noreply.github.com> 1788772168 +0300	commit: M1-T09J: убрано модальное окно
+0e4851628765667aa062eb484c5996fe5440af15 d2eff3cb2b0245b8cebd493da0bd2d111b2796e1 Rellese <38435973+Rellese@users.noreply.github.com> 1788802900 +0300	commit: M1-T09J(b): довели фазу выбора папок до идеала
