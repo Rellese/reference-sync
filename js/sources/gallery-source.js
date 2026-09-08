@@ -426,6 +426,13 @@ export function createGallerySource(spec) {
         ...paceArgs(profile),
         ...extraDiscoverArgs,
       ];
+      /* Лимит на стороне gallery-dl: берём только первые N постов и
+         СРАЗУ останавливаемся. gallery-dl отдаёт валидный JSON целиком,
+         в отличие от обрыва процесса на середине (тот портил JSON → пустая
+         таблица). Проверено: Pinterest allpins --post-range поддерживает. */
+      if (limit && limit > 0) {
+        args.push('--post-range', `1-${limit}`);
+      }
       if (cookies) {
         args.push(
           '--cookies-from-browser',
@@ -441,34 +448,18 @@ export function createGallerySource(spec) {
       let buffer = '';
       let counted = 0;
 
-      /* Свой «стоп-кран»: как только gallery-dl выдал достаточно
-        постов, глушим процесс — не ждём, пока он пройдёт всю ленту. */
-      const localCtrl = new AbortController();
-      /* Если внешний signal (кнопка «Стоп») сработал — тоже глушим */
-      if (signal) {
-        if (signal.aborted) localCtrl.abort();
-        else signal.addEventListener('abort', () => localCtrl.abort(), { once: true });
-      }
-
       const result = await runGallery(args, {
-        signal: localCtrl.signal,
+        signal,
         onStdout: (chunk) => {
           buffer += chunk;
           const hits = chunk.match(/"(?:post_id|shortcode|pk|id)"/g);
-          if (hits) {
+          if (hits && onProgress) {
             counted += hits.length;
-            if (onProgress) {
-              onProgress({
-                stage: 'discover',
-                collection: target.name,
-                approximate: counted,
-              });
-            }
-            /* ⬇️ ГЛАВНОЕ: набрали лимит — останавливаем gallery-dl.
-              +5 запаса, т.к. счётчик по строкам примерный. */
-            if (limit && counted >= limit + 5) {
-              localCtrl.abort();
-            }
+            onProgress({
+              stage: 'discover',
+              collection: target.name,
+              approximate: counted,
+            });
           }
         },
         onStderr: (chunk) => {
