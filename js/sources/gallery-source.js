@@ -22,6 +22,81 @@ import { nodeApi, ensureDir, workRoot } from '../node-bridge.js';
 import { runGallery, requireToolchain } from '../toolchain.js';
 import { looksOffline, RETRY_STEPS } from '../job-control.js';
 
+/* Копируем базу кук Chrome во временную папку.
+   gallery-dl не может читать живую базу запущенного браузера
+   (файл заблокирован — процесс виснет). Копию читать можно:
+   замка нет, а ключ расшифровки gallery-dl берёт из Keychain сам. */
+function stageCookieDb(browser, profile) {
+  if (!nodeApi.available) return null;
+  const { path, os, fs } = nodeApi;
+  const home = os.homedir();
+  const name = String(browser || 'chrome').toLowerCase();
+
+  /* Пути к папке профиля Chrome/Chromium/Edge/Brave на macOS.
+     На Windows/Linux — свои, добавлены ниже. */
+  const prof = String(profile || 'Default').trim() || 'Default';
+  const roots = [];
+  if (process.platform === 'darwin') {
+    const app = path.join(home, 'Library', 'Application Support');
+    const map = {
+      chrome: path.join(app, 'Google', 'Chrome'),
+      chromium: path.join(app, 'Chromium'),
+      edge: path.join(app, 'Microsoft Edge'),
+      brave: path.join(app, 'BraveSoftware', 'Brave-Browser'),
+      vivaldi: path.join(app, 'Vivaldi'),
+    };
+    if (map[name]) roots.push(map[name]);
+  } else if (process.platform === 'win32') {
+    const local = process.env.LOCALAPPDATA || path.join(home, 'AppData', 'Local');
+    const map = {
+      chrome: path.join(local, 'Google', 'Chrome', 'User Data'),
+      edge: path.join(local, 'Microsoft', 'Edge', 'User Data'),
+      brave: path.join(local, 'BraveSoftware', 'Brave-Browser', 'User Data'),
+    };
+    if (map[name]) roots.push(map[name]);
+  } else {
+    const cfg = path.join(home, '.config');
+    const map = {
+      chrome: path.join(cfg, 'google-chrome'),
+      chromium: path.join(cfg, 'chromium'),
+      edge: path.join(cfg, 'microsoft-edge'),
+      brave: path.join(cfg, 'BraveSoftware', 'Brave-Browser'),
+    };
+    if (map[name]) roots.push(map[name]);
+  }
+
+  /* В новых Chrome база кук лежит в подпапке Network, в старых — в корне профиля */
+  for (const root of roots) {
+    for (const rel of [
+      path.join(prof, 'Network', 'Cookies'),
+      path.join(prof, 'Cookies'),
+    ]) {
+      const src = path.join(root, rel);
+      try {
+        if (!fs.existsSync(src)) continue;
+        const dstDir = ensureDir(path.join(workRoot(), 'cookie-cache'));
+        const dst = path.join(dstDir, `Cookies-${Date.now()}`);
+        fs.copyFileSync(src, dst);
+        /* WAL-файл: без него часть свежих кук может отсутствовать в копии */
+        for (const suf of ['-wal', '-shm']) {
+          try { if (fs.existsSync(src + suf)) fs.copyFileSync(src + suf, dst + suf); }
+          catch (_) { /* необязательно */ }
+        }
+        return dst;
+      } catch (_) { /* пробуем следующий путь */ }
+    }
+  }
+  return null;
+}
+
+/* Удаляет скопированную базу кук и её спутники (-wal, -shm) */
+function cleanupCookieDb(dbFile) {
+  if (!dbFile || !nodeApi.available) return;
+  for (const suf of ['', '-wal', '-shm']) {
+    try { nodeApi.fs.unlinkSync(dbFile + suf); } catch (_) { /* уже нет — и ладно */ }
+  }
+}
+
 const IMAGE_EXTENSIONS = new Set(
   ['jpg', 'jpeg', 'png', 'webp', 'gif', 'avif', 'heic', 'bmp', 'tiff'],
 );
@@ -316,6 +391,13 @@ export function createGallerySource(spec) {
   } = {}) {
     requireToolchain();
 
+    let cookieDb = null;
+    if (cookies) {
+      cookieDb = stageCookieDb(browser, browserProfile);
+      if (cookieDb && onLog) onLog('Куки Chrome скопированы для чтения (браузер закрывать не нужно)');
+      else if (!cookieDb && onLog) onLog('Не нашёл базу кук — читаю напрямую (закройте Chrome, если зависнет)');
+    }
+
     const cleanUser = String(username || '').trim().replace(/^@/, '');
     if (needsAccount && !cleanUser) {
       throw new Error(`Не указан аккаунт для ${title}`);
@@ -347,7 +429,7 @@ export function createGallerySource(spec) {
       if (cookies) {
         args.push(
           '--cookies-from-browser',
-          browserCookieSpec(browser, browserProfile),
+          browserCookieSpec(browser, browserProfile, cookieDb),
         );
       }
       /* Pinterest allpins не переносит --post-range (даёт пустую
@@ -359,18 +441,34 @@ export function createGallerySource(spec) {
       let buffer = '';
       let counted = 0;
 
+      /* Свой «стоп-кран»: как только gallery-dl выдал достаточно
+        постов, глушим процесс — не ждём, пока он пройдёт всю ленту. */
+      const localCtrl = new AbortController();
+      /* Если внешний signal (кнопка «Стоп») сработал — тоже глушим */
+      if (signal) {
+        if (signal.aborted) localCtrl.abort();
+        else signal.addEventListener('abort', () => localCtrl.abort(), { once: true });
+      }
+
       const result = await runGallery(args, {
-        signal,
+        signal: localCtrl.signal,
         onStdout: (chunk) => {
           buffer += chunk;
           const hits = chunk.match(/"(?:post_id|shortcode|pk|id)"/g);
-          if (hits && onProgress) {
+          if (hits) {
             counted += hits.length;
-            onProgress({
-              stage: 'discover',
-              collection: target.name,
-              approximate: counted,
-            });
+            if (onProgress) {
+              onProgress({
+                stage: 'discover',
+                collection: target.name,
+                approximate: counted,
+              });
+            }
+            /* ⬇️ ГЛАВНОЕ: набрали лимит — останавливаем gallery-dl.
+              +5 запаса, т.к. счётчик по строкам примерный. */
+            if (limit && counted >= limit + 5) {
+              localCtrl.abort();
+            }
           }
         },
         onStderr: (chunk) => {
@@ -390,17 +488,22 @@ export function createGallerySource(spec) {
 
       for (const post of found) {
         if (seen.has(post.postId)) continue;
-        /* Режим «только новые»: доходим до первого знакомого поста */
         if (searchMode === 'smart' && knownPostIds.has(post.postId)) {
           stoppedEarly = true;
           break;
         }
         seen.add(post.postId);
         posts.push(post);
+        /* Ровно N и не больше — режим «Проверить N постов» */
+        if (limit && posts.length >= limit) {
+          stoppedEarly = true;
+          break;
+        }
       }
       if (stoppedEarly) break;
     }
 
+    cleanupCookieDb(cookieDb);
     return { posts, stoppedEarly };
   }
 
@@ -459,7 +562,7 @@ export function createGallerySource(spec) {
       if (cookies) {
         args.push(
           '--cookies-from-browser',
-          browserCookieSpec(browser, browserProfile),
+          browserCookieSpec(browser, browserProfile, cookieDb),
         );
       }
       args.push(post.url);
@@ -520,6 +623,7 @@ export function createGallerySource(spec) {
       if (error && onLog) onLog(`Ошибка: ${post.url} — ${error}`);
     }
 
+    cleanupCookieDb(cookieDb);
     return { stagingRoot, results };
   }
 
@@ -547,17 +651,21 @@ export function createGallerySource(spec) {
 }
 
 /* Cookies браузера — общий формат gallery-dl */
-export function browserCookieSpec(browser, browserProfile = '') {
+export function browserCookieSpec(browser, browserProfile = '', dbFile = '') {
   const known = new Set(['chrome', 'chromium', 'edge', 'firefox', 'safari',
     'brave', 'opera', 'vivaldi']);
   const name = String(browser || 'chrome').trim().toLowerCase();
   const base = known.has(name) ? name : 'chrome';
 
   const profile = String(browserProfile || '').trim();
-  if (!profile) return base;
+  const file = String(dbFile || '').trim();
 
-  /* Формат gallery-dl: browser:profile (например «chrome:Profile 1») */
-  return `${base}:${profile}`;
+  /* Формат gallery-dl: browser[:profile][::file].
+     Если есть путь к скопированной базе — добавляем через "::". */
+  let spec = base;
+  if (profile) spec += `:${profile}`;
+  if (file) spec += `::${file}`;
+  return spec;
 }
 
 /* Человеческое объяснение неудачи вместо кода выхода */
