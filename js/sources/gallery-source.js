@@ -396,6 +396,8 @@ export function createGallerySource(spec) {
       else if (!cookieDb && onLog) onLog('Не нашёл базу кук — читаю напрямую (закройте Chrome, если зависнет)');
     }
 
+    try {
+
     const cleanUser = String(username || '').trim().replace(/^@/, '');
     if (needsAccount && !cleanUser) {
       throw new Error(`Не указан аккаунт для ${title}`);
@@ -492,8 +494,10 @@ export function createGallerySource(spec) {
       if (stoppedEarly) break;
     }
 
-    cleanupCookieDb(cookieDb);
-    return { posts, stoppedEarly };
+      return { posts, stoppedEarly };
+    } finally {
+      cleanupCookieDb(cookieDb);
+    }
   }
 
   /* -------- Скачивание -------- */
@@ -512,6 +516,18 @@ export function createGallerySource(spec) {
       throw new Error('Скачивание доступно только внутри Eagle');
     }
     requireToolchain();
+
+    let cookieDb = null;
+    if (cookies) {
+      cookieDb = stageCookieDb(browser, browserProfile);
+      if (cookieDb && onLog) {
+        onLog('Куки браузера скопированы для чтения (браузер закрывать не нужно)');
+      } else if (!cookieDb && onLog) {
+        onLog('Не нашёл базу кук — читаю напрямую (закройте браузер, если зависнет)');
+      }
+    }
+
+    try {
 
     const { path, fs } = nodeApi;
     const stagingRoot = ensureDir(path.join(workRoot(), 'staging',
@@ -612,8 +628,10 @@ export function createGallerySource(spec) {
       if (error && onLog) onLog(`Ошибка: ${post.url} — ${error}`);
     }
 
-    cleanupCookieDb(cookieDb);
     return { stagingRoot, results };
+    } finally {
+      cleanupCookieDb(cookieDb);
+    }
   }
 
   return {
