@@ -173,44 +173,42 @@ function guessMediaType(record) {
    ------------------------------------------------------------ */
 export function parseDumpJson(text) {
   const records = [];
-  const lines = String(text).split('\n');
-  let buffer = '';
-  let depth = 0;
+  const raw = String(text).trim();
+  if (!raw) return records;
 
-  const push = (chunk) => {
-    const trimmed = chunk.trim();
-    if (!trimmed) return;
-    try {
-      const parsed = JSON.parse(trimmed);
-      if (Array.isArray(parsed)) {
-        /* Формат [код, url, метаданные] */
-        const meta = parsed.find((item) => item
-          && typeof item === 'object' && !Array.isArray(item));
-        const url = parsed.find((item) => typeof item === 'string'
-          && item.startsWith('http'));
-        if (meta) records.push(url ? { ...meta, url } : meta);
-      } else if (parsed && typeof parsed === 'object') {
-        records.push(parsed);
-      }
-    } catch (_) { /* незакрытый фрагмент — пропускаем */ }
+  /* Достаёт запись из одного элемента gallery-dl.
+     Форматы: [тип, url, meta] / [тип, meta] / голый объект. */
+  const take = (item) => {
+    if (Array.isArray(item)) {
+      const meta = item.find((x) => x && typeof x === 'object' && !Array.isArray(x));
+      const url = item.find((x) => typeof x === 'string' && x.startsWith('http'));
+      if (meta) records.push(url ? { ...meta, url } : meta);
+    } else if (item && typeof item === 'object') {
+      records.push(item);
+    }
   };
 
-  lines.forEach((line) => {
-    if (!buffer && !line.trim()) return;
-    buffer += (buffer ? '\n' : '') + line;
-    /* Считаем баланс скобок, чтобы собрать многострочный объект */
-    for (const char of line) {
-      if (char === '{' || char === '[') depth += 1;
-      else if (char === '}' || char === ']') depth -= 1;
+  /* gallery-dl --dump-json отдаёт ОДИН валидный JSON-массив целиком.
+     Парсим его за один раз — надёжно, без счёта скобок вручную. */
+  try {
+    const parsed = JSON.parse(raw);
+    if (Array.isArray(parsed)) {
+      /* Массив элементов вида [тип, url, meta] */
+      parsed.forEach((item) => take(item));
+    } else {
+      take(parsed);
     }
-    if (depth <= 0) {
-      push(buffer);
-      buffer = '';
-      depth = 0;
-    }
-  });
-  if (buffer) push(buffer);
+    return records;
+  } catch (_) { /* не единый JSON — пробуем построчно ниже */ }
 
+  /* Резерв: формат JSON-Lines (по объекту на строку) */
+  for (const line of raw.split('\n')) {
+    const trimmed = line.trim();
+    if (!trimmed) continue;
+    try {
+      take(JSON.parse(trimmed));
+    } catch (_) { /* битая строка — пропускаем */ }
+  }
   return records;
 }
 
