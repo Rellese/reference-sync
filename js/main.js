@@ -2312,10 +2312,6 @@ function currentCarouselState(post) {
   const record = state.importRecords.get(post.postId);
   const imported = importedComponentPositions(record);
 
-  const saved = Array.isArray(post.selectedComponents)
-    ? post.selectedComponents
-    : undefined;
-
   return carouselSelectionState(
     post,
     saved,

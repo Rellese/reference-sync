@@ -320,10 +320,20 @@ export function selectedDownloadedFiles(entry, selection) {
       .filter(({ file }) => Boolean(file));
   }
 
-  const selectedPositions = normalizeSelection(
-    entry.post,
-    selection,
-  );
+  /*
+   * Set приходит напрямую из интерфейса и содержит
+   * нулевые позиции: 0, 1, 2...
+   *
+   * Массив в post.selectedComponents содержит исходные
+   * номера компонентов: 1, 2, 3...
+   */
+  const selectedPositions =
+    selection instanceof Set
+      ? normalizePositions(selection)
+      : normalizeSelection(
+          entry.post,
+          selection,
+        );
 
   return entry.files
     .map((file, componentIndex) => ({
