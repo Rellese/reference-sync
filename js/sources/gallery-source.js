@@ -133,24 +133,123 @@ function textValue(...values) {
   return '';
 }
 
-/* Достаёт первую пригодную превью-ссылку из записи json */
-function findPreview(record) {
-  const candidates = [
-    record.thumbnail, record.thumbnail_url, record.preview,
-    record.preview_url, record.image, record.image_url,
-    record.display_url, record.url, record.src,
+/* Достаёт HTTP-превью из строки, объекта или массива вариантов. */
+function previewValue(value, seen = new Set()) {
+  if (typeof value === 'string') {
+    const url = value.trim();
+    return /^https?:\/\//i.test(url) ? url : '';
+  }
+
+  if (!value || typeof value !== 'object') {
+    return '';
+  }
+
+  if (seen.has(value)) {
+    return '';
+  }
+  seen.add(value);
+
+  if (Array.isArray(value)) {
+    for (const item of value) {
+      const url = previewValue(item, seen);
+      if (url) return url;
+    }
+    return '';
+  }
+
+  /*
+   * Pinterest хранит размеры изображения в объекте:
+   * images: { "236x": {...}, "474x": {...}, orig: {...} }
+   *
+   * Для таблицы сначала выбираем средний размер, затем оригинал.
+   */
+  const preferredKeys = [
+    '236x',
+    '170x',
+    '474x',
+    '564x',
+    '736x',
+    'orig',
+    'originals',
   ];
-  for (const value of candidates) {
-    const text = textValue(value);
-    if (text.startsWith('http')) return text;
+
+  for (const key of preferredKeys) {
+    if (!(key in value)) continue;
+
+    const url = previewValue(value[key], seen);
+    if (url) return url;
   }
-  /* Иногда превью лежат массивом разных размеров */
-  const list = record.images || record.thumbnails || record.previews;
-  if (Array.isArray(list) && list.length) {
-    const first = list[0];
-    const text = textValue(typeof first === 'string' ? first : first?.url);
-    if (text.startsWith('http')) return text;
+
+  const direct = textValue(
+    value.url,
+    value.src,
+    value.image_url,
+    value.thumbnail_url,
+    value.preview_url,
+  );
+
+  if (/^https?:\/\//i.test(direct)) {
+    return direct;
   }
+
+  for (const nested of Object.values(value)) {
+    const url = previewValue(nested, seen);
+    if (url) return url;
+  }
+
+  return '';
+}
+
+/* Достаёт первую пригодную превью-ссылку из записи JSON. */
+export function findPreview(record = {}) {
+  /*
+   * Явные поля превью имеют приоритет перед оригинальным
+   * файлом: они обычно меньше и быстрее загружаются в таблице.
+   */
+  const explicit = [
+    record.thumbnail,
+    record.thumbnail_url,
+    record.preview,
+    record.preview_url,
+    record.display_url,
+  ];
+
+  for (const value of explicit) {
+    const url = previewValue(value);
+    if (url) return url;
+  }
+
+  /*
+   * Pinterest и некоторые другие источники передают варианты
+   * изображения объектом или массивом.
+   */
+  const collections = [
+    record.images,
+    record.thumbnails,
+    record.previews,
+    record.image,
+  ];
+
+  for (const value of collections) {
+    const url = previewValue(value);
+    if (url) return url;
+  }
+
+  /*
+   * Последний fallback — URL медиафайла из сообщения gallery-dl.
+   */
+  const media = [
+    record.image_url,
+    record._galleryUrl,
+    record.url,
+    record.src,
+  ];
+
+  for (const value of media) {
+    const url = previewValue(value);
+    if (url) return url;
+  }
+
   return '';
 }
 
@@ -173,42 +272,118 @@ function guessMediaType(record) {
    ------------------------------------------------------------ */
 export function parseDumpJson(text) {
   const records = [];
-  const raw = String(text).trim();
+  const raw = String(text || '').trim();
+
   if (!raw) return records;
 
-  /* Достаёт запись из одного элемента gallery-dl.
-     Форматы: [тип, url, meta] / [тип, meta] / голый объект. */
-  const take = (item) => {
+  /*
+   * Одно сообщение gallery-dl:
+   * [тип, url, metadata] или [тип, metadata].
+   */
+  const isMessage = (value) =>
+    Array.isArray(value) &&
+    value.length >= 2 &&
+    typeof value[0] === 'number' &&
+    value.some(
+      (item) =>
+        item &&
+        typeof item === 'object' &&
+        !Array.isArray(item),
+    );
+
+  const takeMessage = (item) => {
     if (Array.isArray(item)) {
-      const meta = item.find((x) => x && typeof x === 'object' && !Array.isArray(x));
-      const url = item.find((x) => typeof x === 'string' && x.startsWith('http'));
-      if (meta) records.push(url ? { ...meta, url } : meta);
-    } else if (item && typeof item === 'object') {
-      records.push(item);
+      const metadata = item.find(
+        (value) =>
+          value &&
+          typeof value === 'object' &&
+          !Array.isArray(value),
+      );
+
+      if (!metadata) return;
+
+      const galleryUrl = item.find(
+        (value) =>
+          typeof value === 'string' &&
+          /^https?:\/\//i.test(value),
+      );
+
+      const record = { ...metadata };
+      record._galleryType = item[0];
+
+      /*
+       * metadata.url и URL сообщения могут означать разные вещи:
+       * страницу публикации и непосредственно медиафайл.
+       * Сохраняем оба значения.
+       */
+      if (
+        galleryUrl &&
+        typeof metadata.url === 'string' &&
+        metadata.url !== galleryUrl
+      ) {
+        record._metadataUrl = metadata.url;
+      }
+
+      if (galleryUrl) {
+        record._galleryUrl = galleryUrl;
+
+        /*
+         * Оставляем совместимость с текущими findPreview()
+         * и guessMediaType(). Разделим URL окончательно
+         * на следующем шаге.
+         */
+        record.url = galleryUrl;
+      }
+
+      records.push(record);
+      return;
+    }
+
+    if (item && typeof item === 'object') {
+      records.push({ ...item });
     }
   };
 
-  /* gallery-dl --dump-json отдаёт ОДИН валидный JSON-массив целиком.
-     Парсим его за один раз — надёжно, без счёта скобок вручную. */
-  try {
-    const parsed = JSON.parse(raw);
-    if (Array.isArray(parsed)) {
-      /* Массив элементов вида [тип, url, meta] */
-      parsed.forEach((item) => take(item));
-    } else {
-      take(parsed);
+  const takeDocument = (value) => {
+    if (isMessage(value)) {
+      takeMessage(value);
+      return;
     }
-    return records;
-  } catch (_) { /* не единый JSON — пробуем построчно ниже */ }
 
-  /* Резерв: формат JSON-Lines (по объекту на строку) */
+    if (Array.isArray(value)) {
+      value.forEach((item) => takeMessage(item));
+      return;
+    }
+
+    takeMessage(value);
+  };
+
+  /*
+   * Обычный --dump-json: единый JSON-массив
+   * со всеми сообщениями.
+   */
+  try {
+    takeDocument(JSON.parse(raw));
+    return records;
+  } catch (_) {
+    /* Если это не единый JSON, пробуем JSON-Lines. */
+  }
+
+  /*
+   * JSON-Lines: по одному сообщению или объекту на строку.
+   */
   for (const line of raw.split('\n')) {
     const trimmed = line.trim();
+
     if (!trimmed) continue;
+
     try {
-      take(JSON.parse(trimmed));
-    } catch (_) { /* битая строка — пропускаем */ }
+      takeDocument(JSON.parse(trimmed));
+    } catch (_) {
+      /* Повреждённую или служебную строку пропускаем. */
+    }
   }
+
   return records;
 }
 
@@ -332,17 +507,87 @@ export function createGallerySource(spec) {
   }
 
   function finishPost(head, parts) {
-    const components = parts.map((entry, index) => ({
-      index: index + 1,
-      mediaType: entry.mediaType,
-      previewUrl: entry.previewUrl,
-      url: entry.url,
-    }));
-    const videoCount = components.filter((c) => c.mediaType === 'video').length;
+    /*
+     * gallery-dl сначала отдаёт Directory-сообщение с общими
+     * метаданными, затем Url-сообщения отдельных файлов.
+     *
+     * Directory имеет тип 2 и не является компонентом.
+     * Url имеет тип 3 и соответствует реальному файлу.
+     */
+    const urlParts = parts.filter(
+      (entry) =>
+        Number(entry.raw?._galleryType) === 3,
+    );
+
+    /*
+     * Совместимость с источниками, которые возвращают
+     * голые metadata-объекты без типа сообщения.
+     */
+    const untypedParts = parts.filter(
+      (entry) =>
+        entry.raw?._galleryType === undefined ||
+        entry.raw?._galleryType === null,
+    );
+
+    const componentParts = urlParts.length
+      ? urlParts
+      : untypedParts.length
+        ? untypedParts
+        : parts.filter(
+            (entry) =>
+              Number(entry.raw?._galleryType) !== 2,
+          );
+
+    /*
+     * Даже при необычном выводе не создаём публикацию
+     * с пустым списком компонентов.
+     */
+    const usableParts = componentParts.length
+      ? componentParts
+      : [head];
+
+    const components = usableParts.map(
+      (entry, index) => ({
+        index: index + 1,
+        mediaType: entry.mediaType,
+        previewUrl: entry.previewUrl,
+        /*
+         * Для компонента нужен URL файла, а не страница пина.
+         */
+        url:
+          entry.raw?._galleryUrl ||
+          entry.previewUrl ||
+          entry.url,
+      }),
+    );
+
+    const videoCount = components.filter(
+      (component) =>
+        component.mediaType === 'video',
+    ).length;
 
     let type = 'Фото';
-    if (components.length > 1) type = videoCount ? 'Карусель, видео' : 'Карусель';
-    else if (videoCount) type = 'Видео';
+
+    if (components.length > 1) {
+      type = videoCount
+        ? 'Карусель, видео'
+        : 'Карусель';
+    } else if (videoCount) {
+      type = 'Видео';
+    }
+
+    const cover =
+      head.previewUrl ||
+      components.find(
+        (component) =>
+          component.mediaType === 'image' &&
+          component.previewUrl,
+      )?.previewUrl ||
+      components.find(
+        (component) =>
+          component.previewUrl,
+      )?.previewUrl ||
+      '';
 
     return {
       postId: head.postId,
@@ -353,20 +598,27 @@ export function createGallerySource(spec) {
       plainUsername: head.plainUsername,
       type,
       componentCount: components.length,
-      structure: components.length > 1
-        ? `${components.length} элем.`
-        : '1 элем.',
+      structure:
+        components.length > 1
+          ? `${components.length} элем.`
+          : '1 элем.',
       components,
-      selectedComponents: components.map((c) => c.index),
+      selectedComponents:
+        components.map(
+          (component) => component.index,
+        ),
       description: head.description,
-      previewUrl: head.previewUrl,
+      previewUrl: cover,
       takenAt: head.takenAt,
       collectionId: head.collectionId,
       collectionName: head.collectionName,
       source: code,
       containers: [{
         platform: code,
-        kind: containerTypes[containerTypes.length - 1],
+        kind:
+          containerTypes[
+            containerTypes.length - 1
+          ],
         id: head.collectionId,
         name: head.collectionName,
       }],
