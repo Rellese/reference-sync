@@ -72,6 +72,22 @@ export async function findEagleItemsByIds(itemIds) {
 
   if (!ids.length) return [];
 
+  /*
+   * getByIds возвращает полные объекты Item, включая
+   * надёжное состояние isDeleted для элементов в корзине.
+   */
+  if (eagleApi?.item?.getByIds) {
+    try {
+      const items = await eagleApi.item.getByIds(ids);
+
+      return (items || [])
+        .map(compactEagleItem)
+        .filter(Boolean);
+    } catch (_) {
+      /* Пробуем универсальный API Eagle. */
+    }
+  }
+
   if (eagleApi?.item?.get) {
     try {
       const items = await eagleApi.item.get({
@@ -84,18 +100,6 @@ export async function findEagleItemsByIds(itemIds) {
           'isDeleted',
         ],
       });
-
-      return (items || [])
-        .map(compactEagleItem)
-        .filter(Boolean);
-    } catch (_) {
-      /* Пробуем следующий API Eagle. */
-    }
-  }
-
-  if (eagleApi?.item?.getByIds) {
-    try {
-      const items = await eagleApi.item.getByIds(ids);
 
       return (items || [])
         .map(compactEagleItem)

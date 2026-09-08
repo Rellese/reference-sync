@@ -40,9 +40,9 @@ test('parseDumpJson parses a full gallery-dl document', () => {
   assert.equal(
     records[1]._metadataUrl,
     'https://www.pinterest.com/pin/123/',
+  );
   assert.equal(records[0]._galleryType, 2);
   assert.equal(records[1]._galleryType, 3);
-  );
 });
 
 test('parseDumpJson parses one gallery-dl message', () => {
