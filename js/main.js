@@ -1695,14 +1695,43 @@ async function runImport() {
   });
 
   try {
-    const session = activeImportSource.code === 'instagram'
-      ? await requireMatchingInstagramSession(
-          s,
-          state.abortController.signal,
-        )
-      : { cookieFile: '' };
+    const isInstagramImport =
+      activeImportSource.code ===
+      'instagram';
 
-    sessionCookieFile = session.cookieFile;
+    const isPinterestImport =
+      activeImportSource.code ===
+      'pinterest';
+
+    const session =
+      isInstagramImport
+        ? await requireMatchingInstagramSession(
+            s,
+            state.abortController.signal,
+          )
+        : isPinterestImport
+          ? {
+              cookieFile:
+                await createPinterestCookieSnapshot({
+                  username:
+                    s.username,
+
+                  browser:
+                    s.browser,
+
+                  browserProfile:
+                    s.browserProfile,
+
+                  signal:
+                    state.abortController.signal,
+                }),
+            }
+          : {
+              cookieFile: '',
+            };
+
+    sessionCookieFile =
+      session.cookieFile;
 
     const restoredResults = Array.isArray(recoveredDownloaded)
       ? recoveredDownloaded
@@ -1720,7 +1749,8 @@ async function runImport() {
 
     const completedDownloads = [...restoredResults];
 
-    const runDownload = activeImportSource.code === 'instagram'
+    const runDownload =
+    isInstagramImport
       ? downloadPosts
       : activeImportSource.download;
 
@@ -2106,9 +2136,25 @@ async function runImport() {
     }
   } finally {
     if (sessionCookieFile) {
-      removeInstagramCookieSnapshot(sessionCookieFile);
+      if (
+        activeImportSource.code ===
+        'pinterest'
+      ) {
+        removePinterestCookieSnapshot(
+          sessionCookieFile,
+        );
+      } else if (
+        activeImportSource.code ===
+        'instagram'
+      ) {
+        removeInstagramCookieSnapshot(
+          sessionCookieFile,
+        );
+      }
+
       sessionCookieFile = '';
     }
+
     state.abortController = null;
     control = null;
   }

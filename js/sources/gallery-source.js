@@ -874,6 +874,7 @@ export function createGallerySource(spec) {
     stagingRoot: existingStagingRoot = '',
     browser = 'chrome',
     browserProfile = '',
+    cookieFile = '',
     speedProfile = 'safe',
     onProgress,
     onLog,
@@ -889,12 +890,24 @@ export function createGallerySource(spec) {
     requireToolchain();
 
     let cookieDb = null;
-    if (cookies) {
-      cookieDb = stageCookieDb(browser, browserProfile);
+
+    if (cookies && !cookieFile) {
+      cookieDb =
+        stageCookieDb(
+          browser,
+          browserProfile,
+        );
+
       if (cookieDb && onLog) {
-        onLog('Куки браузера скопированы для чтения (браузер закрывать не нужно)');
-      } else if (!cookieDb && onLog) {
-        onLog('Не нашёл базу кук — читаю напрямую (закройте браузер, если зависнет)');
+        onLog(
+          'Куки браузера скопированы для чтения ' +
+          '(браузер закрывать не нужно)',
+        );
+      } else if (onLog) {
+        onLog(
+          'Не нашёл базу кук — читаю напрямую ' +
+          '(закройте браузер, если зависнет)',
+        );
       }
     }
 
@@ -955,10 +968,21 @@ export function createGallerySource(spec) {
         '--directory', '',
       ];
       if (cookies) {
-        args.push(
-          '--cookies-from-browser',
-          browserCookieSpec(browser, browserProfile, cookieDb),
-        );
+        if (cookieFile) {
+          args.push(
+            '--cookies',
+            cookieFile,
+          );
+        } else {
+          args.push(
+            '--cookies-from-browser',
+            browserCookieSpec(
+              browser,
+              browserProfile,
+              cookieDb,
+            ),
+          );
+        }
       }
       args.push(post.url);
 
