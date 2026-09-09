@@ -1008,6 +1008,26 @@ async function runSearch() {
   await refreshImportRegistry();
   const s = { ...state.settings };
 
+  let activeSource;
+
+  try {
+    activeSource = getSource(
+      s.platform,
+    );
+  } catch (error) {
+    ui.log.add(
+      `Платформа ${s.platform} не зарегистрирована.`,
+      'warn',
+    );
+
+    ui.status.set(
+      'Платформа недоступна',
+      'Выберите другой источник',
+    );
+
+    return;
+  }
+
   if (!activeSource.ready) {
     ui.log.add(
       `Платформа ${activeSource.title} ещё не подключена.`,
@@ -1474,8 +1494,8 @@ async function runImport() {
     return;
   }
 
-    let activeImportSource;
-
+  let activeImportSource;
+  
   try {
     activeImportSource = getSourceForPosts(
       chosen,
@@ -1496,25 +1516,7 @@ async function runImport() {
     return;
   }
 
-  try {
-    activeImportSource = getSourceForPosts(
-      chosen,
-      s.platform,
-    );
-  } catch (error) {
-    ui.status.set(
-      'Источник публикаций недоступен',
-      error?.message ||
-        'Не удалось определить источник выбранных публикаций',
-    );
-
-    ui.log.add(
-      `Ошибка определения источника: ${error?.message}`,
-      'err',
-    );
-
-    return;
-  }
+  if (!await ensureToolchain()) return;
 
   if (!await ensureToolchain()) return;
 
