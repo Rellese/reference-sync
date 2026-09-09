@@ -867,11 +867,6 @@ export function createGlassButton({
     label,
   );
 
-  text.setAttribute(
-    'data-label',
-    String(label ?? ''),
-  );
-
   plate.appendChild(text);
 
   root.append(
@@ -992,11 +987,6 @@ export function createGlassButton({
       );
 
       text.textContent = value;
-
-      text.setAttribute(
-        'data-label',
-        value,
-      );
     },
 
     setDisabled(state) {

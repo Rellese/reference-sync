@@ -1709,26 +1709,22 @@
   height: 29px;
 
   /*
-   * Шесть точек фигуры в координатах всей кнопки:
+   * Фактическая геометрия после визуальной сверки:
    *
-   * 0,14;
-   * 60,20;
-   * 306,20;
-   * 366,14;
-   * 366,43;
-   * 0,43.
+   * размер фигуры: 366×29px;
+   * левая внутренняя точка: 60×25px;
+   * правая внутренняя точка: 302×25px;
+   * правый горизонтальный отступ: 60px.
    *
-   * Так как сам элемент уже начинается с y=14,
-   * внутренние точки находятся на 6px ниже его верха.
-   *
-   * 6 / 29 = 20.69%.
+   * Геометрия намеренно асимметрична для совпадения
+   * с видимым результатом Figma.
    */
 
   -webkit-clip-path:
     polygon(
       0 0,
-      60px 22px,
-      calc(100% - 64px) 25px,
+      60px 25px,
+      calc(100% - 60px) 25px,
       100% 0,
       100% 100%,
       0 100%
@@ -1737,18 +1733,18 @@
   clip-path:
     polygon(
       0 0,
-      60px 22px,
-      calc(100% - 64px) 25px,
+      60px 25px,
+      calc(100% - 60px) 25px,
       100% 0,
       100% 100%,
       0 100%
     );
 
   /*
-   * Цветной градиент занимает только нижние 19px
-   * из общей высоты фигуры 29px.
-   *
-   * 19 / 29 = 65.517%.
+   * Градиент заполняет всю фигуру высотой 29px.
+   * Последний цветовой стоп расположен на 64.6%;
+   * после него CSS продолжает цвет #A7180F
+   * до верхней границы фигуры.
    */
 
   background:
@@ -1758,9 +1754,6 @@
       rgba(247, 2, 39, 0.7) 38.51%,
       rgba(167, 24, 15, 0.7) 64.6%
     );
-
-  visibility: hidden;
-  opacity: 0;
 }
 
 /* Red center */
@@ -1888,8 +1881,6 @@
   position: absolute;
   z-index: 2;
 
-  isolation: isolate;
-
   left: 1px;
   right: 1px;
   top: 0;
@@ -2000,57 +1991,6 @@
   transition:
     color 100ms ease,
     text-shadow 100ms ease;
-}
-
-/*
- * Два независимых слоя текста для Pressed.
- *
- * ::before — #FDF1E5, 100%, Overlay.
- * ::after  — #FDF1E5, 40%, Overlay.
- *
- * В Enable и Hovered оба слоя скрыты.
- */
-
-.rs-glass__label::before,
-.rs-glass__label::after {
-  content: attr(data-label);
-
-  position: absolute;
-  z-index: 1;
-
-  inset: 0;
-
-  display: block;
-
-  font: inherit;
-  letter-spacing: inherit;
-  text-align: inherit;
-  text-transform: inherit;
-  white-space: inherit;
-
-  text-shadow: none;
-
-  opacity: 0;
-
-  pointer-events: none;
-}
-
-.rs-glass__label::before {
-  color: #FDF1E5;
-
-  mix-blend-mode: overlay;
-}
-
-.rs-glass__label::after {
-  color:
-    rgba(
-      253,
-      241,
-      229,
-      0.4
-    );
-
-  mix-blend-mode: overlay;
 }
 
 /* ============================================================
@@ -2164,13 +2104,6 @@
   mix-blend-mode: normal;
 }
 
-.rs-glass:not(.is-disabled):hover
-.rs-glass__label::before,
-.rs-glass:not(.is-disabled):hover
-.rs-glass__label::after {
-  opacity: 0;
-}
-
 /* ============================================================
    State=On, Status=Pressed
    ============================================================ */
@@ -2275,61 +2208,26 @@
 }
 
 /*
- * Исходный настоящий текст прячем.
- * Иначе поверх двух Overlay-слоёв останется белый текст.
+ * Pressed:
+ * один настоящий текстовый слой;
+ * цвет #FDF1E5;
+ * режим наложения Overlay;
+ * свечение текста отсутствует.
  */
 
 .rs-glass:not(.is-disabled):active
 .rs-glass__label,
-.rs-glass.is-pressed
+.rs-glass.is-pressed:not(.is-disabled)
 .rs-glass__label {
-  color: transparent;
-
-  text-shadow: none;
-
-  mix-blend-mode: normal;
-}
-
-/*
- * Первый слой:
- * #FDF1E5;
- * opacity 100%;
- * Overlay.
- */
-
-.rs-glass:not(.is-disabled):active
-.rs-glass__label::before,
-.rs-glass.is-pressed
-.rs-glass__label::before {
-  /*
-   * Один CSS-слой Overlay.
-   *
-   * Непрозрачность уменьшена до 40%, потому что
-   * #FDF1E5 в Overlay при 100% пересвечивается
-   * на светлых областях фона.
-   */
-
   color: #FDF1E5;
+  -webkit-text-fill-color: #FDF1E5;
 
-  opacity: 0.4;
+  opacity: 0.5;
 
   text-shadow: none;
+  filter: none;
 
   mix-blend-mode: overlay;
-}
-
-/*
- * Второй слой:
- * #FDF1E5;
- * opacity 40%;
- * Overlay.
- */
-
-.rs-glass:not(.is-disabled):active
-.rs-glass__label::after,
-.rs-glass.is-pressed
-.rs-glass__label::after {
-  opacity: 0;
 }
 
 /* ============================================================
@@ -2376,11 +2274,6 @@
   text-shadow: none;
 }
 
-.rs-glass.is-disabled
-.rs-glass__label::after {
-  opacity: 0;
-}
-
 /* ============================================================
    Фокус с клавиатуры
    ============================================================ */
@@ -2399,8 +2292,7 @@
   .rs-glass__base,
   .rs-glass__glow,
   .rs-glass__plate,
-  .rs-glass__label,
-  .rs-glass__label::after {
+  .rs-glass__label {
     transition: none;
   }
 }
