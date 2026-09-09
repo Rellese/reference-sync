@@ -1412,7 +1412,7 @@ async function runSearch() {
     } finally {
       if (isInstagram) {
         removeInstagramCookieSnapshot(
-              session.cookieFile,
+          session.cookieFile,
         );
       } else if (isPinterest) {
         removePinterestCookieSnapshot(

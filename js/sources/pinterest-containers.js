@@ -987,125 +987,128 @@ export async function listPinterestContainers({
       activeCookieFile;
   }
 
-  const cookies =
-    readPinterestCookies(
-      activeCookieFile,
-    );
+  try {
+    const cookies =
+      readPinterestCookies(
+        activeCookieFile,
+      );
 
-  const profilePath =
-    `/${cleanUsername}/`;
+    const profilePath =
+      `/${cleanUsername}/`;
 
-  const rawBoards =
-    await requestAllPages({
-      resource: 'Boards',
+    const rawBoards =
+      await requestAllPages({
+        resource: 'Boards',
 
-      options: {
-        sort: 'last_pinned_to',
-        field_set_key: 'profile_grid_item',
-        filter_stories: false,
-        username: cleanUsername,
-        page_size: 25,
-        include_archived: true,
-      },
-
-      cookies,
-      username: cleanUsername,
-      sourceUrl: profilePath,
-      signal,
-      maximumPages,
-    });
-
-  const boards =
-    rawBoards
-      .map(
-        (board, index) =>
-          normalizePinterestBoard(
-            board,
-            cleanUsername,
-            index + 1,
-          ),
-      )
-      .filter(Boolean);
-
-  if (!boards.length) {
-    throw new Error(
-      'Pinterest не вернул список досок. ' +
-      'Проверьте профиль браузера и имя пользователя.',
-    );
-  }
-
-  const containers = [];
-
-  for (
-    let index = 0;
-    index < boards.length;
-    index += 1
-  ) {
-    const board =
-      boards[index];
-
-    containers.push(board);
-
-    if (onProgress) {
-      onProgress({
-        stage: 'sections',
-        current: index + 1,
-        total: boards.length,
-        board,
-      });
-    }
-
-    if (board.sectionCount === 0) {
-      continue;
-    }
-
-    let rawSections;
-
-    try {
-      rawSections =
-        await requestAllPages({
-          resource: 'BoardSections',
-
-          options: {
-            board_id: board.id,
-          },
-
-          cookies,
+        options: {
+          sort: 'last_pinned_to',
+          field_set_key:
+            'profile_grid_item',
+          filter_stories: false,
           username: cleanUsername,
+          page_size: 25,
+          include_archived: true,
+        },
 
-          sourceUrl:
-            new URL(board.url).pathname,
+        cookies,
+        username: cleanUsername,
+        sourceUrl: profilePath,
+        signal,
+        maximumPages,
+      });
 
-          signal,
-          maximumPages,
-        });
-    } catch (error) {
+    const boards =
+      rawBoards
+        .map(
+          (board, index) =>
+            normalizePinterestBoard(
+              board,
+              cleanUsername,
+              index + 1,
+            ),
+        )
+        .filter(Boolean);
+
+    if (!boards.length) {
       throw new Error(
-        `Не удалось получить разделы доски ` +
-        `«${board.name}»: ${error.message}`,
+        'Pinterest не вернул список досок. ' +
+        'Проверьте профиль браузера и имя пользователя.',
       );
     }
 
-    rawSections
-      .map(
-        (section, sectionIndex) =>
-          normalizePinterestSection(
-            section,
-            board,
-            sectionIndex + 1,
-          ),
-      )
-      .filter(Boolean)
-      .forEach(
-        (section) => {
-          containers.push(section);
-        },
-      );
+    const containers = [];
+
+    for (
+      let index = 0;
+      index < boards.length;
+      index += 1
+    ) {
+      const board =
+        boards[index];
+
+      containers.push(board);
+
+      if (onProgress) {
+        onProgress({
+          stage: 'sections',
+          current: index + 1,
+          total: boards.length,
+          board,
+        });
+      }
+
+      if (board.sectionCount === 0) {
+        continue;
+      }
+
+      let rawSections;
+
+      try {
+        rawSections =
+          await requestAllPages({
+            resource: 'BoardSections',
+
+            options: {
+              board_id: board.id,
+            },
+
+            cookies,
+            username: cleanUsername,
+
+            sourceUrl:
+              new URL(board.url).pathname,
+
+            signal,
+            maximumPages,
+          });
+      } catch (error) {
+        throw new Error(
+          `Не удалось получить разделы доски ` +
+          `«${board.name}»: ${error.message}`,
+        );
+      }
+
+      rawSections
+        .map(
+          (section, sectionIndex) =>
+            normalizePinterestSection(
+              section,
+              board,
+              sectionIndex + 1,
+            ),
+        )
+        .filter(Boolean)
+        .forEach(
+          (section) => {
+            containers.push(section);
+          },
+        );
+    }
+
+    return containers;
+  } finally {
+    removePinterestCookieSnapshot(
+      temporaryCookieFile,
+    );
   }
-
-  removePinterestCookieSnapshot(
-    temporaryCookieFile,
-  );
-
-  return containers;
 }
