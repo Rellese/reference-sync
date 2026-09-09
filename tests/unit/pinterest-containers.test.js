@@ -22,7 +22,7 @@ test('Pinterest normalizes a board container', () => {
       1,
     );
 
-  assert.deepEqual(result, {
+  assert.deepEqual(board, {
     id: 'board-123',
     name: 'References',
     type: 'BOARD',
@@ -69,6 +69,7 @@ test('Pinterest normalizes a nested section', () => {
     url:
       'https://www.pinterest.com/designer/references/id:section-456/',
     pinCount: 15,
+    mediaCount: 15,
     position: 1,
   });
 });
