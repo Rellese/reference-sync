@@ -1702,8 +1702,11 @@
 
   left: 0;
   right: 0;
-  top: 31.82%;
-  bottom: 2.27%;
+  top: auto;
+  bottom: 1px;
+
+  width: 366px;
+  height: 29px;
 
   /*
    * Шесть точек фигуры в координатах всей кнопки:
@@ -1724,8 +1727,8 @@
   -webkit-clip-path:
     polygon(
       0 0,
-      16.393% 20.69%,
-      83.607% 20.69%,
+      60px 20px,
+      calc(100% - 60px) 20px,
       100% 0,
       100% 100%,
       0 100%
@@ -1734,8 +1737,8 @@
   clip-path:
     polygon(
       0 0,
-      16.393% 20.69%,
-      83.607% 20.69%,
+      60px 20px,
+      calc(100% - 60px) 20px,
       100% 0,
       100% 100%,
       0 100%
@@ -1748,23 +1751,13 @@
    * 19 / 29 = 65.517%.
    */
 
-  background-image:
+  background:
     linear-gradient(
       0deg,
       rgba(255, 145, 0, 0.4) 18.32%,
       rgba(247, 2, 39, 0.4) 38.51%,
-      rgba(167, 24, 15, 0.4) 64.6%,
-      rgba(167, 24, 15, 0) 100%
+      rgba(167, 24, 15, 0.4) 64.6%
     );
-
-  background-position:
-    left bottom;
-
-  background-size:
-    100% 65.517%;
-
-  background-repeat:
-    no-repeat;
 
   visibility: hidden;
   opacity: 0;
@@ -2082,13 +2075,11 @@
   visibility: visible;
   opacity: 1;
 
-  background-image:
+  background:
     linear-gradient(
       0deg,
-      rgba(255, 145, 0, 0.7) 18.32%,
-      rgba(247, 2, 39, 0.7) 38.51%,
-      rgba(167, 24, 15, 0.7) 64.6%,
-      rgba(167, 24, 15, 0) 100%
+      rgba(255, 145, 0, 0.7) 6.76%,
+      rgba(167, 24, 15, 0.7) 96.4%
     );
 }
 
@@ -2203,15 +2194,13 @@
 .rs-glass.is-pressed
 .rs-glass__glow--halo {
   visibility: visible;
-  opacity: 1;
+  opacity: 0.4;
 
-  background-image:
+  background:
     linear-gradient(
       0deg,
-      rgba(255, 145, 0, 0.4) 18.32%,
-      rgba(247, 2, 39, 0.4) 38.51%,
-      rgba(167, 24, 15, 0.4) 64.6%,
-      rgba(167, 24, 15, 0) 100%
+      rgba(255, 145, 0, 0.7) 6.76%,
+      rgba(167, 24, 15, 0.7) 96.4%
     );
 }
 
@@ -2783,72 +2772,18 @@ textarea.rs-editable {
   pointer-events: auto;
 }
 
-/* ============================================================
-   Search button — final geometry tuning
-   ============================================================ */
+/* TEMP DEBUG: показать Red around the edges без blur */
+.rs-glass__glow--halo {
+  visibility: visible !important;
+  opacity: 1 !important;
+  filter: none !important;
+}
 
 /*
- * Контейнер:
- *   width: 366px;
- *   height: 44px;
- *
- * Red around the edges:
- *   top: 14px;
- *   bottom: 1px;
- *   height: 29px;
- *
- * Дополнительные точки находятся на y=20px
- * относительно контейнера, поэтому внутри фигуры:
- *   20px - 14px = 6px.
- *
- * Градиент:
- *   height: 19px;
- *   bottom: 1px относительно контейнера.
+ * Поверх фигуры находится поверхность кнопки.
+ * Её backdrop-filter размывает все нижележащие фигуры.
  */
-.rs-glass__glow--halo {
-  position: absolute;
-
-  left: 0;
-  right: 0;
-  top: 14px;
-  bottom: auto;
-
-  width: 100%;
-  height: 29px;
-
-  /*
-   * Точки фигуры в координатах её собственного блока:
-   *
-   * 0px      0px
-   * 60px     6px
-   * 306px    6px
-   * 366px    0px
-   * 366px   29px
-   * 0px     29px
-   */
-  clip-path: polygon(
-    0 0,
-    60px 6px,
-    calc(100% - 60px) 6px,
-    100% 0,
-    100% 100%,
-    0 100%
-  );
-
-  /*
-   * Сам градиент занимает только нижние 19px
-   * фигуры высотой 29px.
-   */
-  background-color: transparent;
-  background-image: linear-gradient(
-    360deg,
-    rgba(255, 145, 0, 0.7) 18.32%,
-    rgba(247, 2, 39, 0.7) 38.51%,
-    rgba(167, 24, 15, 0.7) 64.6%
-  );
-  background-size: 100% 19px;
-  background-position: left bottom;
-  background-repeat: no-repeat;
-
-  border-radius: 0;
+.rs-glass__plate {
+  -webkit-backdrop-filter: none !important;
+  backdrop-filter: none !important;
 }
