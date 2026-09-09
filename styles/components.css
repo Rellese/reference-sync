@@ -1609,140 +1609,810 @@
 }
 
 /* ============================================================
-   Search button — docs/design/components/Search button.css
-   366×44. Стеклянная плашка + 5 слоёв свечения под ней.
+   Search button — Full_design/Search button
+
+   Внешний контейнер обрезает декоративные фигуры.
+   Слои снизу вверх:
+   red down;
+   red around the edges;
+   red center;
+   yellow down;
+   light left corner;
+   button surface;
+   text.
    ============================================================ */
+
 .rs-glass {
   position: relative;
+
+  display: block;
   flex: none;
-  width: 100%;
-  height: var(--h-btn);
+
+  box-sizing: border-box;
+
+  width: 366px;
+  height: 44px;
+
+  margin: 0;
+  padding: 0;
+
+  overflow: hidden;
+  isolation: isolate;
+
+  border: 0;
+  border-radius: 11px;
+  outline: 0;
+
+  background: transparent;
+
   cursor: pointer;
+  user-select: none;
+  -webkit-user-select: none;
+
+  -webkit-tap-highlight-color: transparent;
 }
 
-/* Rectangle 617 — тёмная подложка с красной линией снизу */
-.rs-glass__base {
-  position: absolute;
-  left: 1px;
-  right: 1px;
-  top: 0;
-  height: 42px;
-  background: var(--glow-base);
-  box-shadow: var(--glow-red-line);
-  border-radius: var(--r-btn);
-}
+/* Все декоративные фигуры находятся под поверхностью кнопки. */
 
-/* Слои свечения (Rectangle 616/617/618/619, Ellipse 6) */
+.rs-glass__base,
 .rs-glass__glow {
   position: absolute;
-  border-radius: 25px;
+  z-index: 0;
+
+  display: block;
+
   pointer-events: none;
+
+  transition:
+    opacity 100ms ease,
+    background 100ms ease;
 }
-/* Rectangle 617 — яркое ядро, видно только на hover */
-.rs-glass__glow--core {
-  left: 6.56%;
-  right: 6.56%;
-  top: 52.27%;
-  bottom: 2.27%;
-  background: var(--glow-grad-100);
-  opacity: 0;
-  transition: opacity 140ms ease;
+
+/* Red down */
+
+.rs-glass__base {
+  left: 0.27%;
+  right: 0.27%;
+  top: 0;
+  bottom: 4.55%;
+
+  background: #201312;
+
+  box-shadow:
+    inset 0 -5px 0 #FF0000;
+
+  border-radius: 10px;
 }
-/* Rectangle 616 — основной ореол */
+
+/*
+ * Red around the edges.
+ *
+ * Это отдельная градиентная фигура под кнопкой.
+ * Обычный border здесь не используется.
+ */
+
 .rs-glass__glow--halo {
-  left: 6.83%;
-  right: 6.83%;
-  top: 45.45%;
-  bottom: 2.27%;
-  background: var(--glow-grad-70);
-}
-/* Rectangle 619 — широкий разлив, появляется на hover */
-.rs-glass__glow--wide {
+  /*
+   * Геометрия при размере кнопки 366×44:
+   *
+   * верх фигуры: 14px;
+   * низ фигуры: 43px;
+   * высота фигуры: 29px.
+   */
+
   left: 0;
   right: 0;
   top: 31.82%;
   bottom: 2.27%;
-  background: var(--glow-grad-70);
+
+  /*
+   * Шесть точек фигуры в координатах всей кнопки:
+   *
+   * 0,14;
+   * 60,20;
+   * 306,20;
+   * 366,14;
+   * 366,43;
+   * 0,43.
+   *
+   * Так как сам элемент уже начинается с y=14,
+   * внутренние точки находятся на 6px ниже его верха.
+   *
+   * 6 / 29 = 20.69%.
+   */
+
+  -webkit-clip-path:
+    polygon(
+      0 0,
+      16.393% 20.69%,
+      83.607% 20.69%,
+      100% 0,
+      100% 100%,
+      0 100%
+    );
+
+  clip-path:
+    polygon(
+      0 0,
+      16.393% 20.69%,
+      83.607% 20.69%,
+      100% 0,
+      100% 100%,
+      0 100%
+    );
+
+  /*
+   * Цветной градиент занимает только нижние 19px
+   * из общей высоты фигуры 29px.
+   *
+   * 19 / 29 = 65.517%.
+   */
+
+  background-image:
+    linear-gradient(
+      0deg,
+      rgba(255, 145, 0, 0.4) 18.32%,
+      rgba(247, 2, 39, 0.4) 38.51%,
+      rgba(167, 24, 15, 0.4) 64.6%,
+      rgba(167, 24, 15, 0) 100%
+    );
+
+  background-position:
+    left bottom;
+
+  background-size:
+    100% 65.517%;
+
+  background-repeat:
+    no-repeat;
+
   visibility: hidden;
+  opacity: 0;
 }
-/* Ellipse 6 — блик сверху */
-.rs-glass__glow--top {
-  width: 130px;
-  height: 11px;
-  left: 3px;
-  top: 1px;
-  border-radius: 50%;
-  filter: blur(4px);
-  background: var(--glow-ellipse-70);
+
+/* Red center */
+
+.rs-glass__glow--wide {
+  left: 6.56%;
+  right: 6.56%;
+  top: 45.45%;
+  bottom: 2.27%;
+
+  background:
+    linear-gradient(
+      0deg,
+      #FF9100 22.2%,
+      #F70227 46.66%,
+      #A7180F 78.26%
+    );
+
+  /*
+   * При ширине кнопки 366px:
+   * ширина фигуры — 318px;
+   * высота — 23px;
+   * верхние точки смещены внутрь на 67px.
+   *
+   * 67 / 318 = 21.07%.
+   */
+
+  -webkit-clip-path:
+    polygon(
+      21.07% 0,
+      78.93% 0,
+      100% 100%,
+      0 100%
+    );
+
+  clip-path:
+    polygon(
+      21.07% 0,
+      78.93% 0,
+      100% 100%,
+      0 100%
+    );
+
+  opacity: 1;
 }
-/* Rectangle 618 — оранжевая полоса */
-.rs-glass__glow--line {
+
+/* Yellow down */
+
+.rs-glass__glow--core {
   left: 6.83%;
   right: 6.83%;
   top: 72.73%;
   bottom: 2.27%;
-  background: var(--glow-orange);
+
+  background: #FF8400;
+
+  /*
+   * При ширине кнопки 366px:
+   * ширина фигуры — 316px;
+   * высота — 11px;
+   * верхние точки смещены внутрь на 60px.
+   *
+   * 60 / 316 = 18.99%.
+   */
+
+  -webkit-clip-path:
+    polygon(
+      18.99% 0,
+      81.01% 0,
+      100% 100%,
+      0 100%
+    );
+
+  clip-path:
+    polygon(
+      18.99% 0,
+      81.01% 0,
+      100% 100%,
+      0 100%
+    );
+
+  opacity: 1;
 }
 
-/* Frame 1762 — сама стеклянная плашка */
+/* Light left corner */
+
+.rs-glass__glow--line {
+  left: 0.82%;
+  right: 63.66%;
+  top: 2.27%;
+  bottom: 72.73%;
+
+  background:
+    linear-gradient(
+      90deg,
+      rgba(255, 145, 0, 0.7) 6.76%,
+      rgba(167, 24, 15, 0.7) 96.4%
+    );
+
+  opacity: 1;
+}
+
+/*
+ * Enable:
+ *
+ * red around the edges скрыт;
+ * Red center, yellow down и light left corner включены.
+ */
+
+.rs-glass__glow--halo {
+  visibility: hidden;
+  opacity: 0;
+}
+
+.rs-glass__glow--wide,
+.rs-glass__glow--core,
+.rs-glass__glow--line {
+  visibility: visible;
+  opacity: 1;
+}
+
+/* Внутренняя поверхность кнопки — 364×42. */
+
 .rs-glass__plate {
   position: absolute;
-  left: 0;
-  right: 0;
+  z-index: 2;
+
+  isolation: isolate;
+
+  left: 1px;
+  right: 1px;
   top: 0;
   bottom: 2px;
+
   display: flex;
   flex-direction: row;
   justify-content: center;
   align-items: center;
+
+  box-sizing: border-box;
+
   padding: 10px;
   gap: 10px;
-  background: var(--glass-bg);
-  box-shadow: var(--glass-shadow-enable);
-  backdrop-filter: blur(7.5px);
-  border-radius: var(--r-btn);
-  transition: box-shadow 140ms ease;
+
+  overflow: hidden;
+
+  border-radius: 10px;
+
+  /*
+   * У поверхности три отдельные заливки:
+   *
+   * 1. красный radial-gradient справа сверху;
+   * 2. оранжево-красный radial-gradient слева;
+   * 3. тёмная полупрозрачная основа.
+   */
+
+  background:
+    radial-gradient(
+      40.16% 76.19%
+      at 84.07% 7.14%,
+      rgba(226, 22, 22, 0.22) 0%,
+      rgba(226, 22, 22, 0) 100%
+    ),
+    radial-gradient(
+      66.12% 53.97%
+      at 9.84% 25.24%,
+      rgba(238, 131, 49, 0.21) 4.19%,
+      rgba(238, 81, 49, 0.21) 23.46%,
+      rgba(238, 81, 49, 0) 100%
+    ),
+    rgba(22, 22, 22, 0.1);
+
+  background-repeat: no-repeat;
+
+  /*
+   * Enable:
+   * 6 теней из Figma.
+   */
+
+  box-shadow:
+    0 1px 0 1px
+      #5B0B02,
+    inset -3px 3px 5.2px 2px
+      rgba(0, 0, 0, 0.4),
+    inset 0.5px 0.5px 0.5px
+      #EE8331,
+    inset 0 0 4px
+      #E20200,
+    inset 0 -1px 0
+      rgba(2, 0, 0, 0.1),
+    inset 4px -2px 5px
+      rgba(216, 2, 0, 0.4);
+
+  -webkit-backdrop-filter:
+    blur(7.5px);
+
+  backdrop-filter:
+    blur(7.5px);
+
+  pointer-events: none;
+
+  transition:
+    box-shadow 100ms ease;
 }
 
+/* Основной текст */
+
+/* Основной контейнер текста */
+
 .rs-glass__label {
-  font-family: var(--font-sans);
+  position: relative;
+  z-index: 2;
+
+  display: block;
+
+  font-family:
+    'Manrope',
+    sans-serif;
+
+  font-style: normal;
   font-weight: 700;
   font-size: 14px;
   line-height: 19px;
+
   letter-spacing: 0.1em;
+  text-align: center;
   text-transform: uppercase;
-  color: var(--text-bright);
   white-space: nowrap;
+
+  color: #FDF1E5;
+
+  text-shadow:
+    0 0 10px #F46411;
+
+  pointer-events: none;
+
+  transition:
+    color 100ms ease,
+    text-shadow 100ms ease;
 }
 
-/* Status=Hovered */
-.rs-glass:hover .rs-glass__plate { box-shadow: var(--glass-shadow-hover); }
-.rs-glass:hover .rs-glass__glow--core { opacity: 1; }
-.rs-glass:hover .rs-glass__glow--wide { visibility: visible; }
+/*
+ * Два независимых слоя текста для Pressed.
+ *
+ * ::before — #FDF1E5, 100%, Overlay.
+ * ::after  — #FDF1E5, 40%, Overlay.
+ *
+ * В Enable и Hovered оба слоя скрыты.
+ */
 
-/* Status=Pressed */
-.rs-glass:active .rs-glass__plate {
-  box-shadow: var(--glass-shadow-pressed);
-}
-.rs-glass:active .rs-glass__base {
-  box-shadow: var(--glow-red-line-dim);
-}
-.rs-glass:active .rs-glass__glow--halo,
-.rs-glass:active .rs-glass__glow--core { opacity: 0.35; }
-.rs-glass:active .rs-glass__label {
-  color: rgba(253, 241, 229, 0.7);
+.rs-glass__label::before,
+.rs-glass__label::after {
+  content: attr(data-label);
+
+  position: absolute;
+  z-index: 1;
+
+  inset: 0;
+
+  display: block;
+
+  font: inherit;
+  letter-spacing: inherit;
+  text-align: inherit;
+  text-transform: inherit;
+  white-space: inherit;
+
+  text-shadow: none;
+
+  opacity: 0;
+
+  pointer-events: none;
 }
 
-/* State=Off, Status=Disable — плашка тухнет, свечение остаётся снизу */
-.rs-glass.is-disabled { cursor: default; }
-.rs-glass.is-disabled .rs-glass__plate {
-  background: var(--plate-off);
-  box-shadow: 0px 2px 0px 1px #101010, inset 0px 0.5px 0px 1px #26282A;
-  backdrop-filter: none;
+.rs-glass__label::before {
+  color: #FDF1E5;
+
+  mix-blend-mode: overlay;
 }
-.rs-glass.is-disabled .rs-glass__label { color: var(--text-muted); }
-.rs-glass.is-disabled .rs-glass__glow--core { opacity: 0; }
-.rs-glass.is-disabled .rs-glass__glow--wide { visibility: hidden; }
+
+.rs-glass__label::after {
+  color:
+    rgba(
+      253,
+      241,
+      229,
+      0.4
+    );
+
+  mix-blend-mode: overlay;
+}
+
+/* ============================================================
+   State=On, Status=Hovered
+   ============================================================ */
+
+/*
+ * В Hovered видимы только две внешние фигуры:
+ *
+ * 1. Red down — .rs-glass__base;
+ * 2. Red around the edges — .rs-glass__glow--halo.
+ */
+
+.rs-glass:not(.is-disabled):hover
+.rs-glass__base {
+  visibility: visible;
+  opacity: 1;
+}
+
+.rs-glass:not(.is-disabled):hover
+.rs-glass__glow--halo {
+  visibility: visible;
+  opacity: 1;
+
+  background-image:
+    linear-gradient(
+      0deg,
+      rgba(255, 145, 0, 0.7) 18.32%,
+      rgba(247, 2, 39, 0.7) 38.51%,
+      rgba(167, 24, 15, 0.7) 64.6%,
+      rgba(167, 24, 15, 0) 100%
+    );
+}
+
+/*
+ * Эти три фигуры полностью выключены.
+ *
+ * visibility добавлена специально, чтобы они не участвовали
+ * в отрисовке даже при случайном конфликте opacity.
+ */
+
+.rs-glass:not(.is-disabled):hover
+.rs-glass__glow--wide,
+.rs-glass:not(.is-disabled):hover
+.rs-glass__glow--core,
+.rs-glass:not(.is-disabled):hover
+.rs-glass__glow--line {
+  visibility: hidden;
+  opacity: 0;
+}
+
+/*
+ * Hovered:
+ *
+ * те же три заливки поверхности;
+ * 7 теней из Figma;
+ * backdrop blur 7.5px.
+ */
+
+.rs-glass:not(.is-disabled):hover
+.rs-glass__plate {
+  background:
+    radial-gradient(
+      40.16% 76.19%
+      at 84.07% 7.14%,
+      rgba(226, 22, 22, 0.22) 0%,
+      rgba(226, 22, 22, 0) 100%
+    ),
+    radial-gradient(
+      66.12% 53.97%
+      at 9.84% 25.24%,
+      rgba(238, 131, 49, 0.21) 4.19%,
+      rgba(238, 81, 49, 0.21) 23.46%,
+      rgba(238, 81, 49, 0) 100%
+    ),
+    rgba(22, 22, 22, 0.1);
+
+  background-repeat: no-repeat;
+
+  box-shadow:
+    0 21px 11.2px -19px
+      #FFC002,
+    0 1px 0 1px
+      #F31800,
+    inset -3px 3px 5.2px 2px
+      rgba(0, 0, 0, 0.4),
+    inset 0.5px 0.5px 0.5px
+      #EE8331,
+    inset 0 0 4px
+      #E20200,
+    inset 0 -1px 0
+      rgba(2, 0, 0, 0.1),
+    inset 4px -2px 5px
+      rgba(216, 2, 0, 0.4);
+
+  -webkit-backdrop-filter:
+    blur(7.5px);
+
+  backdrop-filter:
+    blur(7.5px);
+}
+
+.rs-glass:not(.is-disabled):hover
+.rs-glass__label {
+  color: #FDF1E5;
+
+  text-shadow:
+    0 0 5.6px #F49211,
+    0 0 10px #F47711,
+    0 0 10px #F46411;
+
+  mix-blend-mode: normal;
+}
+
+.rs-glass:not(.is-disabled):hover
+.rs-glass__label::before,
+.rs-glass:not(.is-disabled):hover
+.rs-glass__label::after {
+  opacity: 0;
+}
+
+/* ============================================================
+   State=On, Status=Pressed
+   ============================================================ */
+
+/*
+ * Pressed использует тот же набор внешних фигур:
+ *
+ * 1. Red down;
+ * 2. Red around the edges.
+ */
+
+.rs-glass:not(.is-disabled):active
+.rs-glass__base,
+.rs-glass.is-pressed
+.rs-glass__base {
+  visibility: visible;
+  opacity: 1;
+}
+
+.rs-glass:not(.is-disabled):active
+.rs-glass__glow--halo,
+.rs-glass.is-pressed
+.rs-glass__glow--halo {
+  visibility: visible;
+  opacity: 1;
+
+  background-image:
+    linear-gradient(
+      0deg,
+      rgba(255, 145, 0, 0.4) 18.32%,
+      rgba(247, 2, 39, 0.4) 38.51%,
+      rgba(167, 24, 15, 0.4) 64.6%,
+      rgba(167, 24, 15, 0) 100%
+    );
+}
+
+/*
+ * Red center, yellow down и light left corner
+ * полностью выключены в Pressed.
+ */
+
+.rs-glass:not(.is-disabled):active
+.rs-glass__glow--wide,
+.rs-glass:not(.is-disabled):active
+.rs-glass__glow--core,
+.rs-glass:not(.is-disabled):active
+.rs-glass__glow--line,
+.rs-glass.is-pressed
+.rs-glass__glow--wide,
+.rs-glass.is-pressed
+.rs-glass__glow--core,
+.rs-glass.is-pressed
+.rs-glass__glow--line {
+  visibility: hidden;
+  opacity: 0;
+}
+
+/*
+ * Pressed:
+ *
+ * те же три заливки поверхности;
+ * 4 тени из Figma;
+ * backdrop blur 7.5px.
+ */
+
+.rs-glass:not(.is-disabled):active
+.rs-glass__plate,
+.rs-glass.is-pressed
+.rs-glass__plate {
+  background:
+    radial-gradient(
+      40.16% 76.19%
+      at 84.07% 7.14%,
+      rgba(226, 22, 22, 0.22) 0%,
+      rgba(226, 22, 22, 0) 100%
+    ),
+    radial-gradient(
+      66.12% 53.97%
+      at 9.84% 25.24%,
+      rgba(238, 131, 49, 0.21) 4.19%,
+      rgba(238, 81, 49, 0.21) 23.46%,
+      rgba(238, 81, 49, 0) 100%
+    ),
+    rgba(22, 22, 22, 0.1);
+
+  background-repeat: no-repeat;
+
+  box-shadow:
+    0 1px 0 1px
+      #310D0C,
+    inset -3px 3px 5.2px 2px
+      rgba(0, 0, 0, 0.4),
+    inset 0 -1px 0
+      rgba(2, 0, 0, 0.1),
+    inset 4px -2px 5px
+      rgba(216, 2, 0, 0.4);
+
+  -webkit-backdrop-filter:
+    blur(7.5px);
+
+  backdrop-filter:
+    blur(7.5px);
+}
+
+/*
+ * Исходный настоящий текст прячем.
+ * Иначе поверх двух Overlay-слоёв останется белый текст.
+ */
+
+.rs-glass:not(.is-disabled):active
+.rs-glass__label,
+.rs-glass.is-pressed
+.rs-glass__label {
+  color: transparent;
+
+  text-shadow: none;
+
+  mix-blend-mode: normal;
+}
+
+/*
+ * Первый слой:
+ * #FDF1E5;
+ * opacity 100%;
+ * Overlay.
+ */
+
+.rs-glass:not(.is-disabled):active
+.rs-glass__label::before,
+.rs-glass.is-pressed
+.rs-glass__label::before {
+  /*
+   * Один CSS-слой Overlay.
+   *
+   * Непрозрачность уменьшена до 40%, потому что
+   * #FDF1E5 в Overlay при 100% пересвечивается
+   * на светлых областях фона.
+   */
+
+  color: #FDF1E5;
+
+  opacity: 0.4;
+
+  text-shadow: none;
+
+  mix-blend-mode: overlay;
+}
+
+/*
+ * Второй слой:
+ * #FDF1E5;
+ * opacity 40%;
+ * Overlay.
+ */
+
+.rs-glass:not(.is-disabled):active
+.rs-glass__label::after,
+.rs-glass.is-pressed
+.rs-glass__label::after {
+  opacity: 0;
+}
+
+/* ============================================================
+   State=Off, Status=Disable
+   ============================================================ */
+
+.rs-glass.is-disabled {
+  cursor: default;
+  pointer-events: none;
+}
+
+.rs-glass.is-disabled
+.rs-glass__base,
+.rs-glass.is-disabled
+.rs-glass__glow {
+  opacity: 0;
+}
+
+.rs-glass.is-disabled
+.rs-glass__plate {
+  background:
+    linear-gradient(
+      180deg,
+      #191919 0%,
+      #161616 100%
+    );
+
+  box-shadow:
+    0 2px 0 1px
+      #101010,
+    inset 0 0.5px 0 1px
+      #26282A;
+
+  -webkit-backdrop-filter:
+    none;
+
+  backdrop-filter:
+    none;
+}
+
+.rs-glass.is-disabled
+.rs-glass__label {
+  color: #707070;
+  text-shadow: none;
+}
+
+.rs-glass.is-disabled
+.rs-glass__label::after {
+  opacity: 0;
+}
+
+/* ============================================================
+   Фокус с клавиатуры
+   ============================================================ */
+
+.rs-glass:focus-visible {
+  outline:
+    1px solid
+    rgba(255, 145, 0, 0.7);
+
+  outline-offset: 2px;
+}
+
+@media (
+  prefers-reduced-motion: reduce
+) {
+  .rs-glass__base,
+  .rs-glass__glow,
+  .rs-glass__plate,
+  .rs-glass__label,
+  .rs-glass__label::after {
+    transition: none;
+  }
+}
 
 /* ============================================================
    Social media button — components/Social media button.css
@@ -2111,4 +2781,74 @@ textarea.rs-editable {
 .rs-cell--desc:hover > .rs-edit {
   opacity: 1;
   pointer-events: auto;
+}
+
+/* ============================================================
+   Search button — final geometry tuning
+   ============================================================ */
+
+/*
+ * Контейнер:
+ *   width: 366px;
+ *   height: 44px;
+ *
+ * Red around the edges:
+ *   top: 14px;
+ *   bottom: 1px;
+ *   height: 29px;
+ *
+ * Дополнительные точки находятся на y=20px
+ * относительно контейнера, поэтому внутри фигуры:
+ *   20px - 14px = 6px.
+ *
+ * Градиент:
+ *   height: 19px;
+ *   bottom: 1px относительно контейнера.
+ */
+.rs-glass__glow--halo {
+  position: absolute;
+
+  left: 0;
+  right: 0;
+  top: 14px;
+  bottom: auto;
+
+  width: 100%;
+  height: 29px;
+
+  /*
+   * Точки фигуры в координатах её собственного блока:
+   *
+   * 0px      0px
+   * 60px     6px
+   * 306px    6px
+   * 366px    0px
+   * 366px   29px
+   * 0px     29px
+   */
+  clip-path: polygon(
+    0 0,
+    60px 6px,
+    calc(100% - 60px) 6px,
+    100% 0,
+    100% 100%,
+    0 100%
+  );
+
+  /*
+   * Сам градиент занимает только нижние 19px
+   * фигуры высотой 29px.
+   */
+  background-color: transparent;
+  background-image: linear-gradient(
+    360deg,
+    rgba(255, 145, 0, 0.7) 18.32%,
+    rgba(247, 2, 39, 0.7) 38.51%,
+    rgba(167, 24, 15, 0.7) 64.6%
+  );
+  background-size: 100% 19px;
+  background-position: left bottom;
+  background-repeat: no-repeat;
+
+  border-radius: 0;
 }

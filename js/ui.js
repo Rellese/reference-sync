@@ -816,39 +816,193 @@ export function createSpinner({
 /* ------------------------------------------------------------
    Search button — Search button.css, 5 слоёв свечения
    ------------------------------------------------------------ */
-export function createGlassButton({ label, onClick, disabled = false } = {}) {
-  const root = el('div', 'rs-glass');
-  root.setAttribute('role', 'button');
-  root.setAttribute('tabindex', '0');
+export function createGlassButton({
+  label,
+  onClick,
+  disabled = false,
+} = {}) {
+  const root = el(
+    'div',
+    'rs-glass',
+  );
 
-  root.appendChild(el('div', 'rs-glass__base'));
-  ['halo', 'wide', 'core', 'line', 'top'].forEach((kind) => {
-    root.appendChild(el('div', `rs-glass__glow rs-glass__glow--${kind}`));
-  });
+  root.setAttribute(
+    'role',
+    'button',
+  );
 
-  const plate = el('div', 'rs-glass__plate');
-  const text = el('span', 'rs-glass__label', label);
+  const redDown = el(
+    'div',
+    'rs-glass__base',
+  );
+
+  const redEdges = el(
+    'div',
+    'rs-glass__glow rs-glass__glow--halo',
+  );
+
+  const redCenter = el(
+    'div',
+    'rs-glass__glow rs-glass__glow--wide',
+  );
+
+  const yellowDown = el(
+    'div',
+    'rs-glass__glow rs-glass__glow--core',
+  );
+
+  const leftLight = el(
+    'div',
+    'rs-glass__glow rs-glass__glow--line',
+  );
+
+  const plate = el(
+    'div',
+    'rs-glass__plate',
+  );
+
+  const text = el(
+    'span',
+    'rs-glass__label',
+    label,
+  );
+
+  text.setAttribute(
+    'data-label',
+    String(label ?? ''),
+  );
+
   plate.appendChild(text);
-  root.appendChild(plate);
+
+  root.append(
+    redDown,
+    redEdges,
+    redCenter,
+    yellowDown,
+    leftLight,
+    plate,
+  );
+
+  let isDisabled = Boolean(disabled);
+
+  const applyDisabled = () => {
+    root.classList.toggle(
+      'is-disabled',
+      isDisabled,
+    );
+
+    root.setAttribute(
+      'aria-disabled',
+      String(isDisabled),
+    );
+
+    root.setAttribute(
+      'tabindex',
+      isDisabled ? '-1' : '0',
+    );
+
+    if (isDisabled) {
+      root.classList.remove(
+        'is-pressed',
+      );
+    }
+  };
 
   const fire = () => {
-    if (root.classList.contains('is-disabled')) return;
-    if (onClick) onClick();
-  };
-  root.addEventListener('click', fire);
-  root.addEventListener('keydown', (event) => {
-    if (event.key === ' ' || event.key === 'Enter') {
-      event.preventDefault();
-      fire();
+    if (isDisabled) {
+      return;
     }
-  });
 
-  root.classList.toggle('is-disabled', Boolean(disabled));
+    if (onClick) {
+      onClick();
+    }
+  };
+
+  const clearPressed = () => {
+    root.classList.remove(
+      'is-pressed',
+    );
+  };
+
+  root.addEventListener(
+    'click',
+    fire,
+  );
+
+  root.addEventListener(
+    'keydown',
+    (event) => {
+      if (
+        event.key !== ' ' &&
+        event.key !== 'Enter'
+      ) {
+        return;
+      }
+
+      if (isDisabled) {
+        return;
+      }
+
+      event.preventDefault();
+
+      root.classList.add(
+        'is-pressed',
+      );
+    },
+  );
+
+  root.addEventListener(
+    'keyup',
+    (event) => {
+      if (
+        event.key !== ' ' &&
+        event.key !== 'Enter'
+      ) {
+        return;
+      }
+
+      if (isDisabled) {
+        return;
+      }
+
+      event.preventDefault();
+      clearPressed();
+      fire();
+    },
+  );
+
+  root.addEventListener(
+    'blur',
+    clearPressed,
+  );
+
+  root.addEventListener(
+    'pointercancel',
+    clearPressed,
+  );
+
+  applyDisabled();
 
   return {
     node: root,
-    setLabel(next) { text.textContent = next; },
-    setDisabled(state) { root.classList.toggle('is-disabled', Boolean(state)); },
+
+    setLabel(next) {
+      const value = String(
+        next ?? '',
+      );
+
+      text.textContent = value;
+
+      text.setAttribute(
+        'data-label',
+        value,
+      );
+    },
+
+    setDisabled(state) {
+      isDisabled = Boolean(state);
+      applyDisabled();
+    },
   };
 }
 

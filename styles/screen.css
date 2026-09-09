@@ -1143,7 +1143,7 @@ M1-T09J(a) — дерево коллекций в таблице результ�
   text-overflow: ellipsis;
   white-space: nowrap;
 
-  font-family: 'CommitMono', monospace;
+  font-family: var(--font-table);
   font-style: normal;
   font-weight: 400;
   font-size: 11px;
