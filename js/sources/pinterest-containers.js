@@ -47,7 +47,7 @@ function pinterestCookieSnapshotPath() {
   );
 }
 
-function removePinterestCookieSnapshot(
+export function removePinterestCookieSnapshot(
   cookieFile,
 ) {
   if (
@@ -91,7 +91,7 @@ export function pinterestCookieExportArgs({
   ];
 }
 
-async function createPinterestCookieSnapshot({
+export async function createPinterestCookieSnapshot({
   username,
   browser,
   browserProfile,
@@ -223,8 +223,10 @@ function objectValue(value) {
 export function unwrapPinterestBoard(record) {
   const source =
     objectValue(record?.board) ||
+    objectValue(record?.node?.board) ||
     objectValue(record?.node) ||
     objectValue(record?.data?.board) ||
+    objectValue(record?.data?.node?.board) ||
     objectValue(record);
 
   return source || {};
@@ -776,8 +778,19 @@ export function normalizePinterestBoard(
     firstText(
       board.pin_count,
       board.pins_count,
+      board.pinCount,
+      board.pinsCount,
+      board.total_pin_count,
+      board.pin_count_with_sections,
+      board.counts?.pins,
+
       rawBoard?.pin_count,
       rawBoard?.pins_count,
+      rawBoard?.pinCount,
+      rawBoard?.pinsCount,
+      rawBoard?.total_pin_count,
+      rawBoard?.pin_count_with_sections,
+      rawBoard?.counts?.pins,
     );
 
   const rawSectionCount =
@@ -810,6 +823,11 @@ export function normalizePinterestBoard(
       Number.isFinite(pinCount)
         ? pinCount
         : null,
+
+    mediaCount:
+        Number.isFinite(pinCount)
+            ? pinCount
+            : null,
 
     sectionCount:
       Number.isFinite(sectionCount)
@@ -877,8 +895,17 @@ export function normalizePinterestSection(
     firstText(
       section?.pin_count,
       section?.pins_count,
+      section?.pinCount,
+      section?.pinsCount,
+      section?.total_pin_count,
+      section?.counts?.pins,
+
       rawSection?.pin_count,
       rawSection?.pins_count,
+      rawSection?.pinCount,
+      rawSection?.pinsCount,
+      rawSection?.total_pin_count,
+      rawSection?.counts?.pins,
     );
 
   const pinCount =
@@ -916,6 +943,11 @@ export function normalizePinterestSection(
       Number.isFinite(pinCount)
         ? pinCount
         : null,
+
+    mediaCount:
+        Number.isFinite(pinCount)
+            ? pinCount
+            : null,
 
     position,
   };

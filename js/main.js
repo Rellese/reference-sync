@@ -60,6 +60,11 @@ import {
 } from './instagram.js';
 
 import {
+  createPinterestCookieSnapshot,
+  removePinterestCookieSnapshot,
+} from './sources/pinterest-containers.js';
+
+import {
   getSource,
   getSourceForPosts,
 } from './sources/index.js';
@@ -1095,6 +1100,7 @@ async function runSearch() {
   });
 
   const isInstagram = activeSource.code === 'instagram';
+  const isPinterest = activeSource.code === 'pinterest';
 
     const supportsFolderSearch =
     typeof activeSource.listContainers ===
@@ -1135,13 +1141,34 @@ async function runSearch() {
           s,
           operationController.signal,
         )
-      : {
-          cookieFile: '',
-          username: s.username,
-          browser: s.browser,
-          browserProfile:
-            s.browserProfile,
-        };
+      : isPinterest
+        ? {
+            cookieFile:
+              await createPinterestCookieSnapshot({
+                username: s.username,
+                browser: s.browser,
+                browserProfile:
+                  s.browserProfile,
+                signal:
+                  operationController.signal,
+              }),
+
+            username:
+              s.username,
+
+            browser:
+              s.browser,
+
+            browserProfile:
+              s.browserProfile,
+          }
+        : {
+            cookieFile: '',
+            username: s.username,
+            browser: s.browser,
+            browserProfile:
+              s.browserProfile,
+          };
 
     let discoveryResult;
 
@@ -1350,7 +1377,15 @@ async function runSearch() {
         browserProfile: s.browserProfile,
         cookieFile: session.cookieFile,
         searchMode: s.searchMode,
-        limit: s.recentLimit,
+        limit:
+          isInstagram
+            ? s.recentLimit
+            : (
+                s.searchMode ===
+                  SEARCH_MODES.RECENT
+                  ? s.recentLimit
+                  : 0
+              ),
         speedProfile: s.speed,
         collections: s.folderSearch
         ? state.collections
@@ -1375,7 +1410,15 @@ async function runSearch() {
         onLog: (line) => ui.log.add(redact(line)),
       });
     } finally {
-      removeInstagramCookieSnapshot(session.cookieFile);
+      if (isInstagram) {
+        removeInstagramCookieSnapshot(
+              session.cookieFile,
+        );
+      } else if (isPinterest) {
+        removePinterestCookieSnapshot(
+          session.cookieFile,
+        );
+      }
     }
 
     let { posts, stoppedEarly } = discoveryResult;
@@ -1387,7 +1430,11 @@ async function runSearch() {
      * smart  — до первой известной публикации без лимита;
      * full   — вся найденная история.
      */
-    if (!isInstagram) {
+    if (
+      !isInstagram &&
+      !s.folderSearch
+    ) {
+
       const boundary =
         applyDiscoveryBoundary(
           posts,
@@ -1397,13 +1444,6 @@ async function runSearch() {
               s.searchMode === SEARCH_MODES.RECENT ||
               s.searchMode === SEARCH_MODES.SMART,
 
-            /*
-             * Без выбора папок N ограничивает общий результат.
-             *
-             * При выборе папок gallery-source применяет N
-             * отдельно к каждой цели. Повторный общий лимит
-             * здесь обрезал следующие выбранные папки.
-             */
             limit:
               (
                 s.searchMode ===

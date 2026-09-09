@@ -656,6 +656,7 @@ export function createGallerySource(spec) {
     username,
     browser = 'chrome',
     browserProfile = '',
+    cookieFile = '',
     searchMode = 'smart',
     limit = 50,
     speedProfile = 'safe',
@@ -668,10 +669,25 @@ export function createGallerySource(spec) {
     requireToolchain();
 
     let cookieDb = null;
-    if (cookies) {
-      cookieDb = stageCookieDb(browser, browserProfile);
-      if (cookieDb && onLog) onLog('Куки Chrome скопированы для чтения (браузер закрывать не нужно)');
-      else if (!cookieDb && onLog) onLog('Не нашёл базу кук — читаю напрямую (закройте Chrome, если зависнет)');
+
+    if (cookies && !cookieFile) {
+      cookieDb =
+        stageCookieDb(
+          browser,
+          browserProfile,
+        );
+
+      if (cookieDb && onLog) {
+        onLog(
+          'Куки браузера скопированы для чтения ' +
+          '(браузер закрывать не нужно)',
+        );
+      } else if (onLog) {
+        onLog(
+          'Не нашёл базу кук — читаю напрямую ' +
+          '(закройте браузер, если зависнет)',
+        );
+      }
     }
 
     try {
@@ -688,7 +704,7 @@ export function createGallerySource(spec) {
     }
 
     const posts = [];
-    const seen = new Set();
+    const postsById = new Map();
     let stoppedEarly = false;
 
     for (const target of targets) {
@@ -712,10 +728,21 @@ export function createGallerySource(spec) {
         args.push('--post-range', `1-${limit}`);
       }
       if (cookies) {
-        args.push(
-          '--cookies-from-browser',
-          browserCookieSpec(browser, browserProfile, cookieDb),
-        );
+        if (cookieFile) {
+          args.push(
+            '--cookies',
+            cookieFile,
+          );
+        } else {
+          args.push(
+            '--cookies-from-browser',
+            browserCookieSpec(
+              browser,
+              browserProfile,
+              cookieDb,
+            ),
+          );
+        }
       }
       /* Pinterest allpins не переносит --post-range (даёт пустую
          выдачу). Лимит применяется после сбора, на стороне main.js. */
@@ -755,21 +782,84 @@ export function createGallerySource(spec) {
         accountUsername: cleanUser,
       });
 
+      let targetAccepted = 0;
+
       for (const post of found) {
-        if (seen.has(post.postId)) continue;
-        if (searchMode === 'smart' && knownPostIds.has(post.postId)) {
+        /*
+        * Граница известной публикации применяется отдельно
+        * к каждой выбранной папке.
+        */
+        if (
+          (
+            searchMode === 'recent' ||
+            searchMode === 'smart'
+          ) &&
+          knownPostIds.has(post.postId)
+        ) {
           stoppedEarly = true;
           break;
         }
-        seen.add(post.postId);
+
+        /*
+        * Лимит считается отдельно для текущей папки,
+        * а не по общему массиву posts.
+        */
+        if (
+          limit &&
+          limit > 0 &&
+          targetAccepted >= limit
+        ) {
+          break;
+        }
+
+        targetAccepted += 1;
+
+        const existing =
+          postsById.get(post.postId);
+
+        if (existing) {
+          /*
+          * Один Pinterest-пин может находиться в нескольких
+          * выбранных папках. Не создаём дубликат строки,
+          * но сохраняем обе папочные привязки.
+          */
+          const existingContainers =
+            Array.isArray(existing.containers)
+              ? existing.containers
+              : [];
+
+          const incomingContainers =
+            Array.isArray(post.containers)
+              ? post.containers
+              : [];
+
+          for (const container of incomingContainers) {
+            const duplicate =
+              existingContainers.some(
+                (entry) =>
+                  entry.platform === container.platform &&
+                  entry.kind === container.kind &&
+                  String(entry.id) === String(container.id),
+              );
+
+            if (!duplicate) {
+              existingContainers.push(container);
+            }
+          }
+
+          existing.containers =
+            existingContainers;
+
+          continue;
+        }
+
+        postsById.set(
+          post.postId,
+          post,
+        );
+
         posts.push(post);
-        /* Ровно N и не больше — режим «Проверить N постов» */
-        if (limit && posts.length >= limit) {
-          stoppedEarly = true;
-          break;
-        }
       }
-      if (stoppedEarly) break;
     }
 
       return { posts, stoppedEarly };
