@@ -1,4 +1,6 @@
-import pinterestSource from '../../js/sources/pinterest.js';
+import pinterestSource, {
+  buildPinterestTargets,
+} from '../../js/sources/pinterest.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
@@ -320,4 +322,111 @@ test('gallery download does not recover an empty result', async () => {
 
   assert.equal(notified, false);
   assert.equal(calls, 0);
+});
+
+test('Pinterest builds the all-pins target', () => {
+  const targets = buildPinterestTargets({
+    username: '@designer',
+    collections: [],
+  });
+
+  assert.deepEqual(targets, [{
+    id: 'allpins',
+    name: 'Все пины',
+    type: 'ROOT',
+    parentId: '',
+    url:
+      'https://www.pinterest.com/designer/pins/',
+  }]);
+});
+
+test('Pinterest uses the real board URL', () => {
+  const targets = buildPinterestTargets({
+    username: 'designer',
+    collections: [{
+      id: 'board-123',
+      name: 'References',
+      type: 'BOARD',
+      slug: 'references',
+      url: '/designer/references/',
+    }],
+  });
+
+  assert.equal(
+    targets[0].url,
+    'https://www.pinterest.com/designer/references/',
+  );
+
+  assert.equal(targets[0].type, 'BOARD');
+});
+
+test('Pinterest uses the real nested section URL', () => {
+  const targets = buildPinterestTargets({
+    username: 'designer',
+    collections: [{
+      id: 'section-456',
+      name: 'Architecture',
+      type: 'SECTION',
+      parentId: 'board-123',
+      url: '/designer/references/architecture/',
+    }],
+  });
+
+  assert.equal(
+    targets[0].url,
+    'https://www.pinterest.com/designer/references/architecture/',
+  );
+
+  assert.equal(
+    targets[0].parentId,
+    'board-123',
+  );
+});
+
+test('Pinterest builds an ID-based section URL as fallback', () => {
+  const targets = buildPinterestTargets({
+    username: 'designer',
+    collections: [{
+      id: 'section-456',
+      name: 'Architecture',
+      type: 'SECTION',
+      parentId: 'board-123',
+      boardUrl:
+        '/designer/references/',
+    }],
+  });
+
+  assert.equal(
+    targets[0].url,
+    'https://www.pinterest.com/designer/references/id:section-456/',
+  );
+});
+
+test('Pinterest keeps equally named sections from different boards', () => {
+  const targets = buildPinterestTargets({
+    username: 'designer',
+    collections: [
+      {
+        id: 'section-a',
+        name: 'Ideas',
+        type: 'SECTION',
+        parentId: 'board-a',
+        url: '/designer/board-a/ideas/',
+      },
+      {
+        id: 'section-b',
+        name: 'Ideas',
+        type: 'SECTION',
+        parentId: 'board-b',
+        url: '/designer/board-b/ideas/',
+      },
+    ],
+  });
+
+  assert.equal(targets.length, 2);
+
+  assert.deepEqual(
+    targets.map((target) => target.id),
+    ['section-a', 'section-b'],
+  );
 });

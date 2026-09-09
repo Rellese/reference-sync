@@ -1096,13 +1096,37 @@ async function runSearch() {
 
   const isInstagram = activeSource.code === 'instagram';
 
-  if (s.folderSearch && !isInstagram) {
+    const supportsFolderSearch =
+    typeof activeSource.listContainers ===
+    'function';
+
+  if (
+    s.folderSearch &&
+    !supportsFolderSearch
+  ) {
     ui.log.add(
-      `Режим папок для ${activeSource.title} пока не поддерживается — ` +
-      'ищем все публикации целиком.',
+      `Источник ${activeSource.title} ` +
+      'не поддерживает поиск по папкам.',
       'warn',
     );
-    s.folderSearch = false;
+
+    ui.status.showProgress(false);
+
+    ui.status.set(
+      'Поиск по папкам недоступен',
+      `Источник: ${activeSource.title}`,
+    );
+
+    phase = 'idle';
+    state.abortController = null;
+    control = null;
+
+    ui.footer.action.setLabel(
+      'Начать поиск',
+    );
+
+    discardRecovery();
+    return;
   }
 
   try {
@@ -1111,7 +1135,13 @@ async function runSearch() {
           s,
           operationController.signal,
         )
-      : { cookieFile: '', username: s.username };
+      : {
+          cookieFile: '',
+          username: s.username,
+          browser: s.browser,
+          browserProfile:
+            s.browserProfile,
+        };
 
     let discoveryResult;
 
@@ -1145,10 +1175,44 @@ async function runSearch() {
 
         const collections =
           await source.listContainers({
+            username:
+              session.username ||
+              s.username,
+
+            browser:
+              session.browser ||
+              s.browser,
+
+            browserProfile:
+              session.browserProfile ||
+              s.browserProfile,
+
             cookieFile:
               session.cookieFile,
+
             signal:
               operationController.signal,
+
+            onProgress:
+              (progress) => {
+                if (
+                  progress?.stage !==
+                  'sections'
+                ) {
+                  return;
+                }
+
+                ui.status.progress.update({
+                  mode: 'search',
+
+                  lead:
+                    'Получаем разделы Pinterest',
+
+                  trail:
+                    `${progress.current} из ` +
+                    `${progress.total}`,
+                });
+              },
           });
 
         collectionPickerFoundCount = collections.length;
@@ -1239,10 +1303,37 @@ async function runSearch() {
           .filter((collection) =>
             pickedIds.includes(collection.id))
           .map((collection) => ({
-            id: collection.id,
-            name: collection.name,
-            type: collection.type,
-            mediaCount: collection.mediaCount,
+            id:
+              collection.id,
+
+            name:
+              collection.name,
+
+            type:
+              collection.type,
+
+            parentId:
+              collection.parentId || '',
+
+            parentName:
+              collection.parentName || '',
+
+            slug:
+              collection.slug || '',
+
+            url:
+              collection.url || '',
+
+            boardUrl:
+              collection.boardUrl || '',
+
+            boardSlug:
+              collection.boardSlug || '',
+
+            mediaCount:
+              collection.mediaCount ??
+              collection.pinCount ??
+              null,
           }));
       } else {
         state.collections = [];
@@ -1306,8 +1397,19 @@ async function runSearch() {
               s.searchMode === SEARCH_MODES.RECENT ||
               s.searchMode === SEARCH_MODES.SMART,
 
+            /*
+             * Без выбора папок N ограничивает общий результат.
+             *
+             * При выборе папок gallery-source применяет N
+             * отдельно к каждой цели. Повторный общий лимит
+             * здесь обрезал следующие выбранные папки.
+             */
             limit:
-              s.searchMode === SEARCH_MODES.RECENT
+              (
+                s.searchMode ===
+                  SEARCH_MODES.RECENT &&
+                !s.folderSearch
+              )
                 ? s.recentLimit
                 : 0,
           },
