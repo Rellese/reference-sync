@@ -130,6 +130,66 @@ export function selectImportablePosts(
   });
 }
 
+export function applyDiscoveryBoundary(
+  posts,
+  knownPostIds,
+  {
+    stopAtKnown = false,
+    limit = 0,
+  } = {},
+) {
+  const source = Array.isArray(posts)
+    ? posts
+    : [];
+
+  const known = knownPostIds instanceof Set
+    ? knownPostIds
+    : new Set(knownPostIds || []);
+
+  let endIndex = source.length;
+  let knownBoundaryFound = false;
+
+  if (stopAtKnown && known.size) {
+    const knownIndex = source.findIndex(
+      (post) => {
+        const postId = normalizePostId(
+          post?.postId,
+        );
+
+        return postId && known.has(postId);
+      },
+    );
+
+    if (knownIndex >= 0) {
+      endIndex = knownIndex;
+      knownBoundaryFound = true;
+    }
+  }
+
+  const normalizedLimit =
+    Number.parseInt(limit, 10);
+
+  if (
+    Number.isInteger(normalizedLimit) &&
+    normalizedLimit > 0
+  ) {
+    endIndex = Math.min(
+      endIndex,
+      normalizedLimit,
+    );
+  }
+
+  return {
+    posts: source.slice(0, endIndex),
+
+    stoppedEarly:
+      knownBoundaryFound ||
+      endIndex < source.length,
+
+    knownBoundaryFound,
+  };
+}
+
 /* ------------------------------------------------------------
    Реестр версии 2: postId → компоненты публикации → Eagle ID
    ------------------------------------------------------------ */

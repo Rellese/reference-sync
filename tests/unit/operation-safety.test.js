@@ -7,6 +7,7 @@ import {
 } from '../../js/job-control.js';
 
 import {
+  applyDiscoveryBoundary,
   fullyImportedPostIds,
   parseImportRecords,
   parseKnownPostIds,
@@ -131,5 +132,109 @@ test('deleted Eagle components are released for another import', () => {
   assert.deepEqual(
     reconciled.missingComponents.get('carousel-1'),
     new Set(['1']),
+  );
+});
+
+test('recent discovery stops at the first known post', () => {
+  const result = applyDiscoveryBoundary(
+    [
+      { postId: 'new-1' },
+      { postId: 'new-2' },
+      { postId: 'known-1' },
+      { postId: 'old-1' },
+    ],
+    new Set(['known-1']),
+    {
+      stopAtKnown: true,
+      limit: 60,
+    },
+  );
+
+  assert.deepEqual(
+    result.posts,
+    [
+      { postId: 'new-1' },
+      { postId: 'new-2' },
+    ],
+  );
+
+  assert.equal(
+    result.knownBoundaryFound,
+    true,
+  );
+
+  assert.equal(
+    result.stoppedEarly,
+    true,
+  );
+});
+
+test('recent discovery returns nothing when newest post is known', () => {
+  const result = applyDiscoveryBoundary(
+    [
+      { postId: 'known-1' },
+      { postId: 'old-1' },
+    ],
+    new Set(['known-1']),
+    {
+      stopAtKnown: true,
+      limit: 60,
+    },
+  );
+
+  assert.deepEqual(
+    result.posts,
+    [],
+  );
+
+  assert.equal(
+    result.knownBoundaryFound,
+    true,
+  );
+});
+
+test('recent discovery limits only new posts', () => {
+  const result = applyDiscoveryBoundary(
+    [
+      { postId: 'new-1' },
+      { postId: 'new-2' },
+      { postId: 'new-3' },
+      { postId: 'known-1' },
+    ],
+    new Set(['known-1']),
+    {
+      stopAtKnown: true,
+      limit: 2,
+    },
+  );
+
+  assert.deepEqual(
+    result.posts,
+    [
+      { postId: 'new-1' },
+      { postId: 'new-2' },
+    ],
+  );
+});
+
+test('full discovery keeps known posts visible', () => {
+  const posts = [
+    { postId: 'new-1' },
+    { postId: 'known-1' },
+    { postId: 'old-1' },
+  ];
+
+  const result = applyDiscoveryBoundary(
+    posts,
+    new Set(['known-1']),
+    {
+      stopAtKnown: false,
+      limit: 0,
+    },
+  );
+
+  assert.deepEqual(
+    result.posts,
+    posts,
   );
 });

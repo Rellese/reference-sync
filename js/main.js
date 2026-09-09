@@ -61,6 +61,7 @@ import {
 
 import {
   getSource,
+  getSourceForPosts,
 } from './sources/index.js';
 
 import {
@@ -76,6 +77,7 @@ import {
 } from './eagle-import.js';
 
 import {
+  applyDiscoveryBoundary,
   loadImportRecords,
   reconcileImportRecords,
   recordCreatedEagleItems,
@@ -1006,15 +1008,6 @@ async function runSearch() {
   await refreshImportRegistry();
   const s = { ...state.settings };
 
-  let activeSource;
-  try {
-    activeSource = getSource(s.platform);
-  } catch (error) {
-    ui.log.add(`Платформа ${s.platform} не зарегистрирована.`, 'warn');
-    ui.status.set('Платформа недоступна', 'Выберите другой источник');
-    return;
-  }
-
   if (!activeSource.ready) {
     ui.log.add(
       `Платформа ${activeSource.title} ещё не подключена.`,
@@ -1267,17 +1260,41 @@ async function runSearch() {
 
     let { posts, stoppedEarly } = discoveryResult;
 
-    /* Ограничение «Только новые/N последних» для источников,
-       которые не умеют --post-range (Pinterest и др.):
-       обрезаем список после сбора. */
-    if (
-      !isInstagram &&
-      s.searchMode === 'recent' &&
-      s.recentLimit > 0 &&
-      posts.length > s.recentLimit
-    ) {
-      posts = posts.slice(0, s.recentLimit);
-      stoppedEarly = true;
+        /*
+     * Универсальные источники повторяют семантику Instagram:
+     *
+     * recent — до первой известной публикации, максимум N;
+     * smart  — до первой известной публикации без лимита;
+     * full   — вся найденная история.
+     */
+    if (!isInstagram) {
+      const boundary =
+        applyDiscoveryBoundary(
+          posts,
+          state.knownPostIds,
+          {
+            stopAtKnown:
+              s.searchMode === SEARCH_MODES.RECENT ||
+              s.searchMode === SEARCH_MODES.SMART,
+
+            limit:
+              s.searchMode === SEARCH_MODES.RECENT
+                ? s.recentLimit
+                : 0,
+          },
+        );
+
+      posts = boundary.posts;
+
+      if (boundary.stoppedEarly) {
+        stoppedEarly = true;
+      }
+
+      if (boundary.knownBoundaryFound) {
+        ui.log.add(
+          'Поиск остановлен на первой ранее импортированной публикации.',
+        );
+      }
     }
 
     /* Состояние 7 — «Reviewing Publications»: полоса идёт
@@ -1434,14 +1451,6 @@ function startProgressMessageRotation({
 async function runImport() {
   const s = { ...state.settings };
 
-  let activeImportSource;
-  try {
-    activeImportSource = getSource(s.platform);
-  } catch (error) {
-    ui.status.set('Платформа недоступна', 'Выберите другой источник');
-    return;
-  }
-
   const {
     counters: importCounters,
     counterSeeds: importCounterSeeds,
@@ -1457,10 +1466,53 @@ async function runImport() {
     ),
   );
 
-
-
   if (!chosen.length) {
-    ui.status.set('Нечего импортировать', 'Отметьте публикации в таблице');
+    ui.status.set(
+      'Нечего импортировать',
+      'Отметьте публикации в таблице',
+    );
+    return;
+  }
+
+    let activeImportSource;
+
+  try {
+    activeImportSource = getSourceForPosts(
+      chosen,
+      s.platform,
+    );
+  } catch (error) {
+    ui.status.set(
+      'Источник публикаций недоступен',
+      error?.message ||
+        'Не удалось определить источник выбранных публикаций',
+    );
+
+    ui.log.add(
+      `Ошибка определения источника: ${error?.message}`,
+      'err',
+    );
+
+    return;
+  }
+
+  try {
+    activeImportSource = getSourceForPosts(
+      chosen,
+      s.platform,
+    );
+  } catch (error) {
+    ui.status.set(
+      'Источник публикаций недоступен',
+      error?.message ||
+        'Не удалось определить источник выбранных публикаций',
+    );
+
+    ui.log.add(
+      `Ошибка определения источника: ${error?.message}`,
+      'err',
+    );
+
     return;
   }
 

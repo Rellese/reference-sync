@@ -162,6 +162,33 @@ export function getSource(code) {
   return entry;
 }
 
+export function getSourceForPosts(
+  posts,
+  fallbackCode,
+) {
+  const sourceCodes = new Set(
+    (posts || [])
+      .map((post) =>
+        String(post?.source || '')
+          .trim()
+          .toLowerCase())
+      .filter(Boolean),
+  );
+
+  if (sourceCodes.size > 1) {
+    throw new SourceError(
+      'Нельзя одновременно импортировать публикации из разных источников',
+      'MIXED_SOURCES',
+    );
+  }
+
+  const sourceCode =
+    sourceCodes.values().next().value ||
+    fallbackCode;
+
+  return getSource(sourceCode);
+}
+
 export function hasSource(code) {
   return registry.has(String(code || '').trim().toLowerCase());
 }
