@@ -254,6 +254,30 @@ export function parseImportRecords(serialized) {
   }
 }
 
+export function summarizeMissingComponents(
+  missingComponents,
+) {
+  let componentCount = 0;
+
+  for (
+    const components of
+    missingComponents?.values?.() || []
+  ) {
+    componentCount +=
+      components instanceof Set
+        ? components.size
+        : 0;
+  }
+
+  return {
+    publicationCount:
+      missingComponents instanceof Map
+        ? missingComponents.size
+        : 0,
+    componentCount,
+  };
+}
+
 export function reconcileImportRecords(records, eagleItems) {
   const existingIds = new Set(
     (eagleItems || [])

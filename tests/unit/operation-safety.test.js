@@ -15,6 +15,7 @@ import {
   selectImportablePosts,
   serializeImportRecords,
   serializeKnownPostIds,
+  summarizeMissingComponents,
 } from '../../js/import-registry.js';
 
 test('aborted discovery is reported as user stop', () => {
@@ -133,6 +134,27 @@ test('deleted Eagle components are released for another import', () => {
     reconciled.missingComponents.get('carousel-1'),
     new Set(['1']),
   );
+});
+
+test('missing Eagle summary counts components and publications separately', () => {
+  const summary =
+    summarizeMissingComponents(
+      new Map([
+        [
+          'photo-1',
+          new Set(['0']),
+        ],
+        [
+          'carousel-1',
+          new Set(['1', '2']),
+        ],
+      ]),
+    );
+
+  assert.deepEqual(summary, {
+    publicationCount: 2,
+    componentCount: 3,
+  });
 });
 
 test('recent discovery stops at the first known post', () => {

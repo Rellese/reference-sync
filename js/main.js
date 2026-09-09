@@ -83,6 +83,7 @@ import {
   recordCreatedEagleItems,
   saveImportRecords,
   selectImportablePosts,
+  summarizeMissingComponents,
 } from './import-registry.js';
 
 import {
@@ -287,9 +288,17 @@ async function refreshImportRegistry() {
   saveImportRecords(state.importRecords);
 
   if (reconciled.missingComponents.size) {
+    const missing =
+      summarizeMissingComponents(
+        reconciled.missingComponents,
+      );
+
     ui.log?.add(
-      `Удалённых публикаций или компонентов найдено: ` +
-      `${reconciled.missingComponents.size}`,
+      `Eagle: отсутствующих компонентов — ` +
+      `${missing.componentCount}; ` +
+      `затронутых публикаций — ` +
+      `${missing.publicationCount}. ` +
+      `Они снова доступны для импорта.`,
       'warn',
     );
   }
