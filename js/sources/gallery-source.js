@@ -113,6 +113,32 @@ function paceArgs(profile) {
   return profile.sleepRequest ? ['--sleep-request', profile.sleepRequest] : [];
 }
 
+export function chooseGalleryStagingRoot(
+  existingRoot,
+  generatedRoot,
+) {
+  const existing =
+    String(existingRoot || '').trim();
+
+  return existing || generatedRoot;
+}
+
+export async function notifyGalleryDownloadCompleted(
+  onCompleted,
+  entry,
+) {
+  if (
+    typeof onCompleted !== 'function' ||
+    !Array.isArray(entry?.files) ||
+    !entry.files.length
+  ) {
+    return false;
+  }
+
+  await onCompleted(entry);
+  return true;
+}
+
 /* Убирает секреты из логов — общий для всех источников */
 export function redactCommon(text) {
   return String(text)
@@ -755,6 +781,7 @@ export function createGallerySource(spec) {
   /* -------- Скачивание -------- */
   async function download({
     posts,
+    stagingRoot: existingStagingRoot = '',
     browser = 'chrome',
     browserProfile = '',
     speedProfile = 'safe',
@@ -763,6 +790,8 @@ export function createGallerySource(spec) {
     signal,
     control = null,
     onOffline = null,
+    onStagingReady = null,
+    onCompleted = null,
   } = {}) {
     if (!nodeApi.available) {
       throw new Error('Скачивание доступно только внутри Eagle');
@@ -782,9 +811,28 @@ export function createGallerySource(spec) {
     try {
 
     const { path, fs } = nodeApi;
-    const stagingRoot = ensureDir(path.join(workRoot(), 'staging',
-      `${jobPrefix}-${Date.now()}`));
-    const profile = SPEED_PROFILES[speedProfile] || SPEED_PROFILES.safe;
+
+    const generatedStagingRoot =
+      path.join(
+        workRoot(),
+        'staging',
+        `${jobPrefix}-${Date.now()}`,
+      );
+
+    const stagingRoot = ensureDir(
+      chooseGalleryStagingRoot(
+        existingStagingRoot,
+        generatedStagingRoot,
+      ),
+    );
+
+    if (typeof onStagingReady === 'function') {
+      await onStagingReady(stagingRoot);
+    }
+
+    const profile =
+      SPEED_PROFILES[speedProfile] ||
+      SPEED_PROFILES.safe;
     const maxAttempts = control ? RETRY_STEPS.length + 1 : 1;
     const results = [];
 
@@ -876,8 +924,24 @@ export function createGallerySource(spec) {
         error = `${title}: файлы не получены для этой публикации`;
       }
 
-      results.push({ post, files, error });
-      if (error && onLog) onLog(`Ошибка: ${post.url} — ${error}`);
+      const completedEntry = {
+        post,
+        files,
+        error,
+      };
+
+      results.push(completedEntry);
+
+      await notifyGalleryDownloadCompleted(
+        onCompleted,
+        completedEntry,
+      );
+
+      if (error && onLog) {
+        onLog(
+          `Ошибка: ${post.url} — ${error}`,
+        );
+      }
     }
 
     return { stagingRoot, results };

@@ -1495,7 +1495,7 @@ async function runImport() {
   }
 
   let activeImportSource;
-  
+
   try {
     activeImportSource = getSourceForPosts(
       chosen,
@@ -1515,8 +1515,6 @@ async function runImport() {
 
     return;
   }
-
-  if (!await ensureToolchain()) return;
 
   if (!await ensureToolchain()) return;
 

@@ -3,7 +3,9 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 
 import {
+  chooseGalleryStagingRoot,
   findPreview,
+  notifyGalleryDownloadCompleted,
   parseDumpJson,
 } from '../../js/sources/gallery-source.js';
 
@@ -252,4 +254,70 @@ test('Pinterest does not count Directory as a component', () => {
   assert.equal(posts[0].type, 'Фото');
   assert.equal(posts[0].componentCount, 1);
   assert.equal(posts[0].structure, '1 элем.');
+});
+
+test('gallery download reuses recovery staging root', () => {
+  assert.equal(
+    chooseGalleryStagingRoot(
+      '/existing/recovery/job',
+      '/generated/new/job',
+    ),
+    '/existing/recovery/job',
+  );
+});
+
+test('gallery download creates staging when recovery is absent', () => {
+  assert.equal(
+    chooseGalleryStagingRoot(
+      '',
+      '/generated/new/job',
+    ),
+    '/generated/new/job',
+  );
+});
+
+test('gallery download reports every completed entry', async () => {
+  const completed = [];
+
+  const entry = {
+    post: {
+      postId: 'pinterest:123',
+    },
+    files: [
+      '/staging/pinterest_123/1.jpg',
+    ],
+    error: null,
+  };
+
+  const notified =
+    await notifyGalleryDownloadCompleted(
+      async (value) => {
+        completed.push(value);
+      },
+      entry,
+    );
+
+  assert.equal(notified, true);
+  assert.deepEqual(completed, [entry]);
+});
+
+test('gallery download does not recover an empty result', async () => {
+  let calls = 0;
+
+  const notified =
+    await notifyGalleryDownloadCompleted(
+      async () => {
+        calls += 1;
+      },
+      {
+        post: {
+          postId: 'pinterest:failed',
+        },
+        files: [],
+        error: 'Download failed',
+      },
+    );
+
+  assert.equal(notified, false);
+  assert.equal(calls, 0);
 });
