@@ -1106,10 +1106,14 @@ M1-T09J(a) — дерево коллекций в таблице результ�
 }
 
 .rs-collection__identity {
-  min-width: 0;
-
   display: flex;
+  flex: 1 1 auto;
+  flex-direction: row;
   align-items: center;
+
+  min-width: 0;
+  height: 14px;
+
   gap: 10px;
 }
 
@@ -1139,13 +1143,14 @@ M1-T09J(a) — дерево коллекций в таблице результ�
   text-overflow: ellipsis;
   white-space: nowrap;
 
-  font-family: var(--font-table);
+  font-family: 'CommitMono', monospace;
+  font-style: normal;
   font-weight: 400;
   font-size: 11px;
   line-height: 12px;
   letter-spacing: 0.1em;
 
-  color: #b4b4b4;
+  color: #B4B4B4;
 }
 
 .rs-collection__count {
@@ -1163,19 +1168,23 @@ M1-T09J(a) — дерево коллекций в таблице результ�
 /* Шеврон */
 
 .rs-collection__chevron {
+  position: relative;
+
   flex: none;
 
   width: 16px;
   height: 7px;
 
-  background: #333333;
+  padding: 0;
+  border: 0;
 
-  -webkit-mask: var(--rs-chevron-icon) center / contain no-repeat;
-  mask: var(--rs-chevron-icon) center / contain no-repeat;
+  background: transparent;
+  color: #333333;
 
-  transition:
-    transform 140ms ease,
-    background 140ms ease;
+  cursor: pointer;
+
+  transform: rotate(180deg);
+  transition: transform 120ms ease;
 }
 
 .rs-collection__head:hover .rs-collection__chevron {
