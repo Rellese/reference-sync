@@ -1678,8 +1678,7 @@
 
   background: #201312;
 
-  box-shadow:
-    inset 0 -5px 0 #FF0000;
+  box-shadow: inset 0 -5px 6px -2px #FF0000;
 
   border-radius: 10px;
 }
@@ -2156,7 +2155,7 @@
 
 .rs-glass:not(.is-disabled):active
 .rs-glass__base,
-.rs-glass.is-pressed
+.rs-glass.is-pressed:not(.is-disabled)
 .rs-glass__base {
   visibility: visible;
   opacity: 1;
@@ -2164,10 +2163,10 @@
 
 .rs-glass:not(.is-disabled):active
 .rs-glass__glow--halo,
-.rs-glass.is-pressed
+.rs-glass.is-pressed:not(.is-disabled)
 .rs-glass__glow--halo {
   visibility: visible;
-  opacity: 0.4;
+  opacity: 1;
 
   background:
     linear-gradient(

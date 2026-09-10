@@ -502,6 +502,9 @@ export function createGallerySource(spec) {
       takenAt: Number(record.date ?? record.taken_at ?? 0) || null,
       collectionId: target.id,
       collectionName: target.name,
+      collectionType: target.type || '',
+      collectionParentId: target.parentId || '',
+      collectionParentName: target.parentName || '',
       source: code,
       raw: record,
     };
@@ -639,14 +642,48 @@ export function createGallerySource(spec) {
       collectionId: head.collectionId,
       collectionName: head.collectionName,
       source: code,
+      collectionOccurrences: [{
+        occurrenceId:
+          `${head.collectionId}:${head.postId}`,
+
+        collectionId:
+          head.collectionId,
+
+        collectionName:
+          head.collectionName,
+
+        collectionType:
+          head.collectionType || '',
+
+        parentId:
+          head.collectionParentId || '',
+
+        parentName:
+          head.collectionParentName || '',
+
+        isDuplicate: false,
+      }],
+
       containers: [{
         platform: code,
+
         kind:
+          head.collectionType ||
           containerTypes[
             containerTypes.length - 1
           ],
-        id: head.collectionId,
-        name: head.collectionName,
+
+        id:
+          head.collectionId,
+
+        name:
+          head.collectionName,
+
+        parentId:
+          head.collectionParentId || '',
+
+        parentName:
+          head.collectionParentName || '',
       }],
     };
   }
