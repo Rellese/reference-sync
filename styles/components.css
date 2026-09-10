@@ -1723,8 +1723,8 @@
   -webkit-clip-path:
     polygon(
       0 0,
-      60px 25px,
-      calc(100% - 60px) 25px,
+      60px 22px,
+      calc(100% - 60px) 22px,
       100% 0,
       100% 100%,
       0 100%
@@ -1733,8 +1733,8 @@
   clip-path:
     polygon(
       0 0,
-      60px 25px,
-      calc(100% - 60px) 25px,
+      60px 22px,
+      calc(100% - 60px) 22px,
       100% 0,
       100% 100%,
       0 100%
@@ -1858,18 +1858,23 @@
 
 /*
  * Enable:
+ * кнопка не disabled, не hovered и не pressed.
  *
- * red around the edges скрыт;
- * Red center, yellow down и light left corner включены.
+ * Red around the edges выключен.
+ * Red center, Yellow down и Light left corner включены.
  */
 
+.rs-glass:not(.is-disabled):not(:hover):not(:active):not(.is-pressed)
 .rs-glass__glow--halo {
   visibility: hidden;
   opacity: 0;
 }
 
+.rs-glass:not(.is-disabled):not(:hover):not(:active):not(.is-pressed)
 .rs-glass__glow--wide,
+.rs-glass:not(.is-disabled):not(:hover):not(:active):not(.is-pressed)
 .rs-glass__glow--core,
+.rs-glass:not(.is-disabled):not(:hover):not(:active):not(.is-pressed)
 .rs-glass__glow--line {
   visibility: visible;
   opacity: 1;
@@ -1962,10 +1967,17 @@
 /* Основной контейнер текста */
 
 .rs-glass__label {
-  position: relative;
-  z-index: 2;
+  position: absolute;
+  z-index: 3;
 
-  display: block;
+  inset: 0;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  box-sizing: border-box;
+  padding: 10px;
 
   font-family:
     'Manrope',
@@ -1991,6 +2003,22 @@
   transition:
     color 100ms ease,
     text-shadow 100ms ease;
+}
+
+/*
+ * Вторая заливка текста используется только в Pressed.
+ * В Enable, Hovered и Disabled она скрыта.
+ */
+
+.rs-glass__label--secondary {
+  opacity: 0;
+
+  color: #FDF1E5;
+
+  text-shadow: none;
+  filter: none;
+
+  mix-blend-mode: normal;
 }
 
 /* ============================================================
@@ -2093,13 +2121,24 @@
 }
 
 .rs-glass:not(.is-disabled):hover
-.rs-glass__label {
+.rs-glass__label--primary {
   color: #FDF1E5;
+
+  opacity: 1;
 
   text-shadow:
     0 0 5.6px #F49211,
     0 0 10px #F47711,
     0 0 10px #F46411;
+
+  mix-blend-mode: normal;
+}
+
+.rs-glass:not(.is-disabled):hover
+.rs-glass__label--secondary {
+  opacity: 0;
+
+  text-shadow: none;
 
   mix-blend-mode: normal;
 }
@@ -2133,9 +2172,9 @@
   background:
     linear-gradient(
       0deg,
-      rgba(255, 145, 0, 0.7) 13%,
-      rgba(247, 2, 39, 0.7) 34%,
-      rgba(167, 24, 15, 0.7) 64.6%
+      rgba(255, 145, 0, 0.4) 16%,
+      rgba(247, 2, 39, 0.4) 34%,
+      rgba(167, 24, 15, 0.4) 64.6%
     );
 }
 
@@ -2208,21 +2247,40 @@
 }
 
 /*
- * Pressed:
- * один настоящий текстовый слой;
- * цвет #FDF1E5;
- * режим наложения Overlay;
- * свечение текста отсутствует.
+ * Pressed — первая заливка текста:
+ * #FDF1E5;
+ * opacity 100%;
+ * Overlay.
  */
 
 .rs-glass:not(.is-disabled):active
-.rs-glass__label,
+.rs-glass__label--primary,
 .rs-glass.is-pressed:not(.is-disabled)
-.rs-glass__label {
+.rs-glass__label--primary {
   color: #FDF1E5;
-  -webkit-text-fill-color: #FDF1E5;
 
-  opacity: 0.5;
+  opacity: 1;
+
+  text-shadow: none;
+  filter: none;
+
+  mix-blend-mode: overlay;
+}
+
+/*
+ * Pressed — вторая заливка текста:
+ * #FDF1E5;
+ * opacity 40%;
+ * Overlay.
+ */
+
+.rs-glass:not(.is-disabled):active
+.rs-glass__label--secondary,
+.rs-glass.is-pressed:not(.is-disabled)
+.rs-glass__label--secondary {
+  color: #FDF1E5;
+
+  opacity: 0.4;
 
   text-shadow: none;
   filter: none;
@@ -2269,9 +2327,25 @@
 }
 
 .rs-glass.is-disabled
-.rs-glass__label {
+.rs-glass__label--primary {
   color: #707070;
+
+  opacity: 1;
+
   text-shadow: none;
+  filter: none;
+
+  mix-blend-mode: normal;
+}
+
+.rs-glass.is-disabled
+.rs-glass__label--secondary {
+  opacity: 0;
+
+  text-shadow: none;
+  filter: none;
+
+  mix-blend-mode: normal;
 }
 
 /* ============================================================

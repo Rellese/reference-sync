@@ -863,11 +863,20 @@ export function createGlassButton({
 
   const text = el(
     'span',
-    'rs-glass__label',
+    'rs-glass__label rs-glass__label--primary',
     label,
   );
 
-  plate.appendChild(text);
+  const textOverlay = el(
+    'span',
+    'rs-glass__label rs-glass__label--secondary',
+    label,
+  );
+
+  textOverlay.setAttribute(
+    'aria-hidden',
+    'true',
+  );
 
   root.append(
     redDown,
@@ -876,6 +885,8 @@ export function createGlassButton({
     yellowDown,
     leftLight,
     plate,
+    text,
+    textOverlay,
   );
 
   let isDisabled = Boolean(disabled);
@@ -976,6 +987,16 @@ export function createGlassButton({
     clearPressed,
   );
 
+    root.addEventListener(
+    'pointerup',
+    clearPressed,
+  );
+
+  root.addEventListener(
+    'pointerleave',
+    clearPressed,
+  );
+
   applyDisabled();
 
   return {
@@ -987,6 +1008,7 @@ export function createGlassButton({
       );
 
       text.textContent = value;
+      textOverlay.textContent = value;
     },
 
     setDisabled(state) {
