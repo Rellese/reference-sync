@@ -795,6 +795,393 @@ export function buildStatus({ onCommand } = {}) {
   };
 }
 
+const TABLE_COLUMN_STORAGE_KEY =
+  'reference-sync.table-columns.v1';
+
+const TABLE_COLUMN_VARIABLES = [
+  '--rs-table-lead-width',
+  '--rs-table-author-width',
+  '--rs-table-structure-width',
+  '--rs-table-name-width',
+  '--rs-table-description-width',
+];
+
+const TABLE_COLUMN_MIN_WIDTHS = [
+  60,
+  90,
+  90,
+  160,
+  180,
+];
+
+function clampTableColumn(
+  value,
+  minimum,
+  maximum,
+) {
+  return Math.min(
+    maximum,
+    Math.max(
+      minimum,
+      value,
+    ),
+  );
+}
+
+function readSavedTableColumns() {
+  try {
+    const value =
+      localStorage.getItem(
+        TABLE_COLUMN_STORAGE_KEY,
+      );
+
+    if (!value) {
+      return null;
+    }
+
+    const parsed =
+      JSON.parse(value);
+
+    if (
+      !Array.isArray(parsed) ||
+      parsed.length !==
+        TABLE_COLUMN_VARIABLES.length
+    ) {
+      return null;
+    }
+
+    if (
+      parsed.some(
+        (width) =>
+          !Number.isFinite(width),
+      )
+    ) {
+      return null;
+    }
+
+    return parsed;
+  } catch (_) {
+    return null;
+  }
+}
+
+function saveTableColumns(widths) {
+  try {
+    localStorage.setItem(
+      TABLE_COLUMN_STORAGE_KEY,
+      JSON.stringify(widths),
+    );
+  } catch (_) {
+    /*
+     * Изменение ширины продолжает работать,
+     * даже если localStorage недоступен.
+     */
+  }
+}
+
+function applyTableColumnWidths(
+  root,
+  widths,
+) {
+  widths.forEach(
+    (width, index) => {
+      root.style.setProperty(
+        TABLE_COLUMN_VARIABLES[index],
+        `${Math.round(width)}px`,
+      );
+    },
+  );
+}
+
+function installTableColumnResizing({
+  root,
+  table,
+  headerGrid,
+  headerCells,
+  resizeLine,
+}) {
+  const savedWidths =
+    readSavedTableColumns();
+
+  if (savedWidths) {
+    applyTableColumnWidths(
+      root,
+      savedWidths,
+    );
+  }
+
+  let activeResize = null;
+
+  function currentColumnWidths() {
+    return headerCells.map(
+      (cell) =>
+        cell.getBoundingClientRect()
+          .width,
+    );
+  }
+
+  function resizeLinePosition(
+    resizer,
+  ) {
+    const tableRect =
+      table.getBoundingClientRect();
+
+    const resizerRect =
+      resizer.getBoundingClientRect();
+
+    return (
+      resizerRect.left +
+      resizerRect.width / 2 -
+      tableRect.left
+    );
+  }
+
+  function showResizeLine(
+    resizer,
+  ) {
+    resizeLine.style.left =
+      `${resizeLinePosition(resizer)}px`;
+
+    table.classList.add(
+      'is-column-resize-hovered',
+    );
+  }
+
+  function hideResizeLine() {
+    if (activeResize) {
+      return;
+    }
+
+    table.classList.remove(
+      'is-column-resize-hovered',
+    );
+
+    resizeLine.style.removeProperty(
+      'left',
+    );
+  }
+
+  function finishResize(event) {
+    if (!activeResize) {
+      return;
+    }
+
+    const {
+      resizer,
+      pointerId,
+    } = activeResize;
+
+    if (
+      resizer.hasPointerCapture?.(
+        pointerId,
+      )
+    ) {
+      resizer.releasePointerCapture(
+        pointerId,
+      );
+    }
+
+    activeResize = null;
+
+    document.documentElement.classList.remove(
+      'is-resizing-table-column',
+    );
+
+    table.classList.remove(
+      'is-column-resizing',
+    );
+
+    saveTableColumns(
+      currentColumnWidths(),
+    );
+
+    if (
+      !resizer.matches(':hover')
+    ) {
+      hideResizeLine();
+    }
+
+    event?.preventDefault?.();
+  }
+
+  headerGrid
+    .querySelectorAll(
+      '.rs-table__column-resizer',
+    )
+    .forEach((resizer) => {
+      resizer.addEventListener(
+        'pointerenter',
+        () => {
+          showResizeLine(resizer);
+        },
+      );
+
+      resizer.addEventListener(
+        'pointerleave',
+        () => {
+          hideResizeLine();
+        },
+      );
+
+      resizer.addEventListener(
+        'pointerdown',
+        (event) => {
+          if (event.button !== 0) {
+            return;
+          }
+
+          event.preventDefault();
+          event.stopPropagation();
+
+          const index =
+            Number(
+              resizer.dataset.resizeIndex,
+            );
+
+          const widths =
+            currentColumnWidths();
+
+          /*
+           * Переводим все вычисленные grid-размеры
+           * в явные px перед началом перетаскивания.
+           * Благодаря этому header и строки продолжают
+           * использовать одну геометрию.
+           */
+          applyTableColumnWidths(
+            root,
+            widths,
+          );
+
+          activeResize = {
+            index,
+            startX:
+              event.clientX,
+
+            startLeft:
+              widths[index],
+
+            startRight:
+              widths[index + 1],
+
+            widths,
+
+            resizer,
+
+            pointerId:
+              event.pointerId,
+          };
+
+          resizer.setPointerCapture(
+            event.pointerId,
+          );
+
+          document.documentElement.classList.add(
+            'is-resizing-table-column',
+          );
+
+          table.classList.add(
+            'is-column-resizing',
+          );
+
+          showResizeLine(resizer);
+        },
+      );
+
+      resizer.addEventListener(
+        'pointermove',
+        (event) => {
+          if (
+            !activeResize ||
+            event.pointerId !==
+              activeResize.pointerId
+          ) {
+            return;
+          }
+
+          const {
+            index,
+            startX,
+            startLeft,
+            startRight,
+            widths,
+          } = activeResize;
+
+          const delta =
+            event.clientX -
+            startX;
+
+          const total =
+            startLeft +
+            startRight;
+
+          const leftMinimum =
+            TABLE_COLUMN_MIN_WIDTHS[
+              index
+            ];
+
+          const rightMinimum =
+            TABLE_COLUMN_MIN_WIDTHS[
+              index + 1
+            ];
+
+          const nextLeft =
+            clampTableColumn(
+              startLeft + delta,
+              leftMinimum,
+              total - rightMinimum,
+            );
+
+          const nextRight =
+            total -
+            nextLeft;
+
+          const nextWidths =
+            [...widths];
+
+          nextWidths[index] =
+            nextLeft;
+
+          nextWidths[index + 1] =
+            nextRight;
+
+          applyTableColumnWidths(
+            root,
+            nextWidths,
+          );
+
+          /*
+           * После grid-layout линия снова ставится
+           * точно на фактическую границу.
+           */
+          requestAnimationFrame(
+            () => {
+              if (activeResize) {
+                showResizeLine(
+                  activeResize.resizer,
+                );
+              }
+            },
+          );
+        },
+      );
+
+      resizer.addEventListener(
+        'pointerup',
+        finishResize,
+      );
+
+      resizer.addEventListener(
+        'pointercancel',
+        finishResize,
+      );
+
+      resizer.addEventListener(
+        'lostpointercapture',
+        finishResize,
+      );
+    });
+}
+
 /* ============================================================
    5 блок — таблица результатов
    ============================================================ */
@@ -847,14 +1234,111 @@ export function buildResults({ onClear, onToggleAll, onThumbnails, onRowToggle,
   /* Таблица */
   const table = el('div', 'rs-table');
 
-  const header = el('div', 'rs-table__header');
-  const headerGrid = el('div', 'rs-table__grid');
-  ['', 'Автор', 'Тип', 'Структура', 'Название в Eagle', 'Описание в Eagle']
-    .forEach((label) => headerGrid.appendChild(el('div', 'rs-table__col', label)));
+  const header =
+    el(
+      'div',
+      'rs-table__header',
+    );
+
+  const headerGrid =
+    el(
+      'div',
+      'rs-table__grid rs-table__header-grid',
+    );
+
+  const columnDefinitions = [
+    {
+      id: 'lead',
+      label: '',
+    },
+    {
+      id: 'author',
+      label: 'Автор',
+    },
+    {
+      id: 'structure',
+      label: 'Структура',
+    },
+    {
+      id: 'name',
+      label: 'Название в Eagle',
+    },
+    {
+      id: 'description',
+      label: 'Описание в Eagle',
+    },
+  ];
+
+  const headerCells = [];
+
+  columnDefinitions.forEach(
+    (column, index) => {
+      const cell =
+        el(
+          'div',
+          'rs-table__col',
+          column.label,
+        );
+
+      cell.dataset.column =
+        column.id;
+
+      headerCells.push(cell);
+      headerGrid.appendChild(cell);
+
+      if (
+        index <
+        columnDefinitions.length - 1
+      ) {
+        const resizer =
+          el(
+            'button',
+            'rs-table__column-resizer',
+          );
+
+        resizer.type = 'button';
+
+        resizer.dataset.resizeIndex =
+          String(index);
+
+        resizer.setAttribute(
+          'aria-label',
+          `Изменить ширину колонки ${
+            column.label || 'выбора'
+          }`,
+        );
+
+        cell.appendChild(resizer);
+      }
+    },
+  );
+
   header.appendChild(headerGrid);
 
   const body = el('div', 'rs-table__body rs-scroll');
-  table.append(header, body);
+  const resizeLine =
+    el(
+      'div',
+      'rs-table__resize-line',
+    );
+
+  resizeLine.setAttribute(
+    'aria-hidden',
+    'true',
+  );
+  table.append(
+    header,
+    body,
+    resizeLine,
+  );
+
+  installTableColumnResizing({
+    root,
+    table,
+    headerGrid,
+    headerCells,
+    resizeLine,
+  });
 
   const engineEmpty = el(
     'div',

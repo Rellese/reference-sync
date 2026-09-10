@@ -4906,7 +4906,7 @@ if (!isKnown) {
     );
   }
 
-  grid.append(lead, author, type, structure, nameCell, descCell);
+  grid.append(lead, author, structure, nameCell, descCell);
   row.appendChild(grid);
   return row;
 }

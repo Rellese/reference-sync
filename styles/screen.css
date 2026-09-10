@@ -413,7 +413,19 @@
 
 /* ---------- 5 блок — таблица результатов, 1132×470 ---------- */
 .rs-results {
+  /*
+   * После удаления «Тип»:
+   *
+   *   Автор      — 150px;
+   *   Структура  — 150px;
+   *   Название   — 200 + 70 = 270px;
+   *   Описание   — 245 + 80 = 325px.
+   */
   --rs-table-lead-width: 90px;
+  --rs-table-author-width: 150px;
+  --rs-table-structure-width: 150px;
+  --rs-table-name-width: 270px;
+  --rs-table-description-width: 325px;
 
   display: flex;
   flex-direction: column;
@@ -466,6 +478,7 @@
 
 /* ---------- Таблица ---------- */
 .rs-table {
+  position: relative;
   display: flex;
   flex-direction: column;
   align-items: stretch;
@@ -474,40 +487,205 @@
   flex: 1 1 auto;
 }
 
-/* Колонки: чекбокс+миниатюра | автор | тип | структура | имя | описание
-   Figma: 90 / 150 / 150 / 150 / 200 / 245 */
+/*
+ * Активная линия изменения ширины.
+ * Проходит через header и всё видимое тело таблицы.
+ */
+.rs-table__resize-line {
+  position: absolute;
+
+  top: 0;
+  bottom: 0;
+  z-index: 20;
+
+  width: 1px;
+
+  background: #E85935;
+
+  opacity: 0;
+  visibility: hidden;
+
+  pointer-events: none;
+
+  box-shadow:
+    0 0 4px
+    rgba(232, 89, 53, 0.35);
+}
+
+.rs-table.is-column-resize-hovered
+.rs-table__resize-line,
+.rs-table.is-column-resizing
+.rs-table__resize-line {
+  opacity: 1;
+  visibility: visible;
+}
+
+/*
+ * Курсор сохраняется даже если во время drag
+ * указатель покинул узкий header-разделитель.
+ */
+html.is-resizing-table-column,
+html.is-resizing-table-column * {
+  cursor: col-resize !important;
+  user-select: none !important;
+}
+
+/*
+ * Колонки:
+ *
+ * checkbox + thumbnail | автор | структура |
+ * название в Eagle | описание в Eagle
+ *
+ * Одинаковые переменные используются header и всеми строками.
+ */
 .rs-table__grid {
   display: grid;
+
   grid-template-columns:
-    var(--rs-table-lead-width)
-    minmax(110px, 150px)
-    minmax(90px, 150px)
-    minmax(90px, 150px)
-    minmax(140px, 200px)
-    minmax(180px, 1fr);
+    minmax(
+      0,
+      var(--rs-table-lead-width)
+    )
+    minmax(
+      0,
+      var(--rs-table-author-width)
+    )
+    minmax(
+      0,
+      var(--rs-table-structure-width)
+    )
+    minmax(
+      0,
+      var(--rs-table-name-width)
+    )
+    minmax(
+      0,
+      var(--rs-table-description-width)
+    );
+
   align-items: center;
-  gap: 21px;
+
+  column-gap: 21px;
+
+  box-sizing: border-box;
+  width: 100%;
   padding: 10px 20px;
 }
 
 /* Название колонок */
+/*
+ * Full_design:
+ * Название колонок — 35px.
+ * Внутренний элемент «Названия» — 27px.
+ */
 .rs-table__header {
+  position: relative;
+
   flex: none;
-  border-top: 1px solid var(--divider);
-  border-bottom: 1px solid var(--divider);
+
+  box-sizing: border-box;
+  width: 100%;
+  height: 35px;
+
+  border-top:
+    1px solid
+    rgba(33, 33, 33, 0.5);
+
+  border-bottom:
+    1px solid
+    rgba(33, 33, 33, 0.5);
 }
-.rs-table__header .rs-table__grid { padding: 7px 20px; }
+
+.rs-table__header .rs-table__grid {
+  height: 33px;
+  padding: 3px 20px;
+}
 .rs-table__col {
-  font-family: var(--font-mono);
+  position: relative;
+
+  display: flex;
+  align-items: center;
+
+  width: 100%;
+  height: 27px;
+  min-width: 0;
+
+  font-family:
+    'IBM Plex Mono',
+    var(--font-mono);
+
+  font-style: normal;
   font-weight: 400;
   font-size: 10px;
   line-height: 13px;
   letter-spacing: 0.1em;
   text-transform: uppercase;
-  color: var(--text-muted);
+
+  color: #707070;
+
   white-space: nowrap;
-  overflow: hidden;
+  overflow: visible;
   text-overflow: ellipsis;
+
+  user-select: none;
+}
+
+/*
+ * Resize-handle занимает grid-gap 21px:
+ *
+ *   10px | линия 1px | 10px
+ *
+ * Это соответствует «Вертик. разделитель»
+ * внутри Full_design → Названия.
+ */
+.rs-table__column-resizer {
+  position: absolute;
+
+  top: 0;
+  right: -11px;
+  z-index: 8;
+
+  width: 21px;
+  height: 27px;
+
+  margin: 0;
+  padding: 0;
+
+  border: 0;
+  outline: 0;
+  background: transparent;
+
+  cursor: col-resize;
+  touch-action: none;
+}
+
+/* Обычный разделитель из Full_design. */
+.rs-table__column-resizer::before {
+  content: '';
+
+  position: absolute;
+
+  left: 10px;
+  top: 0;
+
+  width: 1px;
+  height: 27px;
+
+  background:
+    rgba(33, 33, 33, 0.5);
+
+  border-radius: 100px;
+}
+
+/*
+ * Небольшое увеличение яркости локального
+ * разделителя при наведении.
+ * Полная оранжевая линия выводится отдельным
+ * слоем через всю таблицу.
+ */
+.rs-table__column-resizer:hover::before,
+.rs-table__column-resizer:focus-visible::before {
+  background: #E85935;
 }
 
 /* Тело таблицы */
