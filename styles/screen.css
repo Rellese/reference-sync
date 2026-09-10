@@ -1101,8 +1101,28 @@ M1-T09J(a) — дерево коллекций в таблице результ�
   outline-offset: -2px;
 }
 
-.rs-collection__head.is-selected {
-  background: #181818;
+/*
+ * Каждый уровень SECTION смещается относительно BOARD.
+ * Значение --rs-tree-depth устанавливается из main.js.
+ */
+.rs-collection__head {
+  padding-left:
+    calc(
+      20px +
+      var(--rs-tree-depth, 0) * 26px
+    );
+}
+
+/*
+ * Вложенный SECTION не должен перекрывать sticky-заголовок
+ * родительской BOARD при прокрутке.
+ */
+.rs-collection
+.rs-collection
+.rs-collection__head {
+  position: relative;
+  top: auto;
+  z-index: 3;
 }
 
 .rs-collection__identity {
@@ -1178,21 +1198,41 @@ M1-T09J(a) — дерево коллекций в таблице результ�
   padding: 0;
   border: 0;
 
-  background: transparent;
-  color: #333333;
+  background: #333333;
+
+  -webkit-mask:
+    var(--rs-chevron-icon)
+    center / contain no-repeat;
+
+  mask:
+    var(--rs-chevron-icon)
+    center / contain no-repeat;
 
   cursor: pointer;
 
-  transform: rotate(180deg);
-  transition: transform 120ms ease;
+  transform: rotate(-90deg);
+  transform-origin: center;
+
+  transition:
+    transform 120ms ease,
+    background 120ms ease;
 }
 
-.rs-collection__head:hover .rs-collection__chevron {
+.rs-collection__head:hover
+.rs-collection__chevron {
   background: #b4b4b4;
 }
 
 .rs-collection__chevron.is-expanded {
-  transform: rotate(180deg);
+  transform: rotate(0deg);
+}
+
+.rs-collection__chevron-placeholder {
+  display: block;
+  flex: none;
+
+  width: 16px;
+  height: 7px;
 }
 
 /* Содержимое папки */
@@ -1219,7 +1259,11 @@ M1-T09J(a) — дерево коллекций в таблице результ�
   box-sizing: border-box;
   width: 100%;
 
-  padding-left: 26px;
+  padding-left:
+    calc(
+      26px +
+      var(--rs-tree-depth, 0) * 26px
+    );
 }
 
 .rs-collection__post > :not(
@@ -1232,7 +1276,11 @@ M1-T09J(a) — дерево коллекций в таблице результ�
 .rs-collection__branch {
   position: absolute;
 
-  left: 12px;
+  left:
+    calc(
+      12px +
+      var(--rs-tree-depth, 0) * 26px
+    );
   top: 0;
   bottom: 0;
 
@@ -1300,6 +1348,88 @@ M1-T09J(a) — дерево коллекций в таблице результ�
 .rs-collection__post:last-child
 .rs-collection__branch::before {
   bottom: 50%;
+}
+
+/* ============================================================
+   Иерархический выбор BOARD → SECTION перед поиском
+   ============================================================ */
+
+.rs-collection-picker__item {
+  position: relative;
+
+  display: flex;
+  flex-direction: column;
+
+  width: 100%;
+}
+
+.rs-collection-picker__row {
+  position: relative;
+  top: auto;
+
+  padding-left:
+    calc(
+      20px +
+      var(--rs-tree-depth, 0) * 26px
+    );
+}
+
+.rs-collection-picker__children {
+  position: relative;
+
+  display: flex;
+  flex-direction: column;
+
+  width: 100%;
+}
+
+/*
+ * Вертикальная линия между BOARD и SECTION.
+ */
+.rs-collection-picker__children::before {
+  content: '';
+
+  position: absolute;
+
+  left: 32px;
+  top: 0;
+  bottom: 25px;
+
+  width: 1px;
+
+  background: #232323;
+
+  pointer-events: none;
+}
+
+/*
+ * Горизонтальная часть ветки для SECTION.
+ */
+.rs-collection-picker__children
+> .rs-collection-picker__item::before {
+  content: '';
+
+  position: absolute;
+
+  left:
+    calc(
+      32px +
+      var(--rs-tree-depth, 0) * 26px
+    );
+
+  top: 25px;
+
+  width: 14px;
+  height: 1px;
+
+  background: #232323;
+
+  pointer-events: none;
+}
+
+.rs-collection-picker__row.is-selected
++ .rs-collection-picker__children::before {
+  background: #484848;
 }
 
 @media (prefers-reduced-motion: reduce) {

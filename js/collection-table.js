@@ -45,8 +45,20 @@ function normalizedOccurrences(post) {
 
   const fallback = {
     collectionId: normalizeCollectionKey(post),
+
     collectionName:
-      clean(post?.collectionName) || FALLBACK_COLLECTION_NAME,
+      clean(post?.collectionName) ||
+      FALLBACK_COLLECTION_NAME,
+
+    collectionType:
+      clean(post?.collectionType),
+
+    parentId:
+      clean(post?.collectionParentId),
+
+    parentName:
+      clean(post?.collectionParentName),
+
     isDuplicate: false,
   };
 
@@ -69,10 +81,27 @@ function normalizedOccurrences(post) {
       occurrenceId:
         clean(item?.occurrenceId) ||
         occurrenceIdOf(post?.postId, collectionId),
+
       collectionId,
+
       collectionName:
-        clean(item?.collectionName) || fallback.collectionName,
-      isDuplicate: item?.isDuplicate === true,
+        clean(item?.collectionName) ||
+        fallback.collectionName,
+
+      collectionType:
+        clean(item?.collectionType) ||
+        fallback.collectionType,
+
+      parentId:
+        clean(item?.parentId) ||
+        fallback.parentId,
+
+      parentName:
+        clean(item?.parentName) ||
+        fallback.parentName,
+
+      isDuplicate:
+        item?.isDuplicate === true,
     });
   }
 
@@ -113,100 +142,331 @@ export function groupPostsByCollection(
   selectedCollections = [],
   folderMode = false,
 ) {
-  const sourcePosts = Array.isArray(posts) ? posts : [];
+  const sourcePosts =
+    Array.isArray(posts)
+      ? posts
+      : [];
 
   if (!folderMode) {
     return [{
       id: '',
       name: '',
       posts: [...sourcePosts],
+      children: [],
       flat: true,
     }];
   }
 
-  const collections = Array.isArray(selectedCollections)
-    ? selectedCollections
-    : [];
+  const collections =
+    Array.isArray(selectedCollections)
+      ? selectedCollections
+      : [];
 
-  const allowedIds = new Set(
-    collections
-      .map((collection) => clean(collection?.id))
-      .filter(Boolean),
-  );
+  const allowedIds =
+    new Set(
+      collections
+        .map((collection) =>
+          clean(collection?.id))
+        .filter(Boolean),
+    );
 
   const groupsById = new Map();
   const groups = [];
 
-  function ensureGroup(id, name) {
-    const collectionId = clean(id) || FALLBACK_COLLECTION_ID;
-    const existing = groupsById.get(collectionId);
+  function ensureGroup(
+    id,
+    name,
+    {
+      type = '',
+      parentId = '',
+      parentName = '',
+    } = {},
+  ) {
+    const collectionId =
+      clean(id) ||
+      FALLBACK_COLLECTION_ID;
+
+    const existing =
+      groupsById.get(collectionId);
 
     if (existing) {
+      if (!existing.type) {
+        existing.type =
+          clean(type);
+      }
+
+      if (!existing.parentId) {
+        existing.parentId =
+          clean(parentId);
+      }
+
+      if (!existing.parentName) {
+        existing.parentName =
+          clean(parentName);
+      }
+
       return existing;
     }
 
     const group = {
-      id: collectionId,
+      id:
+        collectionId,
+
       name:
         clean(name) ||
-        (collectionId === FALLBACK_COLLECTION_ID
-          ? FALLBACK_COLLECTION_NAME
-          : collectionId),
+        (
+          collectionId ===
+          FALLBACK_COLLECTION_ID
+            ? FALLBACK_COLLECTION_NAME
+            : collectionId
+        ),
+
+      type:
+        clean(type),
+
+      parentId:
+        clean(parentId),
+
+      parentName:
+        clean(parentName),
+
       posts: [],
       postIds: new Set(),
+      children: [],
       flat: false,
     };
 
-    groupsById.set(collectionId, group);
+    groupsById.set(
+      collectionId,
+      group,
+    );
+
     groups.push(group);
+
     return group;
   }
 
-  /* Порядок папок совпадает с порядком их выбора пользователем. */
+  /*
+   * Сначала создаём все выбранные контейнеры.
+   * Это важно для пустой родительской доски:
+   * у неё могут отсутствовать прямые публикации,
+   * но внутри могут находиться разделы.
+   */
   for (const collection of collections) {
-    const collectionId = clean(collection?.id);
-    if (collectionId) {
-      ensureGroup(collectionId, collection?.name);
+    const collectionId =
+      clean(collection?.id);
+
+    if (!collectionId) {
+      continue;
     }
+
+    ensureGroup(
+      collectionId,
+      collection?.name,
+      {
+        type:
+          collection?.type,
+
+        parentId:
+          collection?.parentId,
+
+        parentName:
+          collection?.parentName,
+      },
+    );
   }
 
+  /*
+   * Раскладываем публикации по всем их вхождениям.
+   */
   for (const post of sourcePosts) {
-    for (const occurrence of normalizedOccurrences(post)) {
+    const postId =
+      clean(post?.postId);
+
+    for (
+      const occurrence
+      of normalizedOccurrences(post)
+    ) {
       if (
         allowedIds.size > 0 &&
-        !allowedIds.has(occurrence.collectionId)
+        !allowedIds.has(
+          occurrence.collectionId,
+        )
       ) {
         continue;
       }
 
-      const group = ensureGroup(
-        occurrence.collectionId,
-        occurrence.collectionName,
-      );
+      const group =
+        ensureGroup(
+          occurrence.collectionId,
+          occurrence.collectionName,
+          {
+            type:
+              occurrence.collectionType,
 
-      /* Внутри одной папки публикация показывается одной строкой. */
-      if (group.postIds.has(clean(post?.postId))) {
+            parentId:
+              occurrence.parentId,
+
+            parentName:
+              occurrence.parentName,
+          },
+        );
+
+      /*
+       * Если в selectedCollections не было родителя,
+       * но SECTION содержит parentId, создаём технический
+       * родительский узел для правильного отображения дерева.
+       */
+      if (
+        group.parentId &&
+        !groupsById.has(group.parentId)
+      ) {
+        ensureGroup(
+          group.parentId,
+          group.parentName,
+          {
+            type: 'BOARD',
+          },
+        );
+      }
+
+      if (
+        postId &&
+        group.postIds.has(postId)
+      ) {
         continue;
       }
 
-      group.postIds.add(clean(post?.postId));
+      if (postId) {
+        group.postIds.add(postId);
+      }
 
       /*
-       * В группу кладётся ТОТ ЖЕ объект post (важно: выбор,
-       * карусель и правки остаются общими для всех папок).
-       * Активные occurrenceId/collectionId для конкретной строки
-       * main.js читает из dataset, проставляя их перед рендером.
+       * Сохраняется тот же объект post:
+       * выбор, редактирование и карусель общие
+       * для всех папочных представлений.
        */
       group.posts.push(post);
     }
   }
 
-  return groups
-    .filter((group) => group.posts.length > 0)
-    .map((group) => {
-      const { postIds, ...result } = group;
-      return result;
-    });
+  /*
+   * Соединяем SECTION с его BOARD.
+   */
+  const childGroupIds = new Set();
+
+  for (const group of groups) {
+    if (
+      !group.parentId ||
+      group.parentId === group.id
+    ) {
+      continue;
+    }
+
+    const parent =
+      groupsById.get(group.parentId);
+
+    if (!parent) {
+      continue;
+    }
+
+    if (
+      !parent.children.some(
+        (child) =>
+          child.id === group.id,
+      )
+    ) {
+      parent.children.push(group);
+    }
+
+    childGroupIds.add(group.id);
+  }
+
+  const roots =
+    groups.filter(
+      (group) =>
+        !childGroupIds.has(group.id),
+    );
+
+  /*
+   * Пин, найденный и через BOARD, и через SECTION,
+   * должен отображаться только внутри SECTION.
+   *
+   * Поэтому убираем из прямого списка родителя все
+   * публикации, присутствующие в дочерних ветках.
+   */
+  function removeNestedPosts(group) {
+    for (const child of group.children) {
+      removeNestedPosts(child);
+    }
+
+    const nestedPostIds =
+      new Set();
+
+    function collectChildPostIds(child) {
+      for (const post of child.posts) {
+        const postId =
+          clean(post?.postId);
+
+        if (postId) {
+          nestedPostIds.add(postId);
+        }
+      }
+
+      for (const nested of child.children) {
+        collectChildPostIds(nested);
+      }
+    }
+
+    for (const child of group.children) {
+      collectChildPostIds(child);
+    }
+
+    if (nestedPostIds.size) {
+      group.posts =
+        group.posts.filter(
+          (post) =>
+            !nestedPostIds.has(
+              clean(post?.postId),
+            ),
+        );
+    }
+  }
+
+  for (const root of roots) {
+    removeNestedPosts(root);
+  }
+
+  /*
+   * Удаляем пустые ветки и внутренние Set перед возвратом.
+   */
+  function finalize(group) {
+    const children =
+      group.children
+        .map(finalize)
+        .filter(Boolean);
+
+    if (
+      group.posts.length === 0 &&
+      children.length === 0
+    ) {
+      return null;
+    }
+
+    const {
+      postIds,
+      ...result
+    } = group;
+
+    return {
+      ...result,
+      children,
+    };
+  }
+
+  return roots
+    .map(finalize)
+    .filter(Boolean);
 }
 
 /* ------------------------------------------------------------

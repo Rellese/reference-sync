@@ -258,6 +258,115 @@ test('Pinterest does not count Directory as a component', () => {
   assert.equal(posts[0].structure, '1 элем.');
 });
 
+test(
+  'Pinterest does not create a post from a standalone Directory message',
+  () => {
+    const posts =
+      pinterestSource.assemble(
+        [
+          {
+            _galleryType: 2,
+
+            pin_id:
+              'section-directory',
+
+            description:
+              'Pinterest section metadata',
+          },
+        ],
+        {
+          target: {
+            id:
+              'section-456',
+
+            name:
+              'Architecture',
+
+            type:
+              'SECTION',
+
+            parentId:
+              'board-123',
+          },
+
+          accountUsername:
+            'nikitadoctor26',
+        },
+      );
+
+    assert.deepEqual(
+      posts,
+      [],
+    );
+  },
+);
+
+test(
+  'Pinterest keeps Directory metadata when URL messages exist',
+  () => {
+    const posts =
+      pinterestSource.assemble(
+        [
+          {
+            _galleryType: 2,
+            pin_id: '789',
+
+            description:
+              'Description from Directory',
+
+            images: {
+              '236x': {
+                url:
+                  'https://i.pinimg.com/236x/cover.jpg',
+              },
+            },
+          },
+
+          {
+            _galleryType: 3,
+            pin_id: '789',
+            num: 1,
+            extension: 'jpg',
+
+            _galleryUrl:
+              'https://i.pinimg.com/originals/file.jpg',
+          },
+        ],
+        {
+          target: {
+            id: 'section-456',
+            name: 'Architecture',
+            type: 'SECTION',
+            parentId: 'board-123',
+          },
+
+          accountUsername:
+            'nikitadoctor26',
+        },
+      );
+
+    assert.equal(
+      posts.length,
+      1,
+    );
+
+    assert.equal(
+      posts[0].description,
+      'Description from Directory',
+    );
+
+    assert.equal(
+      posts[0].componentCount,
+      1,
+    );
+
+    assert.equal(
+      posts[0].components[0].url,
+      'https://i.pinimg.com/originals/file.jpg',
+    );
+  },
+);
+
 test('gallery download reuses recovery staging root', () => {
   assert.equal(
     chooseGalleryStagingRoot(

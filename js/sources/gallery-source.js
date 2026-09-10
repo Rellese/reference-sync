@@ -513,26 +513,60 @@ export function createGallerySource(spec) {
   /* -------- Сборка публикаций из записей -------- */
   function assemble(records, context) {
     const normalized = records
-      .map((record) => normalize(record, context))
+      .map(
+        (record) =>
+          normalize(record, context),
+      )
       .filter(Boolean);
 
     if (groupBy === 'file') {
-      /* Pinterest, Dribbble и т.п.: один файл = одна публикация */
-      return normalized.map((entry) => finishPost(entry, [entry]));
+      /*
+       * Служебные Directory-записи могут иметь ID,
+       * но не соответствуют скачиваемому файлу.
+       */
+      return normalized
+        .map(
+          (entry) =>
+            finishPost(
+              entry,
+              [entry],
+            ),
+        )
+        .filter(Boolean);
     }
 
-    /* Карусели: записи с одним externalId — компоненты одного поста */
+    /*
+     * Карусели: записи с одним externalId —
+     * компоненты одной публикации.
+     */
     const groups = new Map();
+
     normalized.forEach((entry) => {
-      const list = groups.get(entry.externalId) || [];
+      const list =
+        groups.get(entry.externalId) ||
+        [];
+
       list.push(entry);
-      groups.set(entry.externalId, list);
+
+      groups.set(
+        entry.externalId,
+        list,
+      );
     });
 
-    return [...groups.values()].map((list) => {
-      list.sort((a, b) => a.num - b.num);
-      return finishPost(list[0], list);
-    });
+    return [...groups.values()]
+      .map((list) => {
+        list.sort(
+          (a, b) =>
+            a.num - b.num,
+        );
+
+        return finishPost(
+          list[0],
+          list,
+        );
+      })
+      .filter(Boolean);
   }
 
   function finishPost(head, parts) {
@@ -568,12 +602,45 @@ export function createGallerySource(spec) {
           );
 
     /*
-     * Даже при необычном выводе не создаём публикацию
-     * с пустым списком компонентов.
+     * Наличие типа сообщения означает, что источник
+     * работает в штатном формате gallery-dl:
+     *
+     *   2 — Directory, только общие метаданные;
+     *   3 — реальный URL скачиваемого файла.
+     *
+     * Если группа содержит типизированные сообщения,
+     * но среди них отсутствует тип 3, это не публикация.
+     * Обычно это служебная запись доски или раздела.
      */
-    const usableParts = componentParts.length
-      ? componentParts
-      : [head];
+    const hasTypedMessages =
+      parts.some(
+        (entry) =>
+          entry.raw?._galleryType !==
+            undefined &&
+          entry.raw?._galleryType !==
+            null,
+      );
+
+    if (
+      hasTypedMessages &&
+      urlParts.length === 0
+    ) {
+      return null;
+    }
+
+    /*
+     * Нетипизированные metadata-объекты оставляем:
+     * некоторые источники не используют формат
+     * сообщений [type, url, metadata].
+     */
+    const usableParts =
+      urlParts.length
+        ? urlParts
+        : untypedParts;
+
+    if (!usableParts.length) {
+      return null;
+    }
 
     const components = usableParts.map(
       (entry, index) => ({
@@ -856,10 +923,15 @@ export function createGallerySource(spec) {
 
         if (existing) {
           /*
-          * Один Pinterest-пин может находиться в нескольких
-          * выбранных папках. Не создаём дубликат строки,
-          * но сохраняем обе папочные привязки.
-          */
+           * Один Pinterest-пин может быть найден:
+           *
+           *   1. непосредственно в доске;
+           *   2. во вложенном разделе;
+           *   3. в нескольких выбранных контейнерах.
+           *
+           * Строку публикации не дублируем, но сохраняем
+           * каждое уникальное папочное вхождение.
+           */
           const existingContainers =
             Array.isArray(existing.containers)
               ? existing.containers
@@ -886,6 +958,34 @@ export function createGallerySource(spec) {
 
           existing.containers =
             existingContainers;
+
+          const existingOccurrences =
+            Array.isArray(existing.collectionOccurrences)
+              ? existing.collectionOccurrences
+              : [];
+
+          const incomingOccurrences =
+            Array.isArray(post.collectionOccurrences)
+              ? post.collectionOccurrences
+              : [];
+
+          for (const occurrence of incomingOccurrences) {
+            const duplicate =
+              existingOccurrences.some(
+                (entry) =>
+                  String(entry.collectionId) ===
+                    String(occurrence.collectionId) &&
+                  String(entry.collectionType || '') ===
+                    String(occurrence.collectionType || ''),
+              );
+
+            if (!duplicate) {
+              existingOccurrences.push(occurrence);
+            }
+          }
+
+          existing.collectionOccurrences =
+            existingOccurrences;
 
           continue;
         }

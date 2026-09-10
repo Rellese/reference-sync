@@ -156,11 +156,16 @@ let counterHistoryRecords = new Map();
  */
 const collapsedCollectionIds = new Set();
 
+/*
+ * Свёрнутые доски на первом этапе,
+ * когда пользователь выбирает контейнеры для поиска.
+ */
+const collapsedCollectionPickerIds =
+  new Set();
+
 function collectionRowSelected(post) {
   return state.selected.has(post?.postId);
 }
-
-const NO_OCCURRENCES = new Map();
 
 /*
  * Версия последнего вызова renderTable().
@@ -1014,6 +1019,165 @@ async function requireMatchingInstagramSession(settings, signal) {
   }
 }
 
+function resolveSelectedCollections(
+  collections,
+  pickedIds,
+) {
+  const source =
+    Array.isArray(collections)
+      ? collections
+      : [];
+
+  const byId =
+    new Map(
+      source
+        .filter((collection) =>
+          collection?.id)
+        .map((collection) => [
+          String(collection.id),
+          collection,
+        ]),
+    );
+
+  const childrenByParent =
+    new Map();
+
+  for (const collection of source) {
+    const parentId =
+      String(
+        collection?.parentId || '',
+      );
+
+    if (!parentId) {
+      continue;
+    }
+
+    const children =
+      childrenByParent.get(parentId) ||
+      [];
+
+    children.push(collection);
+
+    childrenByParent.set(
+      parentId,
+      children,
+    );
+  }
+
+  /*
+   * searchIds — реальные цели gallery-dl.
+   *
+   * Выбранная BOARD означает:
+   *   - прямые пины доски;
+   *   - все её SECTION.
+   *
+   * Поэтому дочерние разделы добавляются автоматически.
+   */
+  const searchIds = new Set();
+
+  function addForSearch(id) {
+    const cleanId =
+      String(id || '');
+
+    if (
+      !cleanId ||
+      searchIds.has(cleanId)
+    ) {
+      return;
+    }
+
+    searchIds.add(cleanId);
+
+    const collection =
+      byId.get(cleanId);
+
+    if (
+      String(
+        collection?.type || '',
+      ).toUpperCase() !== 'BOARD'
+    ) {
+      return;
+    }
+
+    for (
+      const child
+      of childrenByParent.get(cleanId) || []
+    ) {
+      addForSearch(child.id);
+    }
+  }
+
+  for (const id of pickedIds || []) {
+    addForSearch(id);
+  }
+
+  /*
+   * displayIds — контейнеры, которые надо показать
+   * во втором этапе.
+   *
+   * Если выбран только SECTION, его BOARD добавляется
+   * как визуальный родитель, но не становится новой
+   * целью сетевого поиска.
+   */
+  const displayIds =
+    new Set(searchIds);
+
+  for (const id of [...searchIds]) {
+    let collection =
+      byId.get(id);
+
+    const visited =
+      new Set();
+
+    while (
+      collection?.parentId &&
+      !visited.has(
+        String(collection.parentId),
+      )
+    ) {
+      const parentId =
+        String(collection.parentId);
+
+      visited.add(parentId);
+      displayIds.add(parentId);
+
+      collection =
+        byId.get(parentId);
+    }
+  }
+
+  return source
+    .filter((collection) =>
+      displayIds.has(
+        String(collection.id),
+      ))
+    .map((collection) => ({
+      ...collection,
+
+      id:
+        String(collection.id),
+
+      parentId:
+        String(
+          collection.parentId || '',
+        ),
+
+      parentName:
+        String(
+          collection.parentName || '',
+        ),
+
+      /*
+       * false означает:
+       * контейнер нужен только для отображения дерева.
+       */
+      searchTarget:
+        searchIds.has(
+          String(collection.id),
+        ),
+    }));
+}
+
 /* ---------- Поиск ---------- */
 async function runSearch() {
   /* Настройки фиксируются на момент нажатия «Поиск».
@@ -1326,42 +1490,11 @@ async function runSearch() {
           );
         }
 
-        state.collections = collections
-          .filter((collection) =>
-            pickedIds.includes(collection.id))
-          .map((collection) => ({
-            id:
-              collection.id,
-
-            name:
-              collection.name,
-
-            type:
-              collection.type,
-
-            parentId:
-              collection.parentId || '',
-
-            parentName:
-              collection.parentName || '',
-
-            slug:
-              collection.slug || '',
-
-            url:
-              collection.url || '',
-
-            boardUrl:
-              collection.boardUrl || '',
-
-            boardSlug:
-              collection.boardSlug || '',
-
-            mediaCount:
-              collection.mediaCount ??
-              collection.pinCount ??
-              null,
-          }));
+        state.collections =
+          resolveSelectedCollections(
+            collections,
+            pickedIds,
+          );
       } else {
         state.collections = [];
       }
@@ -1387,9 +1520,13 @@ async function runSearch() {
                   : 0
               ),
         speedProfile: s.speed,
-        collections: s.folderSearch
-        ? state.collections
-          : [],
+        collections:
+          s.folderSearch
+            ? state.collections.filter(
+                (collection) =>
+                  collection.searchTarget !== false,
+              )
+            : [],
         knownPostIds: state.knownPostIds,
         signal: operationController.signal,
         onProgress: (progress) => {
@@ -2250,85 +2387,392 @@ function confirmCollectionPicker() {
   if (resolve) resolve(chosen);
 }
 
-function selectCollectionsInTable(collections) {
+function selectCollectionsInTable(
+  collections,
+) {
   collectionPickerActive = true;
   collectionPickerChecked.clear();
-  collectionPickerTotal = collections.length;
+  collapsedCollectionPickerIds.clear();
 
-  const body = ui.results.body;
-  clear(body);
+  collectionPickerTotal =
+    collections.length;
+
   updateCollectionPickerTitle();
-  ui.results.clearButton?.setDisabled?.(true);
 
-  if (!collections.length) {
-    const empty = el('div', 'rs-empty');
-    empty.append(
-      el('div', 'rs-empty__title', 'Коллекции не найдены'),
-      el('div', 'rs-empty__text',
-        'В этом аккаунте нет доступных коллекций.'),
-    );
-    body.appendChild(empty);
-  } else {
-    for (const collection of collections) {
-      body.appendChild(
-        createCollectionPickerRow(collection),
-      );
-    }
-  }
+  ui.results.clearButton
+    ?.setDisabled?.(true);
 
-  /* Оранжевая кнопка внизу переключается в режим «Продолжить поиск» */
-  ui.footer.action.setLabel('Продолжить поиск');
+  renderCollectionPickerTree(
+    collections,
+  );
+
+  ui.footer.action.setLabel(
+    'Продолжить поиск',
+  );
+
   ui.footer.action.setDisabled(true);
 
   return new Promise((resolve) => {
-    collectionPickerResolve = resolve;
+    collectionPickerResolve =
+      resolve;
   });
 }
 
-function createCollectionPickerRow(collection) {
-  const root = el('div', 'rs-collection__head');
-  root.setAttribute('role', 'button');
-  root.setAttribute('tabindex', '0');
+function renderCollectionPickerTree(
+  collections,
+) {
+  const body =
+    ui.results.body;
 
-  const checkbox = createCheckbox({
-    checked: false,
-    onChange: (value) => {
-      if (value) {
-        collectionPickerChecked.add(collection.id);
-      } else {
-        collectionPickerChecked.delete(collection.id);
-      }
-      root.classList.toggle('is-selected', value);
-      ui.footer.action.setDisabled(
-        collectionPickerChecked.size === 0,
+  clear(body);
+
+  if (!collections.length) {
+    const empty =
+      el('div', 'rs-empty');
+
+    empty.append(
+      el(
+        'div',
+        'rs-empty__title',
+        'Коллекции не найдены',
+      ),
+
+      el(
+        'div',
+        'rs-empty__text',
+        'В этом аккаунте нет доступных коллекций.',
+      ),
+    );
+
+    body.appendChild(empty);
+    return;
+  }
+
+  const ids =
+    new Set(
+      collections.map(
+        (collection) =>
+          String(collection.id),
+      ),
+    );
+
+  const childrenByParent =
+    new Map();
+
+  for (const collection of collections) {
+    const parentId =
+      String(
+        collection.parentId || '',
       );
-      updateCollectionPickerTitle();
-    },
-  });
 
-  checkbox.node.addEventListener('click', (event) => {
-    event.stopPropagation();
-  });
+    if (!parentId) {
+      continue;
+    }
 
-  const identity = el('div', 'rs-collection__identity');
-  const folder = el('span', 'rs-collection__folder');
-  folder.setAttribute('aria-hidden', 'true');
-  const name = el('span', 'rs-collection__name', collection.name);
-  const count = el(
-    'span',
-    'rs-collection__count',
-    collection.mediaCount === null || collection.mediaCount === undefined
-      ? ''
-      : String(collection.mediaCount),
+    const children =
+      childrenByParent.get(parentId) ||
+      [];
+
+    children.push(collection);
+
+    childrenByParent.set(
+      parentId,
+      children,
+    );
+  }
+
+  const roots =
+    collections.filter(
+      (collection) => {
+        const parentId =
+          String(
+            collection.parentId || '',
+          );
+
+        return (
+          !parentId ||
+          !ids.has(parentId)
+        );
+      },
+    );
+
+  const fragment =
+    document.createDocumentFragment();
+
+  function appendCollection(
+    collection,
+    container,
+    depth,
+    path,
+  ) {
+    const id =
+      String(collection.id);
+
+    if (path.has(id)) {
+      return;
+    }
+
+    const nextPath =
+      new Set(path);
+
+    nextPath.add(id);
+
+    const children =
+      childrenByParent.get(id) ||
+      [];
+
+    const collapsed =
+      collapsedCollectionPickerIds.has(id);
+
+    const branch =
+      el(
+        'div',
+        'rs-collection-picker__item',
+      );
+
+    branch.style.setProperty(
+      '--rs-tree-depth',
+      String(depth),
+    );
+
+    branch.appendChild(
+      createCollectionPickerRow(
+        collection,
+        {
+          hasChildren:
+            children.length > 0,
+
+          expanded:
+            !collapsed,
+
+          depth,
+
+          onToggle() {
+            if (
+              collapsedCollectionPickerIds.has(id)
+            ) {
+              collapsedCollectionPickerIds.delete(id);
+            } else {
+              collapsedCollectionPickerIds.add(id);
+            }
+
+            renderCollectionPickerTree(
+              collections,
+            );
+          },
+        },
+      ),
+    );
+
+    if (
+      children.length &&
+      !collapsed
+    ) {
+      const childContainer =
+        el(
+          'div',
+          'rs-collection-picker__children',
+        );
+
+      for (const child of children) {
+        appendCollection(
+          child,
+          childContainer,
+          depth + 1,
+          nextPath,
+        );
+      }
+
+      branch.appendChild(
+        childContainer,
+      );
+    }
+
+    container.appendChild(branch);
+  }
+
+  for (const root of roots) {
+    appendCollection(
+      root,
+      fragment,
+      0,
+      new Set(),
+    );
+  }
+
+  body.appendChild(fragment);
+}
+
+function createCollectionPickerRow(
+  collection,
+  {
+    hasChildren = false,
+    expanded = true,
+    depth = 0,
+    onToggle = null,
+  } = {},
+) {
+  const id =
+    String(collection.id);
+
+  const root =
+    el(
+      'div',
+      'rs-collection__head rs-collection-picker__row',
+    );
+
+  root.style.setProperty(
+    '--rs-tree-depth',
+    String(depth),
   );
-  identity.append(folder, name, count);
 
-  /* Клик по строке (не по чекбоксу) тоже переключает выбор */
-  root.addEventListener('click', () => {
-    checkbox.set(!checkbox.value);
-  });
+  root.setAttribute(
+    'role',
+    'button',
+  );
 
-  root.append(checkbox.node, identity);
+  root.setAttribute(
+    'tabindex',
+    '0',
+  );
+
+  if (hasChildren) {
+    root.setAttribute(
+      'aria-expanded',
+      String(expanded),
+    );
+  }
+
+  const checkbox =
+    createCheckbox({
+      checked:
+        collectionPickerChecked.has(id),
+
+      onChange(value) {
+        if (value) {
+          collectionPickerChecked.add(id);
+        } else {
+          collectionPickerChecked.delete(id);
+        }
+
+        root.classList.toggle(
+          'is-selected',
+          value,
+        );
+
+        ui.footer.action.setDisabled(
+          collectionPickerChecked.size === 0,
+        );
+
+        updateCollectionPickerTitle();
+      },
+    });
+
+  checkbox.node.addEventListener(
+    'click',
+    (event) => {
+      event.stopPropagation();
+    },
+  );
+
+  checkbox.node.addEventListener(
+    'keydown',
+    (event) => {
+      event.stopPropagation();
+    },
+  );
+
+  const identity =
+    el(
+      'div',
+      'rs-collection__identity',
+    );
+
+  const name =
+    el(
+      'span',
+      'rs-collection__name',
+      collection.name,
+    );
+
+  const count =
+    el(
+      'span',
+      'rs-collection__count',
+      collection.mediaCount === null ||
+      collection.mediaCount === undefined
+        ? ''
+        : String(collection.mediaCount),
+    );
+
+  identity.append(
+    createCollectionFolderIcon(),
+    name,
+    count,
+  );
+
+  let chevron;
+
+  if (hasChildren) {
+    chevron =
+      createCollectionChevron(
+        expanded,
+      );
+
+    chevron.addEventListener(
+      'click',
+      (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+
+        onToggle?.();
+      },
+    );
+  } else {
+    chevron =
+      el(
+        'span',
+        'rs-collection__chevron-placeholder',
+      );
+  }
+
+  const toggleCheckbox = () => {
+    checkbox.set(
+      !checkbox.value,
+    );
+  };
+
+  root.addEventListener(
+    'click',
+    toggleCheckbox,
+  );
+
+  root.addEventListener(
+    'keydown',
+    (event) => {
+      if (
+        event.key !== 'Enter' &&
+        event.key !== ' '
+      ) {
+        return;
+      }
+
+      event.preventDefault();
+      toggleCheckbox();
+    },
+  );
+
+  root.classList.toggle(
+    'is-selected',
+    collectionPickerChecked.has(id),
+  );
+
+  root.append(
+    checkbox.node,
+    identity,
+    chevron,
+  );
+
   return root;
 }
 
@@ -3481,9 +3925,50 @@ function createCollectionChevron(
   return chevron;
 }
 
+function collectionGroupPosts(
+  group,
+) {
+  const result = [];
+  const seen = new Set();
+
+  function visit(current) {
+    for (
+      const post
+      of current?.posts || []
+    ) {
+      const postId =
+        String(post?.postId || '');
+
+      if (
+        !postId ||
+        seen.has(postId)
+      ) {
+        continue;
+      }
+
+      seen.add(postId);
+      result.push(post);
+    }
+
+    for (
+      const child
+      of current?.children || []
+    ) {
+      visit(child);
+    }
+  }
+
+  visit(group);
+
+  return result;
+}
+
 function createCollectionHeader(
   group,
 ) {
+  const groupPosts =
+    collectionGroupPosts(group);
+
   const collapsed =
     collapsedCollectionIds.has(
       group.id,
@@ -3491,9 +3976,8 @@ function createCollectionHeader(
 
   const selection =
     collectionSelectionState(
-      group.posts,
+      groupPosts,
       state.selected,
-      NO_OCCURRENCES,
       collectionPostSelectable,
     );
 
@@ -3537,9 +4021,8 @@ function createCollectionHeader(
       onChange() {
         const changes =
           collectionSelectionChanges(
-            group.posts,
+            groupPosts,
             state.selected,
-            NO_OCCURRENCES,
             collectionPostSelectable,
           );
 
@@ -3583,7 +4066,7 @@ function createCollectionHeader(
     el(
       'span',
       'rs-collection__count',
-      String(group.posts.length),
+      String(groupPosts.length),
     );
 
   identity.append(
@@ -3644,37 +4127,150 @@ function createCollectionHeader(
   return root;
 }
 
-function renderCollectionGroups({ container, groups, createPostRow }) {
-  for (const group of groups) {
-    const collection = el('section', 'rs-collection');
-    const header = createCollectionHeader(group);
-    const children = el('div', 'rs-collection__children');
+function renderCollectionGroups({
+  container,
+  groups,
+  createPostRow,
+}) {
+  function renderGroup(
+    group,
+    target,
+    depth,
+    path,
+  ) {
+    const groupId =
+      String(group.id);
 
-    const collapsed = collapsedCollectionIds.has(group.id);
-    collection.classList.toggle('is-collapsed', collapsed);
-
-    const seen = new Set();
-
-    for (const post of group.posts) {
-      const postId = String(post.postId);
-      if (seen.has(postId)) continue;
-      seen.add(postId);
-
-      const wrapper = el('div', 'rs-collection__post');
-      wrapper.dataset.postId = postId;
-
-      const branch = el('span', 'rs-collection__branch');
-      branch.setAttribute('aria-hidden', 'true');
-
-      const row = createPostRow(post);
-
-      wrapper.classList.toggle('is-selected', collectionRowSelected(post));
-      wrapper.append(branch, row);
-      children.appendChild(wrapper);
+    if (path.has(groupId)) {
+      return;
     }
 
-    collection.append(header, children);
-    container.appendChild(collection);
+    const nextPath =
+      new Set(path);
+
+    nextPath.add(groupId);
+
+    const collection =
+      el(
+        'section',
+        'rs-collection',
+      );
+
+    collection.style.setProperty(
+      '--rs-tree-depth',
+      String(depth),
+    );
+
+    collection.dataset.collectionId =
+      groupId;
+
+    collection.dataset.collectionType =
+      String(group.type || '');
+
+    const header =
+      createCollectionHeader(group);
+
+    const children =
+      el(
+        'div',
+        'rs-collection__children',
+      );
+
+    const collapsed =
+      collapsedCollectionIds.has(
+        group.id,
+      );
+
+    collection.classList.toggle(
+      'is-collapsed',
+      collapsed,
+    );
+
+    const seen =
+      new Set();
+
+    for (const post of group.posts) {
+      const postId =
+        String(post.postId);
+
+      if (seen.has(postId)) {
+        continue;
+      }
+
+      seen.add(postId);
+
+      const wrapper =
+        el(
+          'div',
+          'rs-collection__post',
+        );
+
+      wrapper.style.setProperty(
+        '--rs-tree-depth',
+        String(depth),
+      );
+
+      wrapper.dataset.postId =
+        postId;
+
+      const branch =
+        el(
+          'span',
+          'rs-collection__branch',
+        );
+
+      branch.setAttribute(
+        'aria-hidden',
+        'true',
+      );
+
+      const row =
+        createPostRow(post);
+
+      wrapper.classList.toggle(
+        'is-selected',
+        collectionRowSelected(post),
+      );
+
+      wrapper.append(
+        branch,
+        row,
+      );
+
+      children.appendChild(
+        wrapper,
+      );
+    }
+
+    for (
+      const childGroup
+      of group.children || []
+    ) {
+      renderGroup(
+        childGroup,
+        children,
+        depth + 1,
+        nextPath,
+      );
+    }
+
+    collection.append(
+      header,
+      children,
+    );
+
+    target.appendChild(
+      collection,
+    );
+  }
+
+  for (const group of groups) {
+    renderGroup(
+      group,
+      container,
+      0,
+      new Set(),
+    );
   }
 }
 
