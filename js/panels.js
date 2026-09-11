@@ -796,7 +796,7 @@ export function buildStatus({ onCommand } = {}) {
 }
 
 const TABLE_COLUMN_STORAGE_KEY =
-  'reference-sync.table-columns.v1';
+  'reference-sync.table-columns.v2';
 
 const TABLE_COLUMN_VARIABLES = [
   '--rs-table-lead-width',
@@ -814,6 +814,18 @@ const TABLE_COLUMN_MIN_WIDTHS = [
   180,
 ];
 
+/*
+ * Заводские размеры колонок.
+ * Порядок совпадает с TABLE_COLUMN_VARIABLES.
+ */
+const TABLE_COLUMN_DEFAULT_WIDTHS = [
+  90,
+  150,
+  150,
+  270,
+  325,
+];
+
 function clampTableColumn(
   value,
   minimum,
@@ -826,6 +838,117 @@ function clampTableColumn(
       value,
     ),
   );
+}
+
+/*
+ * Каскадное изменение ширины колонок.
+ *
+ * Если разделитель двигается влево:
+ *   1. сжимается ближайшая колонка слева;
+ *   2. затем предыдущая;
+ *   3. затем следующая предыдущая;
+ *   4. освободившаяся ширина передаётся колонке справа.
+ *
+ * Если разделитель двигается вправо:
+ *   логика выполняется зеркально.
+ */
+function resizeTableColumnsCascade(
+  widths,
+  dividerIndex,
+  delta,
+) {
+  const nextWidths = [...widths];
+
+  if (!Number.isFinite(delta) || delta === 0) {
+    return nextWidths;
+  }
+
+  /*
+   * Перемещение разделителя влево.
+   * Сжимаем колонки слева от разделителя:
+   * сначала ближайшую, затем более дальние.
+   */
+  if (delta < 0) {
+    let remaining = -delta;
+    let releasedWidth = 0;
+
+    for (
+      let index = dividerIndex;
+      index >= 0 && remaining > 0;
+      index -= 1
+    ) {
+      const minimum =
+        TABLE_COLUMN_MIN_WIDTHS[index];
+
+      const available =
+        Math.max(
+          0,
+          nextWidths[index] - minimum,
+        );
+
+      const amount =
+        Math.min(
+          available,
+          remaining,
+        );
+
+      nextWidths[index] -= amount;
+      remaining -= amount;
+      releasedWidth += amount;
+    }
+
+    /*
+     * Всё, что освободилось слева,
+     * получает ближайшая колонка справа.
+     */
+    nextWidths[dividerIndex + 1] +=
+      releasedWidth;
+
+    return nextWidths;
+  }
+
+  /*
+   * Перемещение разделителя вправо.
+   * Сжимаем колонки справа от разделителя:
+   * сначала ближайшую, затем более дальние.
+   */
+  let remaining = delta;
+  let releasedWidth = 0;
+
+  for (
+    let index = dividerIndex + 1;
+    index < nextWidths.length &&
+      remaining > 0;
+    index += 1
+  ) {
+    const minimum =
+      TABLE_COLUMN_MIN_WIDTHS[index];
+
+    const available =
+      Math.max(
+        0,
+        nextWidths[index] - minimum,
+      );
+
+    const amount =
+      Math.min(
+        available,
+        remaining,
+      );
+
+    nextWidths[index] -= amount;
+    remaining -= amount;
+    releasedWidth += amount;
+  }
+
+  /*
+   * Всё, что освободилось справа,
+   * получает ближайшая колонка слева.
+   */
+  nextWidths[dividerIndex] +=
+    releasedWidth;
+
+  return nextWidths;
 }
 
 function readSavedTableColumns() {
@@ -887,7 +1010,7 @@ function applyTableColumnWidths(
     (width, index) => {
       root.style.setProperty(
         TABLE_COLUMN_VARIABLES[index],
-        `${Math.round(width)}px`,
+        `${Number(width.toFixed(2))}px`,
       );
     },
   );
@@ -903,22 +1026,23 @@ function installTableColumnResizing({
   const savedWidths =
     readSavedTableColumns();
 
-  if (savedWidths) {
-    applyTableColumnWidths(
-      root,
-      savedWidths,
-    );
-  }
+  /*
+   * Это логические размеры колонок.
+   *
+   * Для Description здесь хранится именно базовая ширина,
+   * а не фактическая ширина вместе со свободным пространством 1fr.
+   */
+  let columnWidths =
+    savedWidths
+      ? [...savedWidths]
+      : [...TABLE_COLUMN_DEFAULT_WIDTHS];
+
+  applyTableColumnWidths(
+    root,
+    columnWidths,
+  );
 
   let activeResize = null;
-
-  function currentColumnWidths() {
-    return headerCells.map(
-      (cell) =>
-        cell.getBoundingClientRect()
-          .width,
-    );
-  }
 
   function resizeLinePosition(
     resizer,
@@ -926,12 +1050,22 @@ function installTableColumnResizing({
     const tableRect =
       table.getBoundingClientRect();
 
-    const resizerRect =
-      resizer.getBoundingClientRect();
+    const index =
+      Number(
+        resizer.dataset.resizeIndex,
+      );
+
+    const headerCell =
+      headerCells[index];
+
+    if (!headerCell) {
+      return 0;
+    }
 
     return (
-      resizerRect.left +
-      resizerRect.width / 2 -
+      headerCell
+        .getBoundingClientRect()
+        .right -
       tableRect.left
     );
   }
@@ -961,6 +1095,48 @@ function installTableColumnResizing({
     );
   }
 
+  function resetTableColumnWidths(
+    resizer,
+  ) {
+    activeResize = null;
+
+    document.documentElement.classList.remove(
+      'is-resizing-table-column',
+    );
+
+    table.classList.remove(
+      'is-column-resizing',
+    );
+
+    columnWidths = [
+      ...TABLE_COLUMN_DEFAULT_WIDTHS,
+    ];
+
+    applyTableColumnWidths(
+      root,
+      columnWidths,
+    );
+
+    try {
+      localStorage.removeItem(
+        TABLE_COLUMN_STORAGE_KEY,
+      );
+    } catch (_) {
+      /*
+       * Сброс продолжает работать,
+       * даже если localStorage недоступен.
+       */
+    }
+
+    requestAnimationFrame(
+      () => {
+        if (resizer) {
+          showResizeLine(resizer);
+        }
+      },
+    );
+  }
+
   function finishResize(event) {
     if (!activeResize) {
       return;
@@ -969,6 +1145,8 @@ function installTableColumnResizing({
     const {
       resizer,
       pointerId,
+      moved,
+      nextWidths,
     } = activeResize;
 
     if (
@@ -978,6 +1156,28 @@ function installTableColumnResizing({
     ) {
       resizer.releasePointerCapture(
         pointerId,
+      );
+    }
+
+    /*
+     * Сохраняем вычисленные логические размеры,
+     * а не getBoundingClientRect() заголовков.
+     */
+    if (
+      moved &&
+      Array.isArray(nextWidths)
+    ) {
+      columnWidths = [
+        ...nextWidths,
+      ];
+
+      applyTableColumnWidths(
+        root,
+        columnWidths,
+      );
+
+      saveTableColumns(
+        columnWidths,
       );
     }
 
@@ -991,13 +1191,7 @@ function installTableColumnResizing({
       'is-column-resizing',
     );
 
-    saveTableColumns(
-      currentColumnWidths(),
-    );
-
-    if (
-      !resizer.matches(':hover')
-    ) {
+    if (!resizer.matches(':hover')) {
       hideResizeLine();
     }
 
@@ -1023,6 +1217,22 @@ function installTableColumnResizing({
         },
       );
 
+      /*
+       * Двойной клик по вертикальному разделителю
+       * возвращает заводские размеры всех колонок.
+       */
+      resizer.addEventListener(
+        'dblclick',
+        (event) => {
+          event.preventDefault();
+          event.stopPropagation();
+
+          resetTableColumnWidths(
+            resizer,
+          );
+        },
+      );
+
       resizer.addEventListener(
         'pointerdown',
         (event) => {
@@ -1038,32 +1248,29 @@ function installTableColumnResizing({
               resizer.dataset.resizeIndex,
             );
 
-          const widths =
-            currentColumnWidths();
-
           /*
-           * Переводим все вычисленные grid-размеры
-           * в явные px перед началом перетаскивания.
-           * Благодаря этому header и строки продолжают
-           * использовать одну геометрию.
+           * Важно:
+           * не используем размеры DOM-элементов заголовка.
+           *
+           * Особенно это критично для Description,
+           * потому что её фактический размер содержит 1fr.
            */
-          applyTableColumnWidths(
-            root,
-            widths,
-          );
+          const widths = [
+            ...columnWidths,
+          ];
 
           activeResize = {
             index,
+
             startX:
               event.clientX,
 
-            startLeft:
-              widths[index],
-
-            startRight:
-              widths[index + 1],
-
             widths,
+
+            nextWidths:
+              [...widths],
+
+            moved: false,
 
             resizer,
 
@@ -1101,8 +1308,6 @@ function installTableColumnResizing({
           const {
             index,
             startX,
-            startLeft,
-            startRight,
             widths,
           } = activeResize;
 
@@ -1110,49 +1315,43 @@ function installTableColumnResizing({
             event.clientX -
             startX;
 
-          const total =
-            startLeft +
-            startRight;
+          /*
+           * Pointermove может сработать при обычном клике.
+           * До прохождения порога геометрию не меняем.
+           */
+          if (
+            !activeResize.moved &&
+            Math.abs(delta) < 2
+          ) {
+            return;
+          }
 
-          const leftMinimum =
-            TABLE_COLUMN_MIN_WIDTHS[
-              index
-            ];
-
-          const rightMinimum =
-            TABLE_COLUMN_MIN_WIDTHS[
-              index + 1
-            ];
-
-          const nextLeft =
-            clampTableColumn(
-              startLeft + delta,
-              leftMinimum,
-              total - rightMinimum,
-            );
-
-          const nextRight =
-            total -
-            nextLeft;
+          activeResize.moved = true;
 
           const nextWidths =
-            [...widths];
+            resizeTableColumnsCascade(
+              widths,
+              index,
+              delta,
+            );
 
-          nextWidths[index] =
-            nextLeft;
+          activeResize.nextWidths =
+            nextWidths;
 
-          nextWidths[index + 1] =
-            nextRight;
+          /*
+           * Текущее логическое состояние обновляем сразу.
+           * Благодаря этому новый drag всегда начинается
+           * с корректных значений.
+           */
+          columnWidths = [
+            ...nextWidths,
+          ];
 
           applyTableColumnWidths(
             root,
-            nextWidths,
+            columnWidths,
           );
 
-          /*
-           * После grid-layout линия снова ставится
-           * точно на фактическую границу.
-           */
           requestAnimationFrame(
             () => {
               if (activeResize) {
@@ -1249,7 +1448,7 @@ export function buildResults({ onClear, onToggleAll, onThumbnails, onRowToggle,
   const columnDefinitions = [
     {
       id: 'lead',
-      label: '',
+      label: 'Выбранные',
     },
     {
       id: 'author',

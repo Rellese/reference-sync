@@ -5,7 +5,14 @@
    Instagram (instagram.js) и импортом в Eagle (eagle-import.js).
    ============================================================ */
 
-import { el, clear, createCheckbox, createEditButton } from './ui.js';
+import {
+  el,
+  clear,
+  createCheckbox,
+  createEditButton,
+  createResetButton,
+} from './ui.js';
+
 import {
   checkboxRange,
   applyShiftSelection,
@@ -2399,8 +2406,12 @@ function selectCollectionsInTable(
 
   updateCollectionPickerTitle();
 
+  /*
+  * Список коллекций является промежуточным результатом поиска,
+  * поэтому его также можно очистить и отменить текущий поиск.
+  */
   ui.results.clearButton
-    ?.setDisabled?.(true);
+    ?.setDisabled?.(false);
 
   renderCollectionPickerTree(
     collections,
@@ -4530,7 +4541,6 @@ if (isKnown) {
   /* Текстовые колонки */
   const author = el('div', 'rs-cell rs-cell--author', post.username);
   author.title = post.url;
-  const type = el('div', 'rs-cell', post.type);
 
   const structure = el(
     'div',
@@ -4672,12 +4682,28 @@ if (!isKnown) {
     );
   };
 
+  const resetNameButton =
+    createResetButton(() => {
+      if (!isEdited(post.postId, 'name')) {
+        return;
+      }
+
+      removeEdit(
+        post.postId,
+        'name',
+      );
+
+      renderTable();
+    });
+  
   const nameEditButton =
     createEditButton(openNameEditor);
 
-  nameCell.appendChild(
-    nameEditButton,
-  );
+  nameCell.appendChild(nameEditButton);
+
+  if (isEdited(post.postId, 'name')) {
+    nameCell.appendChild(resetNameButton);
+  }
 
   nameCell.title =
     'Двойной щелчок — редактировать';
@@ -4874,14 +4900,42 @@ if (!isKnown) {
       );
     };
 
+    const resetDescriptionButton =
+      createResetButton(() => {
+        if (
+          !isEdited(
+            post.postId,
+            'description',
+          )
+        ) {
+          return;
+        }
+
+        removeEdit(
+          post.postId,
+          'description',
+        );
+
+        renderTable();
+      });
+
     const descEditButton =
       createEditButton(
         openDescriptionEditor,
       );
 
-    descCell.appendChild(
-      descEditButton,
-    );
+    descCell.appendChild(descEditButton);
+
+    if (
+      isEdited(
+        post.postId,
+        'description',
+      )
+    ) {
+      descCell.appendChild(
+        resetDescriptionButton,
+      );
+    }
 
     descCell.title =
       'Двойной щелчок — редактировать';
@@ -5086,15 +5140,67 @@ function toggleAll(value) {
 }
 
 function clearResults() {
+  /*
+   * Если сейчас открыт промежуточный выбор коллекций,
+   * закрываем его как отменённый. Это разблокирует
+   * ожидающий selectCollectionsInTable() и корректно
+   * завершит runSearch() через ветку STOPPED.
+   */
+  const pendingCollectionPickerResolve =
+    collectionPickerActive
+      ? collectionPickerResolve
+      : null;
+
+  if (collectionPickerActive) {
+    collectionPickerActive = false;
+    collectionPickerResolve = null;
+
+    collectionPickerChecked.clear();
+    collapsedCollectionPickerIds.clear();
+
+    collectionPickerTotal = 0;
+    collectionPickerFoundCount = 0;
+
+    state.collections = [];
+  }
+
   state.posts = [];
   state.selected.clear();
   state.generated.clear();
+
   resetAllEdits();
+
   phase = 'idle';
-  ui.footer.action.setLabel('Начать поиск');
-  ui.footer.action.setDisabled(false);
-  ui.status.set('Список очищен', 'Заполните шаг 1 и нажмите «Начать поиск»');
+
+  ui.footer.action.setLabel(
+    'Начать поиск',
+  );
+
+  ui.footer.action.setDisabled(
+    false,
+  );
+
+  ui.status.set(
+    'Список очищен',
+    'Заполните шаг 1 и нажмите «Начать поиск»',
+  );
+
   renderTable();
+
+  /*
+   * Резолвим только после очистки интерфейса.
+   * null уже обрабатывается runSearch() как отмена выбора.
+   */
+  if (pendingCollectionPickerResolve) {
+    pendingCollectionPickerResolve(
+      null,
+    );
+
+    ui.log.add(
+      'Выбор коллекций отменён, список очищен.',
+      'warn',
+    );
+  }
 }
 
 /* ------------------------------------------------------------

@@ -1,0 +1,134 @@
+<svg
+  xmlns="http://www.w3.org/2000/svg"
+  width="29"
+  height="17"
+  viewBox="0 0 29 17"
+  fill="none"
+>
+  <defs>
+    <linearGradient
+      id="arrow-base"
+      x1="0"
+      y1="0"
+      x2="0"
+      y2="1"
+    >
+      <stop
+        offset="0"
+        stop-color="#3B3B3B"
+      />
+      <stop
+        offset="0.9026"
+        stop-color="#222222"
+      />
+      <stop
+        offset="1"
+        stop-color="#222222"
+      />
+    </linearGradient>
+
+    <radialGradient
+      id="arrow-light"
+      cx="0"
+      cy="0"
+      r="1"
+      gradientUnits="userSpaceOnUse"
+      gradientTransform="translate(5.9 2.625) rotate(90) scale(10.75 7.4)"
+    >
+      <stop
+        stop-color="#6D6D6D"
+      />
+      <stop
+        offset="0.6439"
+        stop-color="#6D6D6D"
+        stop-opacity="0.2"
+      />
+      <stop
+        offset="1"
+        stop-color="#6D6D6D"
+        stop-opacity="0"
+      />
+    </radialGradient>
+
+    <linearGradient
+      id="central-bar"
+      x1="14.5"
+      y1="0"
+      x2="14.5"
+      y2="17"
+    >
+      <stop stop-color="#4A4A4D" />
+      <stop offset="1" stop-color="#4A4A4D" />
+    </linearGradient>
+  </defs>
+
+  <!-- Left icon -->
+  <path
+    d="
+      M11.8 2.625
+      H6
+      L0.5 8
+      L6 13.375
+      H11.8
+      L6.3 8
+      Z
+    "
+    fill="url(#arrow-base)"
+    stroke="#B4B4B4"
+    stroke-opacity="0.5"
+  />
+
+  <path
+    d="
+      M11.8 2.625
+      H6
+      L0.5 8
+      L6 13.375
+      H11.8
+      L6.3 8
+      Z
+    "
+    fill="url(#arrow-light)"
+  />
+
+  <!-- Central icon -->
+  <rect
+    x="13.5"
+    y="0.5"
+    width="2"
+    height="16"
+    rx="1"
+    fill="url(#central-bar)"
+    stroke="#B4B4B4"
+    stroke-opacity="0.5"
+  />
+
+  <!-- Right icon -->
+  <path
+    d="
+      M17.2 2.625
+      H23
+      L28.5 8
+      L23 13.375
+      H17.2
+      L22.7 8
+      Z
+    "
+    fill="url(#arrow-base)"
+    stroke="#B4B4B4"
+    stroke-opacity="0.5"
+  />
+
+  <path
+    d="
+      M17.2 2.625
+      H23
+      L28.5 8
+      L23 13.375
+      H17.2
+      L22.7 8
+      Z
+    "
+    fill="url(#arrow-light)"
+  />
+</svg>
