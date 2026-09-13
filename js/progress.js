@@ -28,8 +28,11 @@
 
 import { el } from './ui.js';
 
-/* Число ячеек шкалы — ровно как в макете */
-export const CELL_COUNT = 219;
+/* Геометрия одной ячейки остаётся постоянной при любом масштабе.
+   Количество ячеек рассчитывается по доступной ширине шкалы. */
+const CELL_WIDTH = 2;
+const CELL_GAP = 3;
+export let CELL_COUNT = 0;
 
 /* Длительность любой анимации прогресса, мс (жёсткое требование) */
 const ANIM_MS = 1000;
@@ -58,7 +61,7 @@ const BAND_TAIL = BAND_TAIL_ALPHA.length; // 19
 const BAND_CORE = 61;
 const BAND_TOTAL = BAND_CORE + BAND_TAIL * 2; // 99
 /* Один проход полосы от одного края до другого, мс */
-const BAND_PERIOD = 1800;
+const BAND_PERIOD = 750;
 
 /* Палитры состояний: solid — цвет полной заливки,
    base — rgb для частичной альфы, glow — тень или null */
@@ -123,14 +126,9 @@ export function createProgressBar({ onCommand } = {}) {
   controls.append(buttons.pause.node, buttons.play.node, buttons.stop.node);
   manage.append(interest, controls);
 
-  /* Scale: 219 ячеек */
+  /* Scale: количество ячеек зависит от доступной ширины */
   const scaleNode = el('div', 'rs-scale');
   const cells = [];
-  for (let i = 0; i < CELL_COUNT; i += 1) {
-    const cell = makeCell();
-    cells.push(cell);
-    scaleNode.appendChild(cell.node);
-  }
 
   info.append(processInfo, manage, scaleNode);
 
@@ -159,9 +157,89 @@ export function createProgressBar({ onCommand } = {}) {
   let bandStart = 0;
   let bandDir = 1;
 
+    /* ---------- Адаптивное количество ячеек ---------- */
+
+  function cellCountForWidth(width) {
+    if (!Number.isFinite(width) || width <= 0) return 0;
+
+    /*
+      Для n ячеек:
+        n * CELL_WIDTH + (n - 1) * CELL_GAP <= width
+
+      Отсюда:
+        n <= (width + CELL_GAP) / (CELL_WIDTH + CELL_GAP)
+    */
+    return Math.max(
+      1,
+      Math.floor(
+        (width + CELL_GAP) / (CELL_WIDTH + CELL_GAP),
+      ),
+    );
+  }
+
+  function rebuildScale(nextCount) {
+    if (nextCount <= 0 || nextCount === CELL_COUNT) return;
+
+    const previousCells = cells.slice();
+    const previousCount = previousCells.length;
+    const fragment = document.createDocumentFragment();
+
+    cells.length = 0;
+    CELL_COUNT = nextCount;
+
+    for (let index = 0; index < CELL_COUNT; index += 1) {
+      const cell = makeCell();
+      cells.push(cell);
+      fragment.appendChild(cell.node);
+    }
+
+    scaleNode.replaceChildren(fragment);
+
+    /*
+      При изменении размера переносим текущее визуальное состояние
+      на новое количество полос. Прогресс не сбрасывается.
+    */
+    if (previousCount > 0) {
+      for (let index = 0; index < CELL_COUNT; index += 1) {
+        const sourceIndex = Math.min(
+          previousCount - 1,
+          Math.floor(index * previousCount / CELL_COUNT),
+        );
+        const source = previousCells[sourceIndex];
+
+        paintCell(index, source.alpha, source.glow);
+      }
+
+      return;
+    }
+
+    /*
+      Первый расчёт происходит после добавления компонента в интерфейс.
+      Если состояние уже было установлено, восстанавливаем текущий
+      процент. Бегущие состояния обновятся своим animation frame.
+    */
+    if (mode !== 'search' && mode !== 'reviewing') {
+      paintStatic(shown, {
+        fade: mode === 'downloading',
+      });
+    }
+  }
+
+  const scaleResizeObserver = new ResizeObserver((entries) => {
+    const entry = entries[0];
+    if (!entry) return;
+
+    const nextCount = cellCountForWidth(entry.contentRect.width);
+    rebuildScale(nextCount);
+  });
+
+  scaleResizeObserver.observe(scaleNode);
+
   /* ---------- Покраска ячейки ---------- */
   function paintCell(index, alpha, glow) {
     const cell = cells[index];
+    if (!cell) return;
+
     if (cell.alpha === alpha && cell.glow === glow) return;
     cell.alpha = alpha;
     cell.glow = glow;

@@ -134,22 +134,33 @@
 }
 
 /* ============================================================
-   Шкала: 219 ячеек, 2×16px, gap 3px
+   Адаптивная шкала.
+
+   Размер каждой ячейки остаётся постоянным:
+   width: 2px; height: 16px; gap: 3px.
+
+   Количество ячеек рассчитывается в progress.js по фактической
+   ширине шкалы и обновляется при изменении размера интерфейса.
    ============================================================ */
 .rs-scale {
+  box-sizing: border-box;
   display: flex;
   flex-direction: row;
   align-items: center;
+  flex: none;
   padding: 0;
   gap: 3px;
   width: 100%;
+  min-width: 0;
   height: 16px;
 }
 
 .rs-scale__cell {
   position: relative;
-  flex: 1 1 2px;
-  min-width: 0;
+  flex: 0 0 2px;
+  width: 2px;
+  min-width: 2px;
+  max-width: 2px;
   height: 16px;
   border-radius: 100px;
   /* Тень задаётся из JS — она разная по состояниям и появляется
