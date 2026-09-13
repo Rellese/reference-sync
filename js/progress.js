@@ -57,7 +57,7 @@ const BAND_TAIL_ALPHA = [
 const BAND_TAIL = BAND_TAIL_ALPHA.length; // 19
 const BAND_CORE = 61;
 const BAND_TOTAL = BAND_CORE + BAND_TAIL * 2; // 99
-/* Полный проход полосы, мс */
+/* Один проход полосы от одного края до другого, мс */
 const BAND_PERIOD = 1800;
 
 /* Палитры состояний: solid — цвет полной заливки,
@@ -283,26 +283,64 @@ export function createProgressBar({ onCommand } = {}) {
 
   /* ---------- Бегущая полоса (6 и 7) ---------- */
   function bandFrame(now) {
-    if (mode !== 'search' && mode !== 'reviewing') return;
-    if (!bandStart) bandStart = now;
+  if (mode !== 'search' && mode !== 'reviewing') return;
+  if (!bandStart) bandStart = now;
 
-    const phase = ((now - bandStart) % BAND_PERIOD) / BAND_PERIOD;
-    const travel = CELL_COUNT + BAND_TOTAL;
-    const forward = bandDir > 0 ? phase : 1 - phase;
-    const head = Math.round(forward * travel - BAND_TOTAL);
+  /*
+   * Пинг-понг без выхода полосы за границы шкалы:
+   *
+   * search:
+   * левый край → правый край → левый край;
+   *
+   * reviewing:
+   * правый край → левый край → правый край.
+   *
+   * Полоса всегда остаётся видна полностью и в крайних
+   * точках только касается границы шкалы.
+   */
+  const elapsed = (now - bandStart) / BAND_PERIOD;
+  const cycle = elapsed % 2;
+  const pingPong = cycle <= 1
+    ? cycle
+    : 2 - cycle;
 
-    const palette = PALETTE[mode];
-    for (let i = 0; i < CELL_COUNT; i += 1) {
-      const rel = i - head;
-      if (rel < 0 || rel >= BAND_TOTAL) { paintCell(i, 0, false); continue; }
-      let alpha;
-      if (rel < BAND_TAIL) alpha = BAND_TAIL_ALPHA[rel];
-      else if (rel < BAND_TAIL + BAND_CORE) alpha = 1;
-      else alpha = BAND_TAIL_ALPHA[BAND_TOTAL - 1 - rel];
-      paintCell(i, alpha, Boolean(palette.glow));
+  const position = bandDir > 0
+    ? pingPong
+    : 1 - pingPong;
+
+  const maxHead = CELL_COUNT - BAND_TOTAL;
+  const head = Math.round(position * maxHead);
+
+  const palette = PALETTE[mode];
+
+  for (let i = 0; i < CELL_COUNT; i += 1) {
+    const rel = i - head;
+
+    if (rel < 0 || rel >= BAND_TOTAL) {
+      paintCell(i, 0, false);
+      continue;
     }
-    bandRaf = requestAnimationFrame(bandFrame);
+
+    let alpha;
+
+    if (rel < BAND_TAIL) {
+      alpha = BAND_TAIL_ALPHA[rel];
+    } else if (rel < BAND_TAIL + BAND_CORE) {
+      alpha = 1;
+    } else {
+      alpha =
+        BAND_TAIL_ALPHA[BAND_TOTAL - 1 - rel];
+    }
+
+    paintCell(
+      i,
+      alpha,
+      Boolean(palette.glow),
+    );
   }
+
+  bandRaf = requestAnimationFrame(bandFrame);
+}
 
   function stopBand() {
     if (bandRaf) cancelAnimationFrame(bandRaf);
