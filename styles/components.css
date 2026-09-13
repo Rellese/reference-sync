@@ -74,6 +74,7 @@
   flex: none;
   width: 10px;
   height: 12px;
+  border-radius: 50%;
 }
 .rs-switch__knob::before {
   background: linear-gradient(90deg, #2A2A2A 0%, #3A3A3A 100%);

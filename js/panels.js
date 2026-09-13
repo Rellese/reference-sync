@@ -786,9 +786,21 @@ export function buildStatus({ onCommand } = {}) {
     progress,
 
     showProgress(visible) {
-      progress.node.hidden = !visible;
+      const showingProgress =
+        Boolean(visible);
 
-      if (!visible) {
+      row.hidden =
+        showingProgress;
+
+      progress.node.hidden =
+        !showingProgress;
+
+      root.classList.toggle(
+        'is-progress',
+        showingProgress,
+      );
+
+      if (!showingProgress) {
         progress.setMode('idle');
       }
     },
