@@ -285,6 +285,9 @@
   display: grid;
   grid-template-rows: auto minmax(0, 1fr) auto;
   row-gap: 5px;
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
   min-height: 0;
 }
 
@@ -292,20 +295,13 @@
 .rs-status {
   display: flex;
   flex-direction: column;
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
   background: var(--bg-card);
   border: 1px solid var(--border-card);
   border-radius: var(--r-card);
-}
-
-/*
- * Активный Scale полностью заменяет обычный статус.
- * Собственные фон, рамка, радиус и отступы находятся
- * в .rs-progress из styles/progress.css.
- */
-.rs-status.is-progress {
-  background: transparent;
-  border: 0;
-  border-radius: 0;
+  overflow: hidden;
 }
 
 /* Штатный ряд статуса сохраняет высоту макета */

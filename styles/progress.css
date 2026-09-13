@@ -16,23 +16,27 @@
   padding: 15px 20px;
   gap: 15px;
   width: 100%;
+  min-width: 0;
+  max-width: 100%;
   background: #161616;
-  border: 1px solid #212121;
-  border-radius: 15px;
 }
 
 /* Info: колонка с gap 8px */
 .rs-progress__info {
+  box-sizing: border-box;
   display: flex;
   flex-direction: column;
   align-items: flex-start;
   padding: 0;
   gap: 8px;
   width: 100%;
+  min-width: 0;
+  max-width: 100%;
 }
 
 /* Process Info / Found and displayed — ряд с разносом по краям */
 .rs-progress__row {
+  box-sizing: border-box;
   display: flex;
   flex-direction: row;
   justify-content: space-between;
@@ -40,7 +44,10 @@
   padding: 0;
   gap: 20px;
   width: 100%;
+  min-width: 0;
+  max-width: 100%;
   height: 13px;
+  overflow: hidden;
 }
 
 /* Подписи: IBM Plex Mono 400 10/13, letter-spacing .1em, uppercase */
@@ -57,6 +64,27 @@
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+/*
+ * Current file занимает оставшееся место и сокращается,
+ * если текст не помещается в доступную ширину.
+ */
+.rs-progress__row > .rs-progress__label:first-child {
+  flex: 1 1 auto;
+  min-width: 0;
+  max-width: 100%;
+}
+
+/*
+ * Total number остаётся у правого края и не сжимается
+ * из-за длинного текста в Current file.
+ */
+.rs-progress__row > .rs-progress__label:last-child {
+  flex: 0 0 auto;
+  min-width: 0;
+  max-width: 50%;
+  text-align: right;
 }
 
 /* «Connection lost» — красная подпись в состоянии 5 */
@@ -115,6 +143,7 @@
 
 /* Publication info: два блока по краям */
 .rs-progress__publication {
+  box-sizing: border-box;
   display: flex;
   flex-direction: row;
   justify-content: space-between;
@@ -122,7 +151,10 @@
   padding: 0;
   gap: 20px;
   width: 100%;
+  min-width: 0;
+  max-width: 100%;
   height: 13px;
+  overflow: hidden;
 }
 .rs-progress__found {
   display: flex;
