@@ -229,141 +229,328 @@
    «продавливается»: Enable padding 0, Hovered 0 0 2px,
    Pressed 2px 0 0.
    ============================================================ */
+/* ============================================================
+   Player buttons
+
+   Внешний .rs-player остаётся неподвижным контейнером 36×36px.
+   Внутренняя поверхность кнопки находится в псевдоэлементах,
+   поэтому Hovered и Pressed могут физически смещаться внутри
+   контейнера, не изменяя раскладку Progress bar.
+   ============================================================ */
+
 .rs-player {
-  box-sizing: border-box;
-  display: flex;
-  flex-direction: row;
-  justify-content: center;
-  align-items: center;
-  padding: 0;
-  gap: 10px;
-  width: 36px;
-  height: 36px;
-  flex: none;
-  cursor: default;
-  transition: padding 150ms ease;
-}
-.rs-player.is-on {
-  cursor: pointer;
-}
+  --rs-control-active:
+    radial-gradient(
+      62.92% 65.91% at 50% 0%,
+      #6d6d6d 0%,
+      rgba(109, 109, 109, 0.2) 64.39%,
+      rgba(109, 109, 109, 0) 100%
+    ),
+    radial-gradient(
+      60.89% 100% at 50% 0%,
+      #3b3b3b 16.64%,
+      #222222 90.26%,
+      #222222 100%
+    );
 
-.rs-player__button {
-  box-sizing: border-box;
-  display: flex;
-  flex-direction: row;
-  justify-content: center;
-  align-items: center;
-  padding: 10px;
-  gap: 10px;
-  width: 36px;
-  height: 36px;
-  background: rgba(38, 38, 38, 0.2);
-  border-radius: 5px;
-  transition: background 150ms ease, box-shadow 150ms ease;
-}
+  --rs-control-disabled:
+    radial-gradient(
+      95.47% 100% at 50% 100%,
+      rgba(109, 109, 109, 0.5) 0%,
+      rgba(109, 109, 109, 0.1) 100%
+    );
 
-/* Hovered — только у активной (On) кнопки */
-.rs-player.is-on:hover {
-  padding: 0 0 2px;
-}
-.rs-player.is-on:hover .rs-player__button {
-  background: rgba(38, 38, 38, 0.8);
-  box-shadow: 0 1px 0 1px rgba(0, 0, 0, 0.1);
-}
-.rs-player.is-on:hover .rs-player__icon {
-  box-shadow: 0 1px 8px 1px rgba(0, 0, 0, 0.65);
-}
-
-/* Pressed — уходим из состояния мгновенно (В целом советы) */
-.rs-player.is-on:active {
-  padding: 2px 0 0;
-  transition: none;
-}
-.rs-player.is-on:active .rs-player__button {
-  background: #151515;
-  box-shadow: inset 0 2px 0 1px rgba(0, 0, 0, 0.1);
-  transition: none;
-}
-/* Pressed: иконка гаснет до Off-градиента без обводки */
-.rs-player.is-on:active .rs-player__icon {
-  background: radial-gradient(95.47% 100% at 50% 100%,
-    rgba(109, 109, 109, 0.5) 0%, rgba(109, 109, 109, 0.1) 100%);
-  border-color: transparent;
-  box-shadow: none;
-  transition: none;
-}
-
-/* controls — контейнер иконок 15×15, gap 3px у пары */
-.rs-player__icons {
   position: relative;
-  display: flex;
-  flex-direction: row;
-  align-items: center;
-  padding: 0;
-  gap: 3px;
-  width: 15px;
-  height: 15px;
-  flex: none;
-}
-
-/* Icon, состояние Off: один радиальный градиент, без обводки */
-.rs-player__icon {
+  isolation: isolate;
   box-sizing: border-box;
-  flex: none;
-  border: 1px solid transparent;
-  background: radial-gradient(95.47% 100% at 50% 100%,
-    rgba(109, 109, 109, 0.5) 0%, rgba(109, 109, 109, 0.1) 100%);
-  transition: background 150ms ease, border-color 150ms ease, box-shadow 150ms ease;
-}
-
-/* Icon, состояние On: два градиента + #D9D9D9 подложка + обводка */
-.rs-player.is-on .rs-player__icon {
-  background:
-    radial-gradient(62.92% 65.91% at 50% 0%, #6D6D6D 0%,
-      rgba(109, 109, 109, 0.2) 64.39%, rgba(109, 109, 109, 0) 100%),
-    radial-gradient(60.89% 100% at 50% 0%, #3B3B3B 16.64%,
-      #222222 90.26%, #222222 100%),
-    #D9D9D9;
-  border: 1px solid rgba(180, 180, 180, 0.5);
-}
-
-/* Пауза: две полоски 6×15, radius 5px */
-.rs-player__icon--bar {
-  width: 6px;
-  height: 15px;
+  display: grid;
+  place-items: center;
+  flex: 0 0 36px;
+  width: 36px;
+  min-width: 36px;
+  height: 36px;
+  padding: 0;
+  appearance: none;
+  border: 0;
   border-radius: 5px;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  outline: none;
 }
 
-/* Стоп: квадрат 15×15, radius 3px */
-.rs-player__icon--stop {
+/*
+ * Enable — основная поверхность:
+ * fill #262626 / 20%;
+ * stroke linear-gradient -14deg.
+ */
+.rs-player::before,
+.rs-player::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  box-sizing: border-box;
+  width: 36px;
+  height: 36px;
+  border: 1px solid transparent;
+  border-radius: 5px;
+  pointer-events: none;
+  transform: translateY(0);
+  transform-origin: center;
+}
+
+/* Enable */
+.rs-player::before {
+  background:
+    linear-gradient(
+      rgba(38, 38, 38, 0.2),
+      rgba(38, 38, 38, 0.2)
+    ) padding-box,
+    linear-gradient(
+      -14deg,
+      rgba(112, 112, 112, 1) 0%,
+      rgba(112, 112, 112, 0) 74%,
+      rgba(112, 112, 112, 0) 100%
+    ) border-box;
+
+  transition:
+    transform 150ms ease-out,
+    box-shadow 150ms ease-out,
+    opacity 150ms ease-out;
+}
+
+/*
+ * Hovered. Отдельный слой позволяет сделать плавный переход
+ * между Enable и Hovered, несмотря на разные градиенты.
+ */
+.rs-player::after {
+  opacity: 0;
+
+  background:
+    linear-gradient(
+      rgba(38, 38, 38, 0.8),
+      rgba(38, 38, 38, 0.8)
+    ) padding-box,
+    linear-gradient(
+      -22deg,
+      rgba(112, 112, 112, 1) 0%,
+      rgba(112, 112, 112, 0) 32%,
+      rgba(112, 112, 112, 0) 72%,
+      rgba(112, 112, 112, 1) 100%
+    ) border-box;
+
+  background-size: 140% 140%;
+  background-position: center;
+
+  box-shadow:
+    0 1px 0 1px rgba(0, 0, 0, 0.1);
+
+  transition:
+    transform 150ms ease-out,
+    box-shadow 150ms ease-out,
+    opacity 150ms ease-out;
+}
+
+/* Hovered: внутренняя кнопка смещается вверх на 2px */
+.rs-player:hover::before,
+.rs-player:hover::after {
+  transform: translateY(-2px);
+}
+
+.rs-player:hover::after {
+  opacity: 1;
+}
+
+/*
+ * Pressed:
+ * fill #151515;
+ * stroke -14deg;
+ * внутренняя тень;
+ * переход из Hovered занимает 25ms.
+ */
+.rs-player:active::before,
+.rs-player:active::after {
+  transform: translateY(2px);
+  transition-duration: 25ms;
+  transition-timing-function: ease-out;
+}
+
+.rs-player:active::after {
+  opacity: 1;
+
+  background:
+    linear-gradient(
+      #151515,
+      #151515
+    ) padding-box,
+    linear-gradient(
+      -14deg,
+      rgba(112, 112, 112, 0) 0%,
+      rgba(112, 112, 112, 0) 26%,
+      rgba(112, 112, 112, 1) 100%
+    ) border-box;
+
+  background-size: 100% 100%;
+
+  box-shadow:
+    inset 0 2px 0 1px rgba(0, 0, 0, 0.1);
+}
+
+/* Клавиатурный фокус не меняет геометрию кнопки */
+.rs-player:focus-visible {
+  outline: 1px solid rgba(180, 180, 180, 0.5);
+  outline-offset: 2px;
+}
+
+/* ============================================================
+   Controls — общая геометрия
+   ============================================================ */
+
+.rs-player__icon {
+  position: relative;
+  z-index: 1;
+  box-sizing: border-box;
+  display: block;
+  flex: none;
   width: 15px;
   height: 15px;
+  pointer-events: none;
+  transform: translateY(0);
+  transition:
+    transform 150ms ease-out,
+    filter 150ms ease-out;
+}
+
+.rs-player:hover .rs-player__icon {
+  transform: translateY(-2px);
+}
+
+.rs-player:active .rs-player__icon {
+  transform: translateY(2px);
+  transition-duration: 25ms;
+  transition-timing-function: ease-out;
+}
+
+/* ============================================================
+   Stop
+   ============================================================ */
+
+.rs-player__icon--stop {
+  background: var(--rs-control-active);
+  border: 1px solid rgba(180, 180, 180, 0.5);
   border-radius: 3px;
 }
-/* У Stop в состоянии On подложки #D9D9D9 нет — только градиенты */
-.rs-player.is-on .rs-player__icon--stop {
-  background:
-    radial-gradient(62.92% 65.91% at 50% 0%, #6D6D6D 0%,
-      rgba(109, 109, 109, 0.2) 64.39%, rgba(109, 109, 109, 0) 100%),
-    radial-gradient(60.89% 100% at 50% 0%, #3B3B3B 16.64%,
-      #222222 90.26%, #222222 100%);
+
+.rs-player:hover .rs-player__icon--stop {
+  box-shadow:
+    0 1px 8px 1px rgba(0, 0, 0, 0.65);
 }
 
-/* Плэй: треугольник 15×15. В Figma это фигура с закруглениями,
-   повторяем через clip-path — градиенты остаются те же. */
-.rs-player__icon--play {
-  width: 15px;
+/* ============================================================
+   Pause
+   ============================================================ */
+
+.rs-player__icon--pause {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 3px;
+  background: transparent;
+}
+
+.rs-player__icon--pause::before,
+.rs-player__icon--pause::after {
+  content: '';
+  box-sizing: border-box;
+  display: block;
+  flex: 0 0 6px;
+  width: 6px;
   height: 15px;
-  clip-path: polygon(12% 4%, 96% 50%, 12% 96%);
-  border: none;
-}
-.rs-player.is-on .rs-player__icon--play {
-  border: none;
+  background: var(--rs-control-active);
+  border: 1px solid rgba(180, 180, 180, 0.5);
+  border-radius: 5px;
 }
 
-/* Отключённая кнопка не реагирует на курсор */
+.rs-player:hover .rs-player__icon--pause::before,
+.rs-player:hover .rs-player__icon--pause::after {
+  box-shadow:
+    0 1px 8px 1px rgba(0, 0, 0, 0.65);
+}
+
+/* ============================================================
+   Play
+
+   Иконка остаётся 15×15px. Скруглённый треугольник имитируется
+   clip-path и мягким stroke через drop-shadow.
+   ============================================================ */
+
+.rs-player__icon--play {
+  background: var(--rs-control-active);
+  border: 0;
+  border-radius: 3px;
+  clip-path: polygon(
+    8% 2%,
+    15% 0%,
+    22% 2%,
+    92% 42%,
+    97% 48%,
+    97% 54%,
+    92% 60%,
+    22% 98%,
+    15% 100%,
+    8% 98%,
+    3% 92%,
+    3% 8%
+  );
+
+  filter:
+    drop-shadow(
+      0 0 0.5px rgba(180, 180, 180, 0.5)
+    );
+}
+
+.rs-player:hover .rs-player__icon--play {
+  filter:
+    drop-shadow(
+      0 0 0.5px rgba(180, 180, 180, 0.5)
+    )
+    drop-shadow(
+      0 1px 4px rgba(0, 0, 0, 0.65)
+    );
+}
+
+/* ============================================================
+   Disabled controls
+
+   Третий слой заливки используется только в состоянии Off.
+   Обводка и свечение активного состояния отключаются.
+   ============================================================ */
+
 .rs-player:not(.is-on) {
+  cursor: default;
   pointer-events: none;
+}
+
+.rs-player:not(.is-on) .rs-player__icon--stop {
+  background: var(--rs-control-disabled);
+  border-color: transparent;
+  box-shadow: none;
+}
+
+.rs-player:not(.is-on)
+  .rs-player__icon--pause::before,
+.rs-player:not(.is-on)
+  .rs-player__icon--pause::after {
+  background: var(--rs-control-disabled);
+  border-color: transparent;
+  box-shadow: none;
+}
+
+.rs-player:not(.is-on)
+  .rs-player__icon--play {
+  background: var(--rs-control-disabled);
+  filter: none;
 }
 
 /* ============================================================

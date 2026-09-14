@@ -145,6 +145,15 @@ let ui = {};
 /* Управление текущей длительной задачей (пауза/стоп/связь) */
 let control = null;
 
+/*
+ * Отдельный признак ручной остановки.
+ *
+ * Некоторые источники после принудительного завершения процесса
+ * успевают вернуть собственную ошибку авторизации или сети.
+ * Поэтому нельзя определять ручной Stop только по тексту ошибки.
+ */
+let manualStopRequested = false;
+
 /* Последнее сохранённое состояние аварийного восстановления */
 let recoveryState = null;
 
@@ -850,8 +859,20 @@ async function runAction() {
   }
 
   if (phase === 'searching' || phase === 'importing') {
+    manualStopRequested = true;
+
+    /*
+     * control.stop() завершает внутреннюю очередь,
+     * abort() останавливает текущий сетевой процесс.
+     */
+    control?.stop();
     state.abortController?.abort();
-    ui.log.add('Остановка по запросу пользователя', 'warn');
+
+    ui.log.add(
+      'Остановка по запросу пользователя.',
+      'warn',
+    );
+
     return;
   }
 
@@ -862,6 +883,17 @@ async function runAction() {
   }
 
   await runSearch();
+}
+
+function showManualStopState() {
+  ui.status.showProgress(true);
+
+  ui.status.progress.update({
+    mode: 'stopped',
+    lead: 'Процесс остановлен пользователем',
+    trail: 'Файлы не добавлены',
+    ...publicationInfo(),
+  });
 }
 
 /* ------------------------------------------------------------
@@ -898,14 +930,27 @@ function handleProgressCommand(name) {
   }
 
   if (name === 'stop') {
+    manualStopRequested = true;
+
     control.stop();
-    if (state.abortController) state.abortController.abort();
+    state.abortController?.abort();
+
+    ui.status.set(
+      'Процесс остановлен',
+      'Нажмите кнопку продолжить',
+    );
+
     ui.status.progress.update({
       mode: 'stopped',
       lead: 'Процесс остановлен',
-      trail: 'Часть файлов уже скачана',
+      trail: 'Нажмите кнопку продолжить',
+      ...publicationInfo(),
     });
-    ui.log.add('Процесс остановлен пользователем.', 'warn');
+
+    ui.log.add(
+      'Процесс остановлен пользователем.',
+      'warn',
+    );
   }
 }
 
@@ -917,10 +962,12 @@ let lastProgressTrail = '';
 /* Подписи блока Publication info — общие для состояний 1, 3, 4, 5 */
 function publicationInfo() {
   const visible = visiblePosts();
+
   return {
     found: `Найдено: ${state.posts.length}`,
     displayed: `Показано: ${visible.length}`,
-    selected: `Выбрано: ${state.selected.size}`,
+    selected:
+      `Выбрано: ${state.selected.size}/${state.posts.length} публикаций`,
   };
 }
 
@@ -1247,6 +1294,7 @@ async function runSearch() {
   if (!await ensureToolchain()) return;
 
   phase = 'searching';
+  manualStopRequested = false;
   state.abortController = new AbortController();
   recoveryState = null;
   recoveredDownloaded = null;
@@ -1658,9 +1706,47 @@ async function runSearch() {
     ui.log.add(`Поиск завершён: ${posts.length} публикаций.`, 'ok');
   } catch (error) {
     phase = 'idle';
-    ui.footer.action.setLabel('Начать поиск');
 
-    if (error?.code === INSTAGRAM_RATE_LIMITED) {
+    ui.footer.action.setLabel(
+      'Начать поиск',
+    );
+
+    /*
+     * Ручная остановка проверяется раньше ошибок источника.
+     *
+     * После завершения gallery-dl источник может вернуть ошибку
+     * авторизации, сети или ограничения. Если пользователь уже
+     * нажал Stop, такая ошибка не должна менять состояние UI.
+     */
+    const stoppedByUser =
+      manualStopRequested ||
+      operationController.signal.aborted ||
+      error?.code === STOPPED;
+
+    if (stoppedByUser) {
+      discardRecovery();
+
+      ui.status.showProgress(true);
+
+      ui.status.set(
+        'Процесс остановлен',
+        'Нажмите кнопку продолжить',
+      );
+
+      ui.status.progress.update({
+        mode: 'stopped',
+        lead: 'Процесс остановлен',
+        trail: 'Нажмите кнопку продолжить',
+        ...publicationInfo(),
+      });
+
+      ui.log.add(
+        'Поиск остановлен пользователем.',
+        'warn',
+      );
+    } else if (
+      error?.code === INSTAGRAM_RATE_LIMITED
+    ) {
       discardRecovery();
 
       ui.status.showProgress(true);
@@ -1674,41 +1760,23 @@ async function runSearch() {
         mode: 'stopped',
         lead: 'Поиск остановлен',
         trail: 'Instagram временно ограничил запросы',
+        ...publicationInfo(),
       });
 
       ui.log.add(
         `Поиск остановлен: ${error.message}`,
         'err',
       );
-    } else if (
-      operationController.signal.aborted ||
-      error?.code === STOPPED
-    ) {
-      discardRecovery();
-
-      ui.status.showProgress(true);
-
-      ui.status.set(
-        'Поиск остановлен',
-        'Можно изменить параметры и запустить поиск снова',
-      );
-
-      ui.status.progress.update({
-        mode: 'stopped',
-        lead: 'Процесс остановлен',
-        trail: 'Поиск публикаций отменён',
-      });
-
-      ui.log.add(
-        'Поиск остановлен пользователем.',
-        'warn',
-      );
     } else {
       discardRecovery();
+
       ui.status.showProgress(false);
-      reportRunError('Ошибка поиска', error);
+
+      reportRunError(
+        'Ошибка поиска',
+        error,
+      );
     }
-  } finally {
 
     if (state.abortController === operationController) {
       state.abortController = null;
@@ -1814,6 +1882,7 @@ async function runImport() {
   if (!await ensureToolchain()) return;
 
   phase = 'importing';
+  manualStopRequested = false;
   state.abortController = new AbortController();
   let sessionCookieFile = '';
   checkpointRecovery('importing');
@@ -2230,7 +2299,44 @@ async function runImport() {
 
   } catch (error) {
     phase = 'ready';
-    ui.footer.action.setLabel('Скачать и добавить в Eagle');
+
+    ui.footer.action.setLabel(
+      'Скачать и добавить в Eagle',
+    );
+
+    /*
+     * Ручной Stop важнее ошибки, которую успел вернуть
+     * остановленный процесс.
+     */
+    const stoppedByUser =
+      manualStopRequested ||
+      state.abortController?.signal.aborted ||
+      error?.code === STOPPED;
+
+    if (stoppedByUser) {
+      discardRecovery();
+
+      ui.status.showProgress(true);
+
+      ui.status.set(
+        'Процесс остановлен',
+        'Нажмите кнопку продолжить',
+      );
+
+      ui.status.progress.update({
+        mode: 'stopped',
+        lead: 'Процесс остановлен',
+        trail: 'Нажмите кнопку продолжить',
+        ...publicationInfo(),
+      });
+
+      ui.log.add(
+        'Импорт остановлен пользователем.',
+        'warn',
+      );
+
+      return;
+    }
 
     if (error?.code === INSTAGRAM_RATE_LIMITED) {
       phase = 'ready';
@@ -2264,20 +2370,12 @@ async function runImport() {
       return;
     }
 
-    /* Остановка по кнопке «стоп» — не ошибка, а состояние 4 */
-    if (error?.code === STOPPED) {
-      discardRecovery();
-      ui.status.set('Процесс остановлен', 'Часть файлов уже скачана');
-      ui.status.progress.update({
-        mode: 'stopped',
-        lead: 'Процесс остановлен',
-        trail: 'Часть файлов уже скачана',
-        ...publicationInfo(),
-      });
-    } else {
-      ui.status.showProgress(false);
-      reportRunError('Ошибка импорта', error);
-    }
+    ui.status.showProgress(false);
+
+    reportRunError(
+      'Ошибка импорта',
+      error,
+    );
   } finally {
     if (sessionCookieFile) {
       if (
@@ -2301,6 +2399,7 @@ async function runImport() {
 
     state.abortController = null;
     control = null;
+    manualStopRequested = false;
   }
 }
 
