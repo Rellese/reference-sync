@@ -25,6 +25,7 @@ export default createGallerySource({
     }));
   },
   idFields: ['id', 'shot_id', 'pk'],
+  progressIdField: 'id',
   authorFields: ['user', 'author', 'username'],
   captionFields: ['title', 'description', 'alt'],
   canonicalUrl: (record, id) => `https://dribbble.com/shots/${id}`,

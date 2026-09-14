@@ -35,6 +35,10 @@ import {
   throwIfAborted,
 } from './job-control.js';
 
+import {
+  createDiscoveryCounter,
+} from './discovery-counter.js';
+
 /* Максимум попыток на одну публикацию при обрыве связи —
    ровно столько, сколько ступеней в лестнице пауз (5…30 с) */
 const RETRY_STEPS_COUNT = RETRY_STEPS.length + 1;
@@ -1018,6 +1022,13 @@ export async function discoverSaved({
   const postsByKey = new Map();
   let stoppedEarly = false;
 
+  const discoveryCounter =
+  createDiscoveryCounter({
+    idField: 'post_id',
+    onProgress,
+    updateInterval: 100,
+  });
+
   const folderSearch =
     Array.isArray(collections) &&
     collections.length > 0;
@@ -1054,7 +1065,6 @@ export async function discoverSaved({
     }
 
     let buffer = '';
-    let discovered = 0;
     let discoveryStderr = '';
     let result;
     let targetStoppedEarly = false;
@@ -1066,19 +1076,9 @@ export async function discoverSaved({
         onStdout: (chunk) => {
           buffer += chunk;
 
-          const matches = chunk.match(
-            /"post_id"|"post_shortcode"/g,
-          );
-
-          if (matches && onProgress) {
-            discovered += matches.length;
-
-            onProgress({
-              stage: 'discover',
-              collection: target.name,
-              approximate: discovered,
-            });
-          }
+          discoveryCounter.push(chunk, {
+            collection: target.name,
+          });
         },
 
         onStderr: (chunk) => {
@@ -1282,6 +1282,11 @@ export async function discoverSaved({
       `${occurrenceCount} вхождений в коллекции.`,
     );
   }
+
+  discoveryCounter.flush({
+    collection:
+      targets[targets.length - 1]?.name || '',
+  });
 
   return {
     posts: outputPosts,

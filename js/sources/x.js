@@ -34,6 +34,7 @@ export default createGallerySource({
     });
   },
   idFields: ['tweet_id', 'id', 'pk'],
+  progressIdField: 'tweet_id',
   authorFields: ['author', 'user', 'username'],
   captionFields: ['content', 'text', 'description'],
   canonicalUrl: (record, id) => {

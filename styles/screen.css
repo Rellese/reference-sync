@@ -617,7 +617,7 @@ html.is-resizing-table-column * {
 
 .rs-table__header .rs-table__grid {
   height: 33px;
-  padding: 7px 0 7px 20px;
+  padding: 3px 0 3px 20px;
 }
 .rs-table__col {
   position: relative;

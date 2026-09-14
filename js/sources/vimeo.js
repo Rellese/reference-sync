@@ -25,6 +25,7 @@ export default createGallerySource({
     }));
   },
   idFields: ['id', 'video_id', 'clip_id', 'pk'],
+  progressIdField: 'id',
   authorFields: ['uploader', 'user', 'owner', 'username'],
   captionFields: ['title', 'description'],
   canonicalUrl: (record, id) => `https://vimeo.com/${id}`,

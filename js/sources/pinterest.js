@@ -194,6 +194,7 @@ const pinterestSource = createGallerySource({
   buildTargets: buildPinterestTargets,
 
   idFields: ['pin_id', 'id', 'pk'],
+  progressIdField: 'pin_id',
 
   authorFields: [
     'pinner',

@@ -25,6 +25,7 @@ export default createGallerySource({
     }));
   },
   idFields: ['id', 'project_id', 'pk'],
+  progressIdField: 'id',
   authorFields: ['owners', 'creator', 'user', 'username'],
   captionFields: ['name', 'title', 'description'],
   canonicalUrl: (record, id) => `https://www.behance.net/gallery/${id}/`,

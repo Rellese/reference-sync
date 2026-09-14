@@ -18,6 +18,7 @@
    соцсетей добавляются модулями, ничего не ломая.
    ============================================================ */
 
+import { createDiscoveryCounter, } from '../discovery-counter.js';
 import { nodeApi, ensureDir, workRoot } from '../node-bridge.js';
 import { runGallery, requireToolchain } from '../toolchain.js';
 import { looksOffline, RETRY_STEPS } from '../job-control.js';
@@ -448,6 +449,7 @@ export function createGallerySource(spec) {
     notReadyReason,
     buildTargets,
     idFields = ['post_id', 'id', 'pk', 'shortcode', 'code'],
+    progressIdField = idFields[0],
     authorFields = ['username', 'owner_username', 'author', 'user'],
     captionFields = ['description', 'caption', 'title', 'text'],
     canonicalUrl = null,
@@ -811,6 +813,13 @@ export function createGallerySource(spec) {
     const postsById = new Map();
     let stoppedEarly = false;
 
+    const discoveryCounter =
+      createDiscoveryCounter({
+        idField: progressIdField,
+        onProgress,
+        updateInterval: 100,
+      });
+
     for (const target of targets) {
       if (signal?.aborted) break;
 
@@ -855,21 +864,15 @@ export function createGallerySource(spec) {
       if (onLog) onLog(`gallery-dl: ${target.name} (${target.url})`);
 
       let buffer = '';
-      let counted = 0;
 
       const result = await runGallery(args, {
         signal,
         onStdout: (chunk) => {
           buffer += chunk;
-          const hits = chunk.match(/"(?:post_id|shortcode|pk|id)"/g);
-          if (hits && onProgress) {
-            counted += hits.length;
-            onProgress({
-              stage: 'discover',
-              collection: target.name,
-              approximate: counted,
-            });
-          }
+
+          discoveryCounter.push(chunk, {
+            collection: target.name,
+          });
         },
         onStderr: (chunk) => {
           const line = redactCommon(chunk).trim();
@@ -999,7 +1002,15 @@ export function createGallerySource(spec) {
       }
     }
 
-      return { posts, stoppedEarly };
+      discoveryCounter.flush({
+        collection:
+          targets[targets.length - 1]?.name || '',
+      });
+
+      return {
+        posts,
+        stoppedEarly,
+      };
     } finally {
       cleanupCookieDb(cookieDb);
     }

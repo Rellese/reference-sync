@@ -1552,49 +1552,113 @@ async function runSearch() {
         ? discoverSaved
         : activeSource.discover;
 
-      discoveryResult =
-        await runDiscover({
-        username: s.username,
-        browser: s.browser,
-        browserProfile: s.browserProfile,
-        cookieFile: session.cookieFile,
-        searchMode: s.searchMode,
-        limit:
-          isInstagram
-            ? s.recentLimit
-            : (
-                s.searchMode ===
-                  SEARCH_MODES.RECENT
-                  ? s.recentLimit
-                  : 0
-              ),
-        speedProfile: s.speed,
-        collections:
-          s.folderSearch
-            ? state.collections.filter(
-                (collection) =>
-                  collection.searchTarget !== false,
-              )
-            : [],
-        knownPostIds: state.knownPostIds,
-        signal: operationController.signal,
-        onProgress: (progress) => {
-          if (progress.stage === 'discover') {
-            ui.status.set(
-              `Поиск публикаций… найдено ~${progress.approximate}`,
-              `Коллекция: ${progress.collection}`,
-              true,
-            );
+      let discoveryFound = 0;
+      let searchStatusRotationStopped = false;
 
-            /* Число найденных обновляется на ходу — как просил
-            Instruction/Scale Reviewing for Publications */
-            ui.status.progress.update({
-              trail: `Найдено: ${progress.approximate}`,
-            });
-          }
-        },
-        onLog: (line) => ui.log.add(redact(line)),
-      });
+      const stopSearchStatusRotation =
+        startProgressMessageRotation({
+          mode: 'search',
+          messages: [
+            'Ищем публикации',
+            'Проверяем сохранённые материалы',
+            'Собираем данные публикаций',
+          ],
+          trail: 'Найдено: 0',
+          interval: 900,
+        });
+
+      const stopSearchStatusMessages = () => {
+        if (searchStatusRotationStopped) {
+          return;
+        }
+
+        searchStatusRotationStopped = true;
+        stopSearchStatusRotation();
+      };
+
+      try {
+        discoveryResult =
+          await runDiscover({
+            username: s.username,
+            browser: s.browser,
+            browserProfile: s.browserProfile,
+            cookieFile: session.cookieFile,
+            searchMode: s.searchMode,
+            limit:
+              isInstagram
+                ? s.recentLimit
+                : (
+                    s.searchMode ===
+                      SEARCH_MODES.RECENT
+                      ? s.recentLimit
+                      : 0
+                  ),
+            speedProfile: s.speed,
+            collections:
+              s.folderSearch
+                ? state.collections.filter(
+                    (collection) =>
+                      collection.searchTarget !== false,
+                  )
+                : [],
+            knownPostIds: state.knownPostIds,
+            signal: operationController.signal,
+            onProgress: (progress) => {
+              if (
+                progress?.stage !== 'discover'
+              ) {
+                return;
+              }
+
+              const reportedFound =
+                Number(progress.found);
+
+              if (
+                !Number.isFinite(reportedFound)
+              ) {
+                return;
+              }
+
+              discoveryFound = Math.max(
+                discoveryFound,
+                Math.max(
+                  0,
+                  Math.trunc(reportedFound),
+                ),
+              );
+
+              if (discoveryFound > 0) {
+                stopSearchStatusMessages();
+              }
+
+              const collectionName =
+                String(
+                  progress.collection || '',
+                ).trim();
+
+              ui.status.set(
+                'Поиск публикаций…',
+                collectionName
+                  ? `Коллекция: ${collectionName}`
+                  : `Источник: ${activeSource.title}`,
+                true,
+              );
+
+              ui.status.progress.update({
+                mode: 'search',
+                lead: collectionName
+                  ? `Поиск: ${collectionName}`
+                  : 'Поиск публикаций',
+                trail:
+                  `Найдено: ${discoveryFound}`,
+              });
+            },
+            onLog: (line) =>
+              ui.log.add(redact(line)),
+          });
+      } finally {
+        stopSearchStatusMessages();
+      }
     } finally {
       if (isInstagram) {
         removeInstagramCookieSnapshot(
