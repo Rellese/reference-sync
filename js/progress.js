@@ -518,9 +518,26 @@ export function createProgressBar({ onCommand } = {}) {
       if (kind) setMode(kind);
       if (lead !== undefined) paintSplitLabel(leadText, lead || '');
       if (trail !== undefined) paintSplitLabel(trailText, trail || '');
-      if (found !== undefined) foundText.textContent = found || '';
-      if (displayed !== undefined) displayedText.textContent = displayed || '';
-      if (selected !== undefined) selectedText.textContent = selected || '';
+      if (found !== undefined) {
+        paintSplitLabel(
+          foundText,
+          found || '',
+        );
+      }
+
+      if (displayed !== undefined) {
+        paintSplitLabel(
+          displayedText,
+          displayed || '',
+        );
+      }
+
+      if (selected !== undefined) {
+        paintSplitLabel(
+          selectedText,
+          selected || '',
+        );
+      }
       if (typeof progress === 'number') animateTo(progress);
       if (interestText !== undefined) interest.textContent = interestText;
       return this;
@@ -577,12 +594,12 @@ function makePlayerButton(kind, onClick) {
   const button = el('div', 'rs-player__button');
   const icons = el('div', 'rs-player__icons');
 
-  if (kind === 'pause') {
-    icons.appendChild(el('span', 'rs-player__icon rs-player__icon--bar'));
-    icons.appendChild(el('span', 'rs-player__icon rs-player__icon--bar'));
-  } else {
-    icons.appendChild(el('span', `rs-player__icon rs-player__icon--${kind}`));
-  }
+  icons.appendChild(
+    el(
+      'span',
+      `rs-player__icon rs-player__icon--${kind}`,
+    ),
+  );
 
   button.appendChild(icons);
   root.appendChild(button);

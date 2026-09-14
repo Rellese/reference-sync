@@ -868,6 +868,8 @@ async function runAction() {
     control?.stop();
     state.abortController?.abort();
 
+    showManualStopState();
+
     ui.log.add(
       'Остановка по запросу пользователя.',
       'warn',
@@ -935,22 +937,14 @@ function handleProgressCommand(name) {
     control.stop();
     state.abortController?.abort();
 
-    ui.status.set(
-      'Процесс остановлен',
-      'Нажмите кнопку продолжить',
-    );
-
-    ui.status.progress.update({
-      mode: 'stopped',
-      lead: 'Процесс остановлен',
-      trail: 'Нажмите кнопку продолжить',
-      ...publicationInfo(),
-    });
+    showManualStopState();
 
     ui.log.add(
       'Процесс остановлен пользователем.',
       'warn',
     );
+
+    return;
   }
 }
 
@@ -1726,19 +1720,7 @@ async function runSearch() {
     if (stoppedByUser) {
       discardRecovery();
 
-      ui.status.showProgress(true);
-
-      ui.status.set(
-        'Процесс остановлен',
-        'Нажмите кнопку продолжить',
-      );
-
-      ui.status.progress.update({
-        mode: 'stopped',
-        lead: 'Процесс остановлен',
-        trail: 'Нажмите кнопку продолжить',
-        ...publicationInfo(),
-      });
+      showManualStopState();
 
       ui.log.add(
         'Поиск остановлен пользователем.',
@@ -2019,7 +2001,21 @@ async function runImport() {
       },
     });
 
-        const results = [
+    if (
+      manualStopRequested ||
+      downloadStopReason === STOPPED ||
+      state.abortController?.signal.aborted
+    ) {
+      const stoppedError = new Error(
+        'Процесс остановлен пользователем.',
+      );
+
+      stoppedError.code = STOPPED;
+
+      throw stoppedError;
+    }
+
+    const results = [
       ...restoredResults,
       ...newResults,
     ];
@@ -2173,6 +2169,20 @@ async function runImport() {
       },
     });
 
+    if (
+      manualStopRequested ||
+      eagleStopReason === STOPPED ||
+      state.abortController?.signal.aborted
+    ) {
+      const stoppedError = new Error(
+        'Процесс остановлен пользователем.',
+      );
+
+      stoppedError.code = STOPPED;
+
+      throw stoppedError;
+    }
+
     const stopReason =
       downloadStopReason === INSTAGRAM_RATE_LIMITED
         ? (
@@ -2316,19 +2326,7 @@ async function runImport() {
     if (stoppedByUser) {
       discardRecovery();
 
-      ui.status.showProgress(true);
-
-      ui.status.set(
-        'Процесс остановлен',
-        'Нажмите кнопку продолжить',
-      );
-
-      ui.status.progress.update({
-        mode: 'stopped',
-        lead: 'Процесс остановлен',
-        trail: 'Нажмите кнопку продолжить',
-        ...publicationInfo(),
-      });
+      showManualStopState();
 
       ui.log.add(
         'Импорт остановлен пользователем.',

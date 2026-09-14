@@ -554,6 +554,97 @@
 }
 
 /* ============================================================
+   Publication info — раздельные цвета подписи и значения
+   ============================================================ */
+
+.rs-progress__publication .rs-progress__label-key {
+  color: #707070;
+}
+
+.rs-progress__publication .rs-progress__label-value {
+  color: #B4B4B4;
+}
+
+.rs-progress__publication > .rs-progress__label:last-child {
+  flex: 0 0 auto;
+  min-width: 0;
+  text-align: right;
+}
+
+/* ============================================================
+   Scale Download paused
+
+   Отступ сверху до Process info: 30px.
+   Между Process info, Management, Scale и Publication info: 20px.
+   Процент расположен слева, Player buttons — справа.
+   ============================================================ */
+
+.rs-progress[data-mode='paused'] {
+  padding: 30px 20px 15px;
+  gap: 20px;
+}
+
+.rs-progress[data-mode='paused'] .rs-progress__info {
+  gap: 20px;
+}
+
+.rs-progress[data-mode='paused'] .rs-progress__manage {
+  justify-content: space-between;
+  gap: 20px;
+}
+
+.rs-progress[data-mode='paused'] .rs-progress__interest {
+  margin: 0;
+}
+
+.rs-progress[data-mode='paused'] .rs-progress__controls {
+  margin: 0 0 0 auto;
+}
+
+/* ============================================================
+   Pause в состоянии Scale Download paused
+
+   Кнопка Pause постоянно отображается в Pressed:
+   поверхность смещена вниз на 2px;
+   fill #151515;
+   stroke linear-gradient -14deg;
+   внутренняя тень.
+   Иконка используется в состоянии Off.
+   ============================================================ */
+
+.rs-player:not(.is-on)::before,
+.rs-player:not(.is-on)::after {
+  transform: translateY(2px);
+  transition-duration: 25ms;
+  transition-timing-function: ease-out;
+}
+
+.rs-player:not(.is-on)::after {
+  opacity: 1;
+  background:
+    linear-gradient(
+      #151515,
+      #151515
+    ) padding-box,
+    linear-gradient(
+      -14deg,
+      rgba(112, 112, 112, 0) 0%,
+      rgba(112, 112, 112, 0) 26%,
+      rgba(112, 112, 112, 1) 100%
+    ) border-box;
+  background-size: 100% 100%;
+  box-shadow:
+    inset 0 2px 0 1px rgba(0, 0, 0, 0.1);
+}
+
+.rs-player:not(.is-on)
+  .rs-player__icon {
+  transform: translateY(2px);
+  transition-duration: 25ms;
+  transition-timing-function: ease-out;
+}
+
+/* ============================================================
    Hidden states
 
    Компоненты прогресс-бара используют атрибут hidden.
