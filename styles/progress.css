@@ -574,19 +574,12 @@
 /* ============================================================
    Scale Download paused
 
-   Отступ сверху до Process info: 30px.
-   Между Process info, Management, Scale и Publication info: 20px.
-   Процент расположен слева, Player buttons — справа.
+   Геометрия отступов наследуется от общих правил:
+   15px сверху и снизу;
+   20px слева и справа;
+   8px между Process info, Management и Scale;
+   15px между группой Info и Publication info.
    ============================================================ */
-
-.rs-progress[data-mode='paused'] {
-  padding: 30px 20px 15px;
-  gap: 20px;
-}
-
-.rs-progress[data-mode='paused'] .rs-progress__info {
-  gap: 20px;
-}
 
 .rs-progress[data-mode='paused'] .rs-progress__manage {
   justify-content: space-between;
