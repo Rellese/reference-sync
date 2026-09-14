@@ -1424,111 +1424,373 @@
 }
 
 /* ============================================================
-   Stepper + Spinner — components/Stepper.css, Spinner.css
-   Spinner 83×42, шаговые кнопки 16×16.
+   Spinner — Full_design/Spinner
+   83×42 по умолчанию.
+
+   Состояния внешнего поля повторяют Input field:
+   Enable / Hovered / Pressed (focus) / Disable.
    ============================================================ */
+
 .rs-spinner {
+  position: relative;
+  box-sizing: border-box;
+
   display: flex;
   flex-direction: row;
   align-items: center;
-  padding: 5px 10px;
-  gap: 10px;
+
   height: 42px;
-  background: var(--field-bg);
-  border-radius: var(--r-btn);
+  padding: 5px 5px 5px 10px;
+  gap: 10px;
+
+  overflow: visible;
+
+  background: rgba(38, 38, 38, 0.2);
+  border: 1px solid transparent;
+  border-radius: 10px;
+
+  cursor: text;
+
+  transition:
+    border-color 120ms ease,
+    box-shadow 120ms ease,
+    color 120ms ease;
 }
+
+/*
+ * Enable.
+ * Градиентная обводка соответствует обычному Input field.
+ */
+.rs-spinner::before {
+  content: '';
+  position: absolute;
+  inset: -1px;
+
+  padding: 1px;
+  border-radius: inherit;
+
+  background: linear-gradient(
+    -18deg,
+    rgba(112, 112, 112, 0.3) 0%,
+    rgba(112, 112, 112, 0) 32%,
+    rgba(112, 112, 112, 0) 72%,
+    rgba(112, 112, 112, 0.3) 100%
+  );
+
+  -webkit-mask:
+    linear-gradient(#fff 0 0) content-box,
+    linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+
+  mask:
+    linear-gradient(#fff 0 0) content-box,
+    linear-gradient(#fff 0 0);
+  mask-composite: exclude;
+
+  pointer-events: none;
+
+  transition: opacity 120ms ease;
+}
+
+/* Hovered — градиент остаётся, появляется Stroke 2 и тень. */
+.rs-spinner:not(.is-disabled):hover {
+  border-color: rgba(112, 112, 112, 0.3);
+  box-shadow:
+    0 0 0 3px
+    rgba(112, 112, 112, 0.03);
+}
+
+/*
+ * Pressed у Input field означает Focus.
+ * Градиентная обводка скрывается, остаётся обычный Stroke 2.
+ */
+.rs-spinner.is-focus:not(.is-disabled) {
+  border-color: rgba(112, 112, 112, 0.3);
+  box-shadow: none;
+}
+
+.rs-spinner.is-focus:not(.is-disabled)::before {
+  opacity: 0;
+}
+
+/* Значение становится светлым только в Pressed/Focus. */
+.rs-spinner.is-focus:not(.is-disabled)
+  .rs-spinner__value {
+  color: #D9D9D9;
+}
+
+/* Disable — отдельная обводка и приглушённое содержимое. */
+.rs-spinner.is-disabled {
+  background: rgba(38, 38, 38, 0.2);
+  border-color: rgba(112, 112, 112, 0.1);
+  box-shadow: none;
+  cursor: default;
+  pointer-events: none;
+}
+
+.rs-spinner.is-disabled::before {
+  opacity: 0;
+}
+
+.rs-spinner.is-disabled
+  .rs-spinner__value {
+  color: #2F2F2F;
+  opacity: 1;
+  -webkit-text-fill-color: #2F2F2F;
+}
+
+/* Поле с числом. */
 .rs-spinner__field {
+  position: relative;
+  z-index: 1;
+
   display: flex;
+  flex: 1 1 auto;
   flex-direction: row;
   justify-content: center;
   align-items: center;
-  gap: 8px;
-  flex: 1 1 auto;
+
   min-width: 0;
   height: 18px;
+  padding: 0;
+  gap: 8px;
 }
+
+/* Число: IBM Plex Mono Regular 14/18. */
 .rs-spinner__value {
+  display: block;
+
   width: 100%;
-  text-align: center;
-  font-family: var(--font-mono);
+  min-width: 0;
+  height: 18px;
+  padding: 0;
+
+  overflow: hidden;
+
+  background: transparent;
+  border: 0;
+  outline: 0;
+
+  font-family: 'IBM Plex Mono', monospace;
+  font-style: normal;
   font-weight: 400;
   font-size: 14px;
   line-height: 18px;
   letter-spacing: 0.1em;
-  color: var(--text-muted);
+  text-align: center;
+
+  color: #707070;
+  caret-color: #D9D9D9;
+
+  appearance: textfield;
   user-select: text;
+  cursor: text;
+
+  transition: color 120ms ease;
 }
+
+.rs-spinner__value::-webkit-outer-spin-button,
+.rs-spinner__value::-webkit-inner-spin-button {
+  margin: 0;
+  appearance: none;
+}
+
+/* Контейнер двух Stepper-кнопок. */
 .rs-spinner__steppers {
+  position: relative;
+  z-index: 1;
+
   display: flex;
-  flex-direction: column;
-  justify-content: space-between;
-  gap: 2px;
   flex: none;
+  flex-direction: column;
+  justify-content: flex-start;
+  align-items: flex-start;
+
+  width: 16px;
+  height: 32px;
+  padding: 0;
+  gap: 0;
+
+  overflow: visible;
 }
+
+/* ============================================================
+   Stepper — Full_design/Spinner
+   Размер одной кнопки: 16×16px.
+   Общая высота двух кнопок: 32px.
+   ============================================================ */
 
 .rs-stepper {
   position: relative;
-  flex: none;
+  box-sizing: border-box;
+
   display: flex;
+  flex: none;
   align-items: center;
   justify-content: center;
+
   width: 16px;
   height: 16px;
-  background: linear-gradient(0deg, #333333 0%, #191919 100%);
-  border-radius: var(--r-small);
-  cursor: pointer;
-  transition: background 120ms ease, box-shadow 120ms ease;
-}
-/* Icon — шеврон 5×2.5 из двух линий */
-.rs-stepper__icon {
-  position: relative;
-  width: 5px;
-  height: 2.5px;
-}
-.rs-stepper__icon::before,
-.rs-stepper__icon::after {
-  content: '';
-  position: absolute;
-  top: 0.75px;
-  width: 3.3px;
-  height: 1px;
-  background: var(--text-muted);
-  border-radius: 1px;
-  transition: background 120ms ease;
-}
-.rs-stepper__icon::before {
-  left: -0.2px;
-  transform: rotate(-40deg);
-  transform-origin: left center;
-}
-.rs-stepper__icon::after {
-  right: -0.2px;
-  transform: rotate(40deg);
-  transform-origin: right center;
-}
-/* Кнопка «вниз» — тот же шеврон, повёрнутый на 180° */
-.rs-stepper.is-down { transform: rotate(180deg); }
+  min-width: 16px;
+  min-height: 16px;
+  padding: 0;
 
-.rs-stepper:hover {
+  overflow: visible;
+
+  border: 0;
+  border-radius: 5px;
+  box-shadow: none;
+
+  cursor: pointer;
+
+  transition:
+    background 80ms ease,
+    box-shadow 80ms ease;
+}
+
+/*
+ * Enable — верхняя кнопка.
+ * Градиент идёт сверху вниз:
+ * #333333 → #191919.
+ */
+.rs-stepper:not(.is-down) {
+  background: linear-gradient(
+    180deg,
+    #333333 0%,
+    #191919 100%
+  );
+}
+
+/*
+ * Enable — нижняя кнопка.
+ * Это перевёрнутая версия верхней:
+ * градиент начинается снизу.
+ */
+.rs-stepper.is-down {
+  background: linear-gradient(
+    0deg,
+    #333333 0%,
+    #191919 100%
+  );
+}
+
+/*
+ * Hovered.
+ * Однотонная заливка #333333 с прозрачностью 60%.
+ *
+ * Drop shadow:
+ * x: 0;
+ * y: 1;
+ * blur: 0;
+ * spread: 1;
+ * #000000, 25%.
+ */
+.rs-stepper:not(.is-disabled):hover {
   background: rgba(51, 51, 51, 0.6);
-  box-shadow: 0px 1px 0px 1px rgba(0, 0, 0, 0.25);
+  box-shadow:
+    0 1px 0 1px
+    rgba(0, 0, 0, 0.25);
 }
-.rs-stepper:active {
-  background: linear-gradient(0deg,
-    rgba(51, 51, 51, 0.3) 0%, rgba(25, 25, 25, 0.3) 100%);
+
+/*
+ * Pressed.
+ * Тени нет.
+ * Градиент такой же, как в Enable,
+ * но вся заливка имеет прозрачность 30%.
+ */
+.rs-stepper:not(.is-down):not(.is-disabled):active {
+  background: linear-gradient(
+    180deg,
+    rgba(51, 51, 51, 0.3) 0%,
+    rgba(25, 25, 25, 0.3) 100%
+  );
   box-shadow: none;
 }
-.rs-stepper:active .rs-stepper__icon::before,
-.rs-stepper:active .rs-stepper__icon::after {
-  background: rgba(112, 112, 112, 0.5);
-}
-.rs-stepper.is-disabled {
-  background: var(--field-bg);
+
+.rs-stepper.is-down:not(.is-disabled):active {
+  background: linear-gradient(
+    0deg,
+    rgba(51, 51, 51, 0.3) 0%,
+    rgba(25, 25, 25, 0.3) 100%
+  );
   box-shadow: none;
+}
+
+/*
+ * Disabled.
+ * Fill: #262626, opacity 20%.
+ */
+.rs-stepper.is-disabled,
+.rs-spinner.is-disabled
+  .rs-stepper {
+  background: rgba(38, 38, 38, 0.2);
+  box-shadow: none;
+  cursor: default;
   pointer-events: none;
 }
-.rs-stepper.is-disabled .rs-stepper__icon::before,
-.rs-stepper.is-disabled .rs-stepper__icon::after { background: #2F2F2F; }
+
+/* Иконка строго 6×4px из Full_design/Icon. */
+.rs-stepper__icon {
+  display: flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+
+  width: 6px;
+  height: 4px;
+
+  pointer-events: none;
+}
+
+/* Удаляет возможные старые CSS-стрелки. */
+.rs-stepper__icon::before,
+.rs-stepper__icon::after {
+  content: none;
+  display: none;
+}
+
+/* SVG не получает лишний нижний отступ baseline. */
+.rs-stepper__icon svg {
+  display: block;
+  flex: none;
+
+  width: 6px;
+  height: 4px;
+
+  overflow: visible;
+}
+
+/* Нижняя стрелка — верхняя, повёрнутая на 180 градусов. */
+.rs-stepper.is-down
+  .rs-stepper__icon {
+  transform: rotate(180deg);
+}
+
+/* Enable и Hovered. */
+.rs-stepper__icon path {
+  stroke: #707070;
+  transition: stroke 80ms ease;
+}
+
+/*
+ * Pressed.
+ * Stroke #707070 с прозрачностью 50%.
+ */
+.rs-stepper:not(.is-disabled):active
+  .rs-stepper__icon path {
+  stroke: rgba(112, 112, 112, 0.5);
+}
+
+/*
+ * Disable.
+ * Stroke #2F2F2F со 100% непрозрачностью.
+ */
+.rs-stepper.is-disabled
+  .rs-stepper__icon path,
+.rs-spinner.is-disabled
+  .rs-stepper__icon path {
+  stroke: #2F2F2F;
+}
 
 /* ============================================================
    Simple button — docs/design/components/Simple button.css

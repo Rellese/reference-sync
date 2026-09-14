@@ -761,54 +761,343 @@ export function createSpinner({
   root.style.width = `${width}px`;
 
   const field = el('div', 'rs-spinner__field');
+
   const input = document.createElement('input');
   input.className = 'rs-spinner__value';
   input.type = 'text';
   input.inputMode = 'numeric';
-  input.value = String(value);
+  input.autocomplete = 'off';
+  input.spellcheck = false;
+
   field.appendChild(input);
 
-  const steppers = el('div', 'rs-spinner__steppers');
-  const up = el('div', 'rs-stepper');
-  up.appendChild(el('div', 'rs-stepper__icon'));
-  const down = el('div', 'rs-stepper is-down');
-  down.appendChild(el('div', 'rs-stepper__icon'));
-  steppers.append(up, down);
+  const steppers = el(
+    'div',
+    'rs-spinner__steppers',
+  );
 
+  const up = el('div', 'rs-stepper');
+  up.setAttribute('role', 'button');
+  up.setAttribute('aria-label', 'Увеличить значение');
+  const upIcon = el(
+    'div',
+    'rs-stepper__icon',
+  );
+
+  upIcon.innerHTML = `
+    <svg
+      width="6"
+      height="4"
+      viewBox="0 0 6 4"
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+      aria-hidden="true"
+    >
+      <path
+        d="M5.5 3L3 0.499999L0.499999 3"
+        stroke="#707070"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+      />
+    </svg>
+  `;
+
+  up.appendChild(upIcon);
+
+  const down = el(
+    'div',
+    'rs-stepper is-down',
+  );
+
+  down.setAttribute('role', 'button');
+  down.setAttribute('aria-label', 'Уменьшить значение');
+  const downIcon = el(
+    'div',
+    'rs-stepper__icon',
+  );
+
+  downIcon.innerHTML = `
+    <svg
+      width="6"
+      height="4"
+      viewBox="0 0 6 4"
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+      aria-hidden="true"
+    >
+      <path
+        d="M5.5 3L3 0.499999L0.499999 3"
+        stroke="#707070"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+      />
+    </svg>
+  `;
+
+  down.appendChild(downIcon);
+
+  steppers.append(up, down);
   root.append(field, steppers);
 
   let current = value;
+  let isDisabled = false;
 
-  const apply = (next, silent) => {
-    const clamped = Math.min(max, Math.max(min, Number.isFinite(next) ? next : min));
-    current = clamped;
-    input.value = String(clamped);
-    up.classList.toggle('is-disabled', clamped >= max);
-    down.classList.toggle('is-disabled', clamped <= min);
-    if (!silent && onChange) onChange(clamped);
+  const normalize = (next) => {
+    const numeric = Number(next);
+
+    if (!Number.isFinite(numeric)) {
+      return min;
+    }
+
+    return Math.min(
+      max,
+      Math.max(min, Math.trunc(numeric)),
+    );
   };
 
-  up.addEventListener('click', () => apply(current + 1));
-  down.addEventListener('click', () => apply(current - 1));
-  input.addEventListener('input', () => {
-    input.value = input.value.replace(/[^\d]/g, '');
-  });
-  input.addEventListener('blur', () => apply(parseInt(input.value, 10)));
-  input.addEventListener('keydown', (event) => {
-    if (event.key === 'Enter') input.blur();
-    if (event.key === 'ArrowUp') { event.preventDefault(); apply(current + 1); }
-    if (event.key === 'ArrowDown') { event.preventDefault(); apply(current - 1); }
-  });
+  const applyState = () => {
+    const upDisabled =
+      isDisabled || current >= max;
+
+    const downDisabled =
+      isDisabled || current <= min;
+
+    root.classList.toggle(
+      'is-disabled',
+      isDisabled,
+    );
+
+    root.setAttribute(
+      'aria-disabled',
+      String(isDisabled),
+    );
+
+    input.disabled = isDisabled;
+
+    up.classList.toggle(
+      'is-disabled',
+      upDisabled,
+    );
+
+    down.classList.toggle(
+      'is-disabled',
+      downDisabled,
+    );
+
+    up.setAttribute(
+      'aria-disabled',
+      String(upDisabled),
+    );
+
+    down.setAttribute(
+      'aria-disabled',
+      String(downDisabled),
+    );
+
+    up.setAttribute(
+      'tabindex',
+      upDisabled ? '-1' : '0',
+    );
+
+    down.setAttribute(
+      'tabindex',
+      downDisabled ? '-1' : '0',
+    );
+  };
+
+  const apply = (
+    next,
+    silent = false,
+  ) => {
+    const normalized = normalize(next);
+
+    current = normalized;
+    input.value = String(normalized);
+
+    applyState();
+
+    if (!silent && onChange) {
+      onChange(normalized);
+    }
+  };
+
+  const commitInput = () => {
+    const parsed = Number.parseInt(
+      input.value,
+      10,
+    );
+
+    apply(
+      Number.isFinite(parsed)
+        ? parsed
+        : min,
+    );
+  };
+
+  const stepUp = () => {
+    if (
+      isDisabled ||
+      current >= max
+    ) {
+      return;
+    }
+
+    input.focus();
+    apply(current + 1);
+  };
+
+  const stepDown = () => {
+    if (
+      isDisabled ||
+      current <= min
+    ) {
+      return;
+    }
+
+    input.focus();
+    apply(current - 1);
+  };
+
+  /*
+   * Как у обычного Input field:
+   * клик по свободной области переводит поле в Focus.
+   * Нажатия непосредственно на Stepper обрабатываются отдельно.
+   */
+  root.addEventListener(
+    'mousedown',
+    (event) => {
+      if (
+        isDisabled ||
+        event.target.closest('.rs-stepper')
+      ) {
+        return;
+      }
+
+      if (event.target !== input) {
+        event.preventDefault();
+        input.focus();
+      }
+    },
+  );
+
+  input.addEventListener(
+    'focus',
+    () => {
+      root.classList.add('is-focus');
+    },
+  );
+
+  input.addEventListener(
+    'blur',
+    () => {
+      root.classList.remove('is-focus');
+      commitInput();
+    },
+  );
+
+  input.addEventListener(
+    'input',
+    () => {
+      input.value = input.value.replace(
+        /[^\d]/g,
+        '',
+      );
+    },
+  );
+
+  input.addEventListener(
+    'keydown',
+    (event) => {
+      if (event.key === 'Enter') {
+        input.blur();
+        return;
+      }
+
+      if (event.key === 'ArrowUp') {
+        event.preventDefault();
+        stepUp();
+        return;
+      }
+
+      if (event.key === 'ArrowDown') {
+        event.preventDefault();
+        stepDown();
+      }
+    },
+  );
+
+  up.addEventListener(
+    'click',
+    stepUp,
+  );
+
+  down.addEventListener(
+    'click',
+    stepDown,
+  );
+
+  const handleStepperKey = (
+    event,
+    action,
+  ) => {
+    if (
+      event.key !== 'Enter' &&
+      event.key !== ' '
+    ) {
+      return;
+    }
+
+    event.preventDefault();
+    action();
+  };
+
+  up.addEventListener(
+    'keydown',
+    (event) => {
+      handleStepperKey(
+        event,
+        stepUp,
+      );
+    },
+  );
+
+  down.addEventListener(
+    'keydown',
+    (event) => {
+      handleStepperKey(
+        event,
+        stepDown,
+      );
+    },
+  );
 
   apply(value, true);
 
   return {
     node: root,
-    get value() { return current; },
-    set(next) { apply(next, true); },
+
+    input,
+
+    get value() {
+      return current;
+    },
+
+    set(next) {
+      apply(next, true);
+    },
+
     setDisabled(state) {
-      root.style.opacity = state ? '0.4' : '';
-      root.style.pointerEvents = state ? 'none' : '';
+      isDisabled = Boolean(state);
+
+      if (isDisabled) {
+        root.classList.remove(
+          'is-focus',
+        );
+
+        input.blur();
+      }
+
+      applyState();
     },
   };
 }
