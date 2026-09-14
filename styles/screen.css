@@ -36,7 +36,7 @@
    * 58px — блок 2;
    * 20px между блоком 2 и блоками 3/4.
    */
-  grid-template-rows: 76px 78px minmax(0, 1fr) auto;
+  grid-template-rows: 76px 78px minmax(0, 1fr);
   grid-template-columns: 1fr;
   row-gap: 0;
 }
@@ -184,7 +184,7 @@
   grid-template-columns: 403px minmax(0, 1fr);
   column-gap: 5px;
   min-height: 0;
-  margin: 5px 30px 0;
+  margin: 5px 30px 30px;
 }
 
 /* ============================================================
@@ -288,13 +288,13 @@
    Figma: 43 + 5 + 470 + 5 + 180 = 703 (+ отступ до кнопки)
    ============================================================ */
 .rs-right {
+  box-sizing: border-box;
   display: grid;
   grid-template-rows: auto minmax(0, 1fr) auto;
   row-gap: 5px;
-  width: 100%;
   min-width: 0;
-  max-width: 100%;
   min-height: 0;
+  padding-bottom: 49px;
 }
 
 /* ---------- 4 блок — статус, 1132×43 ---------- */
@@ -1202,22 +1202,32 @@ textarea.rs-editable::-webkit-scrollbar-corner {
    правой колонки.
    ============================================================ */
 .rs-footer {
-  grid-row: 4;
-  display: grid;
-  grid-template-columns: 403px minmax(0, 1fr);
-  column-gap: 5px;
-  align-items: center;
-  margin: 15px 30px 30px;
-}
-.rs-footer__left { width: 100%; }
-.rs-footer__right {
+  position: absolute;
+  left: 438px;
+  right: 30px;
+  bottom: 30px;
   display: flex;
   flex-direction: row;
-  justify-content: flex-end;
+  justify-content: space-between;
   align-items: center;
-  gap: 15px;
+  gap: 5px;
+  height: 44px;
+  margin: 0;
 }
-.rs-footer__action { width: 366px; }
+
+.rs-footer__left,
+.rs-footer__right {
+  flex: none;
+  width: min(366px, calc((100% - 5px) / 2));
+}
+
+.rs-footer__left {
+  margin-right: auto;
+}
+
+.rs-footer__right {
+  margin-left: auto;
+}
 
 /* ============================================================
    Журнал (панель поверх, открывается кнопкой)

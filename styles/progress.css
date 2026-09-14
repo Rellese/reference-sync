@@ -106,13 +106,14 @@
 
 /* Interest: CommitMono 400 24/26 uppercase #B4B4B4 */
 .rs-progress__interest {
-  margin: 0 auto;
+  margin: 0;
   flex: none;
   font-family: var(--font-table);
   font-style: normal;
   font-weight: 400;
   font-size: 24px;
   line-height: 26px;
+  text-align: left;
   text-transform: uppercase;
   color: #B4B4B4;
   font-variant-numeric: tabular-nums;
@@ -128,14 +129,14 @@
   width: 100%;
 }
 
-/* Controls: 3 кнопки, gap 10px, ширина 128px, margin 0 auto */
+/* Controls: 3 кнопки справа, gap 10px, ширина 128px */
 .rs-progress__controls {
   display: flex;
   flex-direction: row;
   align-items: center;
   padding: 0;
   gap: 10px;
-  margin: 0 auto;
+  margin: 0 0 0 auto;
   width: 128px;
   height: 36px;
   flex: none;
@@ -569,29 +570,6 @@
   flex: 0 0 auto;
   min-width: 0;
   text-align: right;
-}
-
-/* ============================================================
-   Scale Download paused
-
-   Геометрия отступов наследуется от общих правил:
-   15px сверху и снизу;
-   20px слева и справа;
-   8px между Process info, Management и Scale;
-   15px между группой Info и Publication info.
-   ============================================================ */
-
-.rs-progress[data-mode='paused'] .rs-progress__manage {
-  justify-content: space-between;
-  gap: 20px;
-}
-
-.rs-progress[data-mode='paused'] .rs-progress__interest {
-  margin: 0;
-}
-
-.rs-progress[data-mode='paused'] .rs-progress__controls {
-  margin: 0 0 0 auto;
 }
 
 /* ============================================================
