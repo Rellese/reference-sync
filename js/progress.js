@@ -594,12 +594,121 @@ function makePlayerButton(kind, onClick) {
   const button = el('div', 'rs-player__button');
   const icons = el('div', 'rs-player__icons');
 
-  icons.appendChild(
-    el(
-      'span',
-      `rs-player__icon rs-player__icon--${kind}`,
-    ),
+  const icon = el(
+    'span',
+    `rs-player__icon rs-player__icon--${kind}`,
   );
+
+  if (kind === 'play') {
+    icon.innerHTML = `
+      <svg
+        viewBox="0 0 15 15"
+        width="15"
+        height="15"
+        fill="none"
+        xmlns="http://www.w3.org/2000/svg"
+        aria-hidden="true"
+      >
+        <defs>
+          <radialGradient
+            id="rs-play-base"
+            gradientUnits="userSpaceOnUse"
+            cx="7.5"
+            cy="0"
+            r="15"
+            gradientTransform="matrix(0.6089 0 0 1 2.93325 0)"
+          >
+            <stop
+              offset="16.64%"
+              stop-color="#3B3B3B"
+            />
+            <stop
+              offset="90.26%"
+              stop-color="#222222"
+            />
+            <stop
+              offset="100%"
+              stop-color="#222222"
+            />
+          </radialGradient>
+
+          <radialGradient
+            id="rs-play-light"
+            gradientUnits="userSpaceOnUse"
+            cx="7.5"
+            cy="0"
+            r="15"
+            gradientTransform="matrix(0.6292 0 0 0.6591 2.781 0)"
+          >
+            <stop
+              offset="0%"
+              stop-color="#6D6D6D"
+              stop-opacity="1"
+            />
+            <stop
+              offset="64.39%"
+              stop-color="#6D6D6D"
+              stop-opacity="0.2"
+            />
+            <stop
+              offset="100%"
+              stop-color="#6D6D6D"
+              stop-opacity="0"
+            />
+          </radialGradient>
+
+          <radialGradient
+            id="rs-play-disabled"
+            gradientUnits="userSpaceOnUse"
+            cx="7.5"
+            cy="15"
+            r="15"
+            gradientTransform="matrix(0.9547 0 0 1 0.33975 0)"
+          >
+            <stop
+              offset="0%"
+              stop-color="#6D6D6D"
+              stop-opacity="0.5"
+            />
+            <stop
+              offset="100%"
+              stop-color="#6D6D6D"
+              stop-opacity="0.1"
+            />
+          </radialGradient>
+        </defs>
+
+        <path
+          class="rs-player__play-active"
+          d="M1.6 1.1L13.8 7.5L1.6 13.9Z"
+          fill="url(#rs-play-base)"
+        />
+
+        <path
+          class="rs-player__play-active"
+          d="M1.6 1.1L13.8 7.5L1.6 13.9Z"
+          fill="url(#rs-play-light)"
+        />
+
+        <path
+          class="rs-player__play-active"
+          d="M1.6 1.1L13.8 7.5L1.6 13.9Z"
+          stroke="#B4B4B4"
+          stroke-opacity="0.1"
+          stroke-width="1"
+          stroke-linejoin="round"
+        />
+
+        <path
+          class="rs-player__play-disabled"
+          d="M1.6 1.1L13.8 7.5L1.6 13.9Z"
+          fill="url(#rs-play-disabled)"
+        />
+      </svg>
+    `;
+  }
+
+  icons.appendChild(icon);
 
   button.appendChild(icons);
   root.appendChild(button);

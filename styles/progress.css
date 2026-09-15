@@ -482,67 +482,37 @@
 /* ============================================================
    Play
 
-   Внешний треугольник содержит тот же градиент, что Stop
-   и Pause, плюс полупрозрачный внутренний stroke
-   #B4B4B4 / 50%.
+   Используется SVG, потому что два треугольника с inset: 1px
+   не создают равномерную внутреннюю обводку на диагоналях.
 
-   Внутренний слой повторно показывает основной градиент,
-   поэтому обводка просвечивает поверх заливки, а не заменяет её.
+   SVG содержит:
+   1. нижний радиальный градиент;
+   2. верхний радиальный градиент;
+   3. отдельную обводку #B4B4B4 / 50%.
    ============================================================ */
 
 .rs-player__icon--play {
-  position: relative;
-  overflow: hidden;
+  overflow: visible;
   border: 0;
-  border-radius: 3px;
-
-  background:
-    linear-gradient(
-      rgba(180, 180, 180, 0.5),
-      rgba(180, 180, 180, 0.5)
-    ),
-    var(--rs-control-active);
-
-  clip-path: polygon(
-    8% 2%,
-    15% 0%,
-    22% 2%,
-    92% 42%,
-    97% 48%,
-    97% 54%,
-    92% 60%,
-    22% 98%,
-    15% 100%,
-    8% 98%,
-    3% 92%,
-    3% 8%
-  );
-
+  border-radius: 0;
+  background: transparent;
+  clip-path: none;
   filter: none;
 }
 
-.rs-player__icon--play::before {
-  content: '';
-  position: absolute;
-  inset: 1px;
+.rs-player__icon--play svg {
+  display: block;
+  width: 15px;
+  height: 15px;
+  overflow: visible;
+}
 
-  background:
-    var(--rs-control-active);
+.rs-player__play-active {
+  opacity: 1;
+}
 
-  clip-path: polygon(
-    8% 2%,
-    15% 0%,
-    22% 2%,
-    92% 42%,
-    97% 48%,
-    97% 54%,
-    92% 60%,
-    22% 98%,
-    15% 100%,
-    8% 98%,
-    3% 92%,
-    3% 8%
-  );
+.rs-player__play-disabled {
+  opacity: 0;
 }
 
 .rs-player:hover .rs-player__icon--play {
@@ -581,11 +551,19 @@
 }
 
 .rs-player:not(.is-on)
-  .rs-player__icon--play,
-.rs-player:not(.is-on)
-  .rs-player__icon--play::before {
-  background: var(--rs-control-disabled);
+  .rs-player__icon--play {
+  background: transparent;
   filter: none;
+}
+
+.rs-player:not(.is-on)
+  .rs-player__play-active {
+  opacity: 0;
+}
+
+.rs-player:not(.is-on)
+  .rs-player__play-disabled {
+  opacity: 1;
 }
 
 /* ============================================================
