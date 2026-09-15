@@ -767,19 +767,9 @@
 }
 
 /*
- * Сбрасываем все старые фильтры отдельных типов иконок.
- */
-.rs-player.is-on:hover:not(:active)
-  .rs-player__icon,
-.rs-player.is-on:hover:not(:active)
-  .rs-player__icon > svg {
-  filter: none;
-  box-shadow: none;
-}
-
-/*
- * Единая тень накладывается на общий контейнер Controls.
- * Поэтому Play, Pause и Stop получают одинаковый эффект.
+ * Тень Controls применяется непосредственно к SVG.
+ * Все три Controls — Play, Pause и Stop — теперь используют SVG,
+ * поэтому эффект будет одинаковым.
  *
  * X: 0
  * Y: 0
@@ -787,7 +777,13 @@
  * Color: #000000 / 65%
  */
 .rs-player.is-on:hover:not(:active)
-  .rs-player__icons {
+  .rs-player__icon {
+  filter: none;
+  box-shadow: none;
+}
+
+.rs-player.is-on:hover:not(:active)
+  .rs-player__icon > svg {
   filter:
     drop-shadow(
       0 0 8px
