@@ -901,6 +901,45 @@ function makePlayerButton(kind, onClick) {
         </g>
 
         <defs>
+          <filter
+            id="rs-pause-hover-shadow"
+            x="-100%"
+            y="-100%"
+            width="300%"
+            height="300%"
+            color-interpolation-filters="sRGB"
+          >
+            <feMorphology
+              in="SourceAlpha"
+              operator="dilate"
+              radius="1"
+              result="spread"
+            />
+
+            <feGaussianBlur
+              in="spread"
+              stdDeviation="4"
+              result="blur"
+            />
+
+            <feFlood
+              flood-color="#000000"
+              flood-opacity="0.65"
+              result="shadow-color"
+            />
+
+            <feComposite
+              in="shadow-color"
+              in2="blur"
+              operator="in"
+              result="shadow"
+            />
+
+            <feMerge>
+              <feMergeNode in="shadow" />
+              <feMergeNode in="SourceGraphic" />
+            </feMerge>
+          </filter>
           <radialGradient
             id="rs-pause-base-left"
             cx="0"
@@ -1095,6 +1134,45 @@ function makePlayerButton(kind, onClick) {
         />
 
         <defs>
+          <filter
+            id="rs-stop-hover-shadow"
+            x="-100%"
+            y="-100%"
+            width="300%"
+            height="300%"
+            color-interpolation-filters="sRGB"
+          >
+            <feMorphology
+              in="SourceAlpha"
+              operator="dilate"
+              radius="1"
+              result="spread"
+            />
+
+            <feGaussianBlur
+              in="spread"
+              stdDeviation="4"
+              result="blur"
+            />
+
+            <feFlood
+              flood-color="#000000"
+              flood-opacity="0.65"
+              result="shadow-color"
+            />
+
+            <feComposite
+              in="shadow-color"
+              in2="blur"
+              operator="in"
+              result="shadow"
+            />
+
+            <feMerge>
+              <feMergeNode in="shadow" />
+              <feMergeNode in="SourceGraphic" />
+            </feMerge>
+          </filter>
           <radialGradient
             id="rs-stop-base"
             cx="0"
@@ -1181,26 +1259,23 @@ function makePlayerButton(kind, onClick) {
         xmlns="http://www.w3.org/2000/svg"
         aria-hidden="true"
       >
-        <path
-          class="rs-player__play-active"
-          d="M13.9655 5.88932C15.3448 6.60518 15.3448 8.39482 13.9655 9.11068L3.10345 14.7481C1.72414 15.4639 -6.96187e-08 14.5691 0 13.1374L5.48247e-07 1.86263C6.17866e-07 0.430913 1.72414 -0.46391 3.10345 0.251947L13.9655 5.88932Z"
-          fill="url(#rs-play-base)"
-        />
+        <g class="rs-player__play-active">
+          <path
+            d="M13.9655 5.88932C15.3448 6.60518 15.3448 8.39482 13.9655 9.11068L3.10345 14.7481C1.72414 15.4639 -6.96187e-08 14.5691 0 13.1374L5.48247e-07 1.86263C6.17866e-07 0.430913 1.72414 -0.46391 3.10345 0.251947L13.9655 5.88932Z"
+            fill="url(#rs-play-base)"
+          />
 
-        <path
-          class="rs-player__play-active"
-          d="M13.9655 5.88932C15.3448 6.60518 15.3448 8.39482 13.9655 9.11068L3.10345 14.7481C1.72414 15.4639 -6.96187e-08 14.5691 0 13.1374L5.48247e-07 1.86263C6.17866e-07 0.430913 1.72414 -0.46391 3.10345 0.251947L13.9655 5.88932Z"
-          fill="url(#rs-play-light)"
-        />
+          <path
+            d="M13.9655 5.88932C15.3448 6.60518 15.3448 8.39482 13.9655 9.11068L3.10345 14.7481C1.72414 15.4639 -6.96187e-08 14.5691 0 13.1374L5.48247e-07 1.86263C6.17866e-07 0.430913 1.72414 -0.46391 3.10345 0.251947L13.9655 5.88932Z"
+            fill="url(#rs-play-light)"
+          />
 
-        <path
-          class="
-            rs-player__play-active
-            rs-player__play-stroke
-          "
-          d="M1.26465 0.695312C1.73426 0.451605 2.3382 0.417829 2.87305 0.695312L13.7354 6.33301C14.2638 6.60729 14.5 7.06535 14.5 7.5C14.5 7.93465 14.2638 8.39271 13.7354 8.66699L2.87305 14.3047C2.3382 14.5822 1.73426 14.5484 1.26465 14.3047C0.796005 14.0615 0.500128 13.6342 0.5 13.1377V1.8623C0.500128 1.36577 0.796006 0.938537 1.26465 0.695312Z"
-          fill="none"
-        />
+          <path
+            class="rs-player__play-stroke"
+            d="M1.26465 0.695312C1.73426 0.451605 2.3382 0.417829 2.87305 0.695312L13.7354 6.33301C14.2638 6.60729 14.5 7.06535 14.5 7.5C14.5 7.93465 14.2638 8.39271 13.7354 8.66699L2.87305 14.3047C2.3382 14.5822 1.73426 14.5484 1.26465 14.3047C0.796005 14.0615 0.500128 13.6342 0.5 13.1377V1.8623C0.500128 1.36577 0.796006 0.938537 1.26465 0.695312Z"
+            fill="none"
+          />
+        </g>
 
         <path
           class="rs-player__play-disabled"
@@ -1209,6 +1284,45 @@ function makePlayerButton(kind, onClick) {
         />
 
         <defs>
+          <filter
+            id="rs-play-hover-shadow"
+            x="-100%"
+            y="-100%"
+            width="300%"
+            height="300%"
+            color-interpolation-filters="sRGB"
+          >
+            <feMorphology
+              in="SourceAlpha"
+              operator="dilate"
+              radius="1"
+              result="spread"
+            />
+
+            <feGaussianBlur
+              in="spread"
+              stdDeviation="4"
+              result="blur"
+            />
+
+            <feFlood
+              flood-color="#000000"
+              flood-opacity="0.65"
+              result="shadow-color"
+            />
+
+            <feComposite
+              in="shadow-color"
+              in2="blur"
+              operator="in"
+              result="shadow"
+            />
+
+            <feMerge>
+              <feMergeNode in="shadow" />
+              <feMergeNode in="SourceGraphic" />
+            </feMerge>
+          </filter>
           <radialGradient
             id="rs-play-base"
             cx="0"

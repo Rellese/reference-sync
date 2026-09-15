@@ -264,9 +264,6 @@
   --rs-control-disabled-end:
     rgba(109, 109, 109, 0.1);
 
-  --rs-control-hover-shadow:
-    0 1px 8px 1px rgba(0, 0, 0, 0.65);
-
   --rs-control-active:
     radial-gradient(
       62.92% 65.91% at 50% 0%,
@@ -780,6 +777,41 @@
   .rs-player__icon {
   filter: none;
   box-shadow: none;
+}
+
+/*
+ * Hovered-тень применяется непосредственно к видимой
+ * форме SVG, а не к квадратному контейнеру Controls.
+ *
+ * X: 0;
+ * Y: 0;
+ * Blur: 8;
+ * Spread: 1;
+ * Color: #000000 / 65%.
+ */
+.rs-player.is-on:hover:not(:active)
+  .rs-player__icon--pause
+  .rs-player__svg-active {
+  filter: url("#rs-pause-hover-shadow");
+}
+
+.rs-player.is-on:hover:not(:active)
+  .rs-player__icon--play
+  .rs-player__play-active {
+  filter: url("#rs-play-hover-shadow");
+}
+
+.rs-player.is-on:hover:not(:active)
+  .rs-player__icon--stop
+  .rs-player__svg-active {
+  filter: url("#rs-stop-hover-shadow");
+}
+
+.rs-player.is-on:active
+  .rs-player__svg-active,
+.rs-player.is-on:active
+  .rs-player__play-active {
+  filter: none;
 }
 
 /*
