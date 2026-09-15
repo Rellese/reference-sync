@@ -307,6 +307,83 @@
   outline: none;
 }
 
+/* ============================================================
+   Enable — точная внешняя рамка из SVG Figma
+   ============================================================ */
+
+.rs-player__frame {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  display: block;
+  width: 36px;
+  height: 36px;
+  pointer-events: none;
+}
+
+.rs-player__frame svg {
+  display: block;
+  width: 36px;
+  height: 36px;
+  overflow: visible;
+}
+
+.rs-player__frame--enable {
+  opacity: 0;
+}
+
+.rs-player__frame--hovered {
+  left: -1px;
+  right: auto;
+  width: 38px;
+  height: 38px;
+  opacity: 0;
+}
+
+.rs-player__frame--hovered svg {
+  width: 38px;
+  height: 38px;
+}
+
+/*
+ * Новая SVG-рамка показывается только в Enable.
+ */
+.rs-player.is-on:not(:hover):not(:active)
+  .rs-player__frame--enable {
+  opacity: 1;
+}
+
+/*
+ * Hovered показывается только при наведении.
+ * Во время нажатия его сменит Pressed.
+ */
+.rs-player.is-on:hover:not(:active)
+  .rs-player__frame--hovered {
+  opacity: 1;
+}
+
+/*
+ * Старый приблизительный CSS-градиент в Enable скрывается.
+ * В Hovered и Pressed он пока продолжает работать.
+ */
+.rs-player.is-on:not(:hover):not(:active)::before {
+  opacity: 0;
+}
+
+/*
+ * Старые псевдоэлементы не должны накладываться
+ * на точный SVG состояния Hovered.
+ */
+.rs-player.is-on:hover:not(:active)::before,
+.rs-player.is-on:hover:not(:active)::after {
+  opacity: 0;
+}
+
+.rs-player__icons {
+  position: relative;
+  z-index: 1;
+}
+
 /*
  * Enable — основная поверхность:
  * fill #262626 / 20%;
@@ -670,6 +747,31 @@
   transform: translateY(2px);
   transition-duration: 25ms;
   transition-timing-function: ease-out;
+}
+
+/*
+ * Controls — тень состояния Hovered:
+ * X: 0
+ * Y: 0
+ * Blur: 8px
+ * Color: #000000 / 65%
+ */
+.rs-player.is-on:hover:not(:active)
+  .rs-player__icon {
+  filter:
+    drop-shadow(
+      0 0 8px
+      rgba(0, 0, 0, 0.65)
+    );
+}
+
+/*
+ * При mousedown Hovered-тень сразу отключается.
+ * Иконка переходит в State=Off.
+ */
+.rs-player.is-on:active
+  .rs-player__icon {
+  filter: none;
 }
 
 /* ============================================================

@@ -592,6 +592,211 @@ function makePlayerButton(kind, onClick) {
   root.setAttribute('aria-label', PLAYER_LABEL[kind] || kind);
 
   const button = el('div', 'rs-player__button');
+
+  const enableFrame = el(
+    'span',
+    'rs-player__frame rs-player__frame--enable',
+  );
+
+  const enableGradientId =
+    `rs-player-enable-border-${kind}`;
+
+  enableFrame.innerHTML = `
+    <svg
+      width="36"
+      height="36"
+      viewBox="0 0 36 36"
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+      aria-hidden="true"
+    >
+      <rect
+        width="36"
+        height="36"
+        rx="5"
+        fill="#262626"
+        fill-opacity="0.2"
+      />
+
+      <rect
+        x="0.5"
+        y="0.5"
+        width="35"
+        height="35"
+        rx="4.5"
+        fill="none"
+        stroke="url(#${enableGradientId})"
+        stroke-opacity="0.3"
+      />
+
+      <defs>
+        <linearGradient
+          id="${enableGradientId}"
+          x1="12.0936"
+          y1="-4.02829"
+          x2="37.4203"
+          y2="19.1515"
+          gradientUnits="userSpaceOnUse"
+        >
+          <stop
+            offset="0"
+            stop-color="#707070"
+          />
+
+          <stop
+            offset="0.735778"
+            stop-color="#707070"
+            stop-opacity="0"
+          />
+        </linearGradient>
+      </defs>
+    </svg>
+  `;
+
+  const hoveredFrame = el(
+    'span',
+    'rs-player__frame rs-player__frame--hovered',
+  );
+
+  const hoveredGradientId =
+    `rs-player-hovered-border-${kind}`;
+
+  const hoveredShadowId =
+    `rs-player-hovered-shadow-${kind}`;
+
+  hoveredFrame.innerHTML = `
+    <svg
+      width="38"
+      height="38"
+      viewBox="0 0 38 38"
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+      aria-hidden="true"
+    >
+      <g filter="url(#${hoveredShadowId})">
+        <rect
+          x="1"
+          y="0"
+          width="36"
+          height="36"
+          rx="5"
+          fill="#262626"
+          fill-opacity="0.8"
+          shape-rendering="crispEdges"
+        />
+
+        <rect
+          x="1.5"
+          y="0.5"
+          width="35"
+          height="35"
+          rx="4.5"
+          fill="none"
+          stroke="url(#${hoveredGradientId})"
+          stroke-opacity="0.4"
+          shape-rendering="crispEdges"
+        />
+      </g>
+
+      <defs>
+        <filter
+          id="${hoveredShadowId}"
+          x="0"
+          y="0"
+          width="38"
+          height="38"
+          filterUnits="userSpaceOnUse"
+          color-interpolation-filters="sRGB"
+        >
+          <feFlood
+            flood-opacity="0"
+            result="BackgroundImageFix"
+          />
+
+          <feColorMatrix
+            in="SourceAlpha"
+            type="matrix"
+            values="
+              0 0 0 0 0
+              0 0 0 0 0
+              0 0 0 0 0
+              0 0 0 127 0
+            "
+            result="hardAlpha"
+          />
+
+          <feMorphology
+            radius="1"
+            operator="dilate"
+            in="SourceAlpha"
+            result="hoveredOuterShadow"
+          />
+
+          <feOffset dy="1" />
+
+          <feComposite
+            in2="hardAlpha"
+            operator="out"
+          />
+
+          <feColorMatrix
+            type="matrix"
+            values="
+              0 0 0 0 0
+              0 0 0 0 0
+              0 0 0 0 0
+              0 0 0 0.1 0
+            "
+          />
+
+          <feBlend
+            mode="normal"
+            in2="BackgroundImageFix"
+            result="hoveredButtonShadow"
+          />
+
+          <feBlend
+            mode="normal"
+            in="SourceGraphic"
+            in2="hoveredButtonShadow"
+            result="shape"
+          />
+        </filter>
+
+        <linearGradient
+          id="${hoveredGradientId}"
+          x1="7.47241"
+          y1="-9.66247"
+          x2="49.6028"
+          y2="19.3496"
+          gradientUnits="userSpaceOnUse"
+        >
+          <stop
+            offset="0"
+            stop-color="#707070"
+          />
+
+          <stop
+            offset="0.322613"
+            stop-color="#707070"
+            stop-opacity="0"
+          />
+
+          <stop
+            offset="0.724756"
+            stop-color="#707070"
+            stop-opacity="0"
+          />
+
+          <stop
+            offset="1"
+            stop-color="#707070"
+          />
+        </linearGradient>
+      </defs>
+    </svg>
+  `;
+
   const icons = el('div', 'rs-player__icons');
 
   const icon = el(
@@ -1087,7 +1292,12 @@ function makePlayerButton(kind, onClick) {
 
   icons.appendChild(icon);
 
-  button.appendChild(icons);
+  button.append(
+    enableFrame,
+    hoveredFrame,
+    icons,
+  );
+
   root.appendChild(button);
 
   let on = false;
