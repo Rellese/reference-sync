@@ -1,27 +1,56 @@
 /* ============================================================
    Потоковый счётчик найденных публикаций.
 
-   Движок считает каждый уникальный ID сразу после появления
-   в stdout gallery-dl, но уведомляет интерфейс не чаще одного
-   раза в updateInterval миллисекунд.
+   gallery-dl с output.jsonl=true выводит каждое сообщение
+   отдельной JSON-строкой:
 
-   Остаток конца chunk сохраняется, поэтому идентификатор не
-   теряется, если JSON был разделён между двумя chunk.
+     [тип, url, metadata]
+
+   ID публикации читается только из корневого metadata-объекта.
+   Вложенные id автора, изображения, видео и доски не считаются.
    ============================================================ */
 
-function escapeRegExp(value) {
-  return String(value).replace(
-    /[.*+?^${}()|[\]\\]/g,
-    '\\$&',
-  );
-}
-
-function decodeJsonString(value) {
-  try {
-    return JSON.parse(`"${value}"`);
-  } catch (_) {
-    return value;
+function publicationMetadata(value) {
+  if (
+    !Array.isArray(value) ||
+    typeof value[0] !== 'number'
+  ) {
+    return null;
   }
+
+  const messageType = Number(value[0]);
+
+  /*
+   * gallery-dl:
+   *   2 — Directory с метаданными публикации;
+   *   3 — URL реального медиафайла.
+   *
+   * Queue и остальные служебные сообщения не считаем.
+   */
+  if (
+    messageType !== 2 &&
+    messageType !== 3
+  ) {
+    return null;
+  }
+
+  for (
+    let index = value.length - 1;
+    index >= 1;
+    index -= 1
+  ) {
+    const candidate = value[index];
+
+    if (
+      candidate &&
+      typeof candidate === 'object' &&
+      !Array.isArray(candidate)
+    ) {
+      return candidate;
+    }
+  }
+
+  return null;
 }
 
 export function createDiscoveryCounter({
@@ -29,19 +58,14 @@ export function createDiscoveryCounter({
   onProgress,
   updateInterval = 100,
 } = {}) {
-  const field = String(idField || '').trim();
+  const field =
+    String(idField || '').trim();
 
   if (!field) {
     throw new Error(
       'Для счётчика поиска не указано поле ID публикации',
     );
   }
-
-  const pattern = new RegExp(
-    `"${escapeRegExp(field)}"\\s*:\\s*` +
-    `(?:"((?:\\\\.|[^"\\\\])*)"|(-?\\d+))`,
-    'g',
-  );
 
   const foundIds = new Set();
 
@@ -86,39 +110,96 @@ export function createDiscoveryCounter({
     );
   }
 
-  function push(chunk, context = {}) {
-    if (disposed) return foundIds.size;
+  function addMetadata(metadata) {
+    if (
+      !metadata ||
+      typeof metadata !== 'object' ||
+      Array.isArray(metadata)
+    ) {
+      return false;
+    }
 
-    const input =
-      carry + String(chunk || '');
+    const id =
+      String(metadata[field] ?? '').trim();
 
-    /*
-     * Хвоста 1024 символа достаточно для обычной пары
-     * "publication_id": "value". Повторно найденный ID
-     * безопасно отсеивается через Set.
-     */
-    carry = input.slice(-1024);
-    lastContext = context;
+    if (
+      !id ||
+      foundIds.has(id)
+    ) {
+      return false;
+    }
 
-    pattern.lastIndex = 0;
+    foundIds.add(id);
+    return true;
+  }
 
-    let match;
-    let changed = false;
+  function collectFromValue(value) {
+    if (Array.isArray(value)) {
+      const metadata =
+        publicationMetadata(value);
 
-    while ((match = pattern.exec(input)) !== null) {
-      const rawValue =
-        match[1] !== undefined
-          ? decodeJsonString(match[1])
-          : match[2];
-
-      const id = String(rawValue || '').trim();
-
-      if (!id || foundIds.has(id)) {
-        continue;
+      if (metadata) {
+        return addMetadata(metadata);
       }
 
-      foundIds.add(id);
-      changed = true;
+      /*
+       * Совместимость с обычным --dump-json:
+       * один массив может содержать несколько сообщений.
+       */
+      let changed = false;
+
+      for (const child of value) {
+        if (collectFromValue(child)) {
+          changed = true;
+        }
+      }
+
+      return changed;
+    }
+
+    /*
+     * Некоторые источники выводят сразу metadata-объект,
+     * без обёртки [тип, url, metadata].
+     */
+    return addMetadata(value);
+  }
+
+  function processLine(line) {
+    const text =
+      String(line || '').trim();
+
+    if (!text) {
+      return false;
+    }
+
+    try {
+      return collectFromValue(
+        JSON.parse(text),
+      );
+    } catch (_) {
+      return false;
+    }
+  }
+
+  function push(chunk, context = {}) {
+    if (disposed) {
+      return foundIds.size;
+    }
+
+    carry += String(chunk || '');
+    lastContext = context;
+
+    const lines =
+      carry.split(/\r?\n/);
+
+    carry = lines.pop() || '';
+
+    let changed = false;
+
+    for (const line of lines) {
+      if (processLine(line)) {
+        changed = true;
+      }
     }
 
     if (changed) {
@@ -129,16 +210,30 @@ export function createDiscoveryCounter({
   }
 
   function flush(context = lastContext) {
-    if (disposed) return foundIds.size;
+    if (disposed) {
+      return foundIds.size;
+    }
 
     lastContext = context;
+
+    let changed = false;
+
+    if (carry.trim()) {
+      changed = processLine(carry);
+      carry = '';
+    }
 
     if (timer !== null) {
       clearTimeout(timer);
       timer = null;
     }
 
-    report();
+    if (
+      changed ||
+      foundIds.size !== lastReported
+    ) {
+      report();
+    }
 
     return foundIds.size;
   }

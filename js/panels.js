@@ -86,16 +86,6 @@ const TIP_DESCRIPTION =
   'Описание из публикации переносится в **поле «Аннотация» Eagle**. ' +
   'Дополнительный текст добавляется ко всем выбранным публикациям.';
 
-/* Подсказки для остальных мест, где стоит Инфо */
-const TIP_SOURCE =
-  'Откуда брать список сохранённого. **Через браузер — быстрее и без файлов**, ' +
-  'архив Meta нужен, когда доступа к аккаунту больше нет.';
-
-const TIP_SEARCH_MODE =
-  '«Только новые» проверяет ленту до первого знакомого поста и останавливается — ' +
-  '**подходит для регулярного обновления**. Полный проход нужен для первого ' +
-  'запуска или сверки всей библиотеки.';
-
 const TIP_FILTERS =
   'Фильтры применяются **к уже найденному списку**, поэтому их можно ' +
   'менять после поиска без повторного обращения к Instagram.';
@@ -267,9 +257,13 @@ export function buildSettings({ onChange, onFolderSearch }) {
 
   /* ---------- Шаг 1: выбор источника ---------- */
   const step1 = el('div', 'rs-step');
-  step1.appendChild(createLabelWithInfo(
-    'Шаг 1 — выбор анализа', TIP_SOURCE,
-    { className: 'rs-step__title' }).node);
+  step1.appendChild(
+    el(
+      'div',
+      'rs-step__title',
+      'Шаг 1 — выбор анализа',
+    ),
+  );
 
   const sourceGroup = createRadioGroup([
     { value: 'browser', label: 'Через авторизованный браузер' },
@@ -389,9 +383,13 @@ export function buildSettings({ onChange, onFolderSearch }) {
 
   /* ---------- Шаг 2: тип поиска ---------- */
   const step2 = el('div', 'rs-step');
-  step2.appendChild(createLabelWithInfo(
-    'Шаг 2 — тип поиска', TIP_SEARCH_MODE,
-    { className: 'rs-step__title' }).node);
+  step2.appendChild(
+    el(
+      'div',
+      'rs-step__title',
+      'Шаг 2 — тип поиска',
+    ),
+  );
 
   const recentSpinner = createSpinner({
     value: s.recentLimit,

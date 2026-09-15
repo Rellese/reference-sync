@@ -1232,10 +1232,8 @@
 }
 
 .rs-field.is-focus:not(.is-disabled)
-  .rs-field__chevron::before,
-.rs-field.is-focus:not(.is-disabled)
-  .rs-field__chevron::after {
-  background: #EAEAEA;
+  .rs-field__chevron {
+  color: #EAEAEA;
 }
 
 /*
@@ -1268,10 +1266,8 @@
 }
 
 .rs-field.is-disabled
-  .rs-field__chevron::before,
-.rs-field.is-disabled
-  .rs-field__chevron::after {
-  background: rgba(112, 112, 112, 0.2);
+  .rs-field__chevron {
+  color: rgba(112, 112, 112, 0.2);
 }
 
 .rs-field__body {
@@ -1317,35 +1313,31 @@
 .rs-field.is-focus .rs-field__input { color: var(--text-strong); }
 .rs-field__input::placeholder { color: var(--text-muted-20); }
 
-/* Vector 2 — шеврон у select-подобных полей */
+/* Vector 2 — единый SVG-контур 10×5 из Input field */
 .rs-field__chevron {
   position: relative;
   z-index: 1;
+  display: none;
   flex: none;
   width: 10px;
   height: 5px;
-  display: none;
+  color: #707070;
+  pointer-events: none;
 }
-.rs-field.has-chevron .rs-field__chevron { display: block; }
-.rs-field__chevron::before,
-.rs-field__chevron::after {
-  content: '';
-  position: absolute;
-  top: 1px;
-  width: 6.4px;
-  height: 1px;
-  background: var(--text-muted);
-  border-radius: 1px;
+
+.rs-field.has-chevron .rs-field__chevron {
+  display: block;
 }
-.rs-field__chevron::before {
-  left: -0.4px;
-  transform: rotate(38deg);
-  transform-origin: left center;
+
+.rs-field__chevron svg {
+  display: block;
+  width: 10px;
+  height: 5px;
+  overflow: visible;
 }
-.rs-field__chevron::after {
-  right: -0.4px;
-  transform: rotate(-38deg);
-  transform-origin: right center;
+
+.rs-field__chevron path {
+  vector-effect: non-scaling-stroke;
 }
 
 /* Селект: то же поле, но текст ярче и курсор-указатель */

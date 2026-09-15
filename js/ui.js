@@ -589,7 +589,35 @@ export function createField({
   if (readOnly) input.readOnly = true;
   body.appendChild(input);
 
-  root.append(body, el('div', 'rs-field__chevron'));
+  const chevron = el(
+    'div',
+    'rs-field__chevron',
+  );
+
+  chevron.innerHTML = `
+    <svg
+      width="10"
+      height="5"
+      viewBox="0 0 10 5"
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+      aria-hidden="true"
+    >
+      <path
+        d="M0.5 0.5L5 4.5L9.5 0.5"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="1"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+      />
+    </svg>
+  `;
+
+  root.append(
+    body,
+    chevron,
+  );
 
   root.addEventListener('mousedown', (event) => {
     if (event.target !== input) {

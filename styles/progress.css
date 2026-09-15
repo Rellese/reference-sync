@@ -482,14 +482,27 @@
 /* ============================================================
    Play
 
-   Иконка остаётся 15×15px. Скруглённый треугольник имитируется
-   clip-path и мягким stroke через drop-shadow.
+   Внешний треугольник содержит тот же градиент, что Stop
+   и Pause, плюс полупрозрачный внутренний stroke
+   #B4B4B4 / 50%.
+
+   Внутренний слой повторно показывает основной градиент,
+   поэтому обводка просвечивает поверх заливки, а не заменяет её.
    ============================================================ */
 
 .rs-player__icon--play {
-  background: var(--rs-control-active);
+  position: relative;
+  overflow: hidden;
   border: 0;
   border-radius: 3px;
+
+  background:
+    linear-gradient(
+      rgba(180, 180, 180, 0.5),
+      rgba(180, 180, 180, 0.5)
+    ),
+    var(--rs-control-active);
+
   clip-path: polygon(
     8% 2%,
     15% 0%,
@@ -505,19 +518,38 @@
     3% 8%
   );
 
-  filter:
-    drop-shadow(
-      0 0 0.5px rgba(180, 180, 180, 0.5)
-    );
+  filter: none;
+}
+
+.rs-player__icon--play::before {
+  content: '';
+  position: absolute;
+  inset: 1px;
+
+  background:
+    var(--rs-control-active);
+
+  clip-path: polygon(
+    8% 2%,
+    15% 0%,
+    22% 2%,
+    92% 42%,
+    97% 48%,
+    97% 54%,
+    92% 60%,
+    22% 98%,
+    15% 100%,
+    8% 98%,
+    3% 92%,
+    3% 8%
+  );
 }
 
 .rs-player:hover .rs-player__icon--play {
   filter:
     drop-shadow(
-      0 0 0.5px rgba(180, 180, 180, 0.5)
-    )
-    drop-shadow(
-      0 1px 4px rgba(0, 0, 0, 0.65)
+      0 1px 4px
+      rgba(0, 0, 0, 0.65)
     );
 }
 
@@ -549,7 +581,9 @@
 }
 
 .rs-player:not(.is-on)
-  .rs-player__icon--play {
+  .rs-player__icon--play,
+.rs-player:not(.is-on)
+  .rs-player__icon--play::before {
   background: var(--rs-control-disabled);
   filter: none;
 }
