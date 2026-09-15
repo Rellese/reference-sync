@@ -766,42 +766,6 @@
 }
 
 /* ============================================================
-   Pause в состоянии Scale Download paused
-
-   Кнопка Pause постоянно отображается в Pressed:
-   поверхность смещена вниз на 2px;
-   fill #151515;
-   stroke linear-gradient -14deg;
-   внутренняя тень.
-   Иконка используется в состоянии Off.
-   ============================================================ */
-
-.rs-player:not(.is-on)::before,
-.rs-player:not(.is-on)::after {
-  transform: translateY(2px);
-  transition-duration: 25ms;
-  transition-timing-function: ease-out;
-}
-
-.rs-player:not(.is-on)::after {
-  opacity: 1;
-  background:
-    linear-gradient(
-      #151515,
-      #151515
-    ) padding-box,
-    linear-gradient(
-      -14deg,
-      rgba(112, 112, 112, 0) 0%,
-      rgba(112, 112, 112, 0) 26%,
-      rgba(112, 112, 112, 1) 100%
-    ) border-box;
-  background-size: 100% 100%;
-  box-shadow:
-    inset 0 2px 0 1px rgba(0, 0, 0, 0.1);
-}
-
-/* ============================================================
    Hovered
 
    Структура:
@@ -908,6 +872,79 @@
   .rs-player__icon > svg {
   filter: none;
 }
+
+/*
+ * После click класс is-on снимается.
+ * Постоянный Pressed рисуется только новой SVG-рамкой.
+ * Старые псевдоэлементы не должны возвращаться на :hover.
+ */
+.rs-player:not(.is-on)::before,
+.rs-player:not(.is-on)::after {
+  opacity: 0;
+}
+
+/*
+ * Pressed при удержании:
+ * On-графика удаляется из SVG-отрисовки,
+ * Off-графика включается сразу на mousedown.
+ */
+.rs-player.is-on:active
+  .rs-player__svg-active,
+.rs-player.is-on:active
+  .rs-player__play-active {
+  display: none;
+}
+
+.rs-player.is-on:active
+  .rs-player__svg-disabled,
+.rs-player.is-on:active
+  .rs-player__play-disabled {
+  display: inline;
+  opacity: 1;
+  visibility: visible;
+  filter: none;
+}
+
+/*
+ * Постоянный Pressed после click.
+ */
+.rs-player:not(.is-on)
+  .rs-player__svg-active,
+.rs-player:not(.is-on)
+  .rs-player__play-active {
+  display: none;
+}
+
+.rs-player:not(.is-on)
+  .rs-player__svg-disabled,
+.rs-player:not(.is-on)
+  .rs-player__play-disabled {
+  display: inline;
+  opacity: 1;
+  visibility: visible;
+  filter: none;
+}
+
+/*
+ * Enable и Hovered:
+ * показывается только On-вариант Controls.
+ */
+.rs-player.is-on:not(:active)
+  .rs-player__svg-active,
+.rs-player.is-on:not(:active)
+  .rs-player__play-active {
+  display: inline;
+  opacity: 1;
+  visibility: visible;
+}
+
+.rs-player.is-on:not(:active)
+  .rs-player__svg-disabled,
+.rs-player.is-on:not(:active)
+  .rs-player__play-disabled {
+  display: none;
+}
+
 
 /* ============================================================
    Hidden states
