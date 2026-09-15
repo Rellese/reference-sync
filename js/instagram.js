@@ -1047,6 +1047,7 @@ export async function discoverSaved({
       ...cookieArgs,
       '--simulate',
       '--dump-json',
+      '-o', 'output.jsonl=true',
       '--retries', String(profile.retries),
       '--http-timeout', '30',
       ...paceArgs(profile),

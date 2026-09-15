@@ -1107,13 +1107,13 @@ export function createGallerySource(spec) {
       const args = [
         '--config-ignore',
         '--no-input',
+        '--simulate',
+        '--dump-json',
+        '-o', 'output.jsonl=true',
         '--retries', String(profile.retries),
-        '--http-timeout', '60',
+        '--http-timeout', '30',
         ...paceArgs(profile),
-        ...extraDownloadArgs,
-        '--dest', postDir,
-        '--filename', '{num}.{extension}',
-        '--directory', '',
+        ...extraDiscoverArgs,
       ];
       if (cookies) {
         if (cookieFile) {
