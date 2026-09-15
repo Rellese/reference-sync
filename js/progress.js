@@ -599,6 +599,373 @@ function makePlayerButton(kind, onClick) {
     `rs-player__icon rs-player__icon--${kind}`,
   );
 
+    if (kind === 'pause') {
+    icon.innerHTML = `
+      <svg
+        width="15"
+        height="15"
+        viewBox="0 0 15 15"
+        fill="none"
+        xmlns="http://www.w3.org/2000/svg"
+        aria-hidden="true"
+      >
+        <g class="rs-player__svg-active">
+          <rect
+            width="6"
+            height="15"
+            rx="3"
+            fill="var(--rs-control-underlay)"
+          />
+
+          <rect
+            width="6"
+            height="15"
+            rx="3"
+            fill="url(#rs-pause-base-left)"
+          />
+
+          <rect
+            width="6"
+            height="15"
+            rx="3"
+            fill="url(#rs-pause-light-left)"
+          />
+
+          <rect
+            x="0.5"
+            y="0.5"
+            width="5"
+            height="14"
+            rx="2.5"
+            fill="none"
+            stroke="var(--rs-control-stroke)"
+            style="mix-blend-mode: color-dodge"
+          />
+
+          <rect
+            x="9"
+            width="6"
+            height="15"
+            rx="3"
+            fill="var(--rs-control-underlay)"
+          />
+
+          <rect
+            x="9"
+            width="6"
+            height="15"
+            rx="3"
+            fill="url(#rs-pause-base-right)"
+          />
+
+          <rect
+            x="9"
+            width="6"
+            height="15"
+            rx="3"
+            fill="url(#rs-pause-light-right)"
+          />
+
+          <rect
+            x="9.5"
+            y="0.5"
+            width="5"
+            height="14"
+            rx="2.5"
+            fill="none"
+            stroke="var(--rs-control-stroke)"
+            style="mix-blend-mode: color-dodge"
+          />
+        </g>
+
+        <g class="rs-player__svg-disabled">
+          <rect
+            width="6"
+            height="15"
+            rx="3"
+            fill="url(#rs-pause-disabled-left)"
+          />
+
+          <rect
+            x="9"
+            width="6"
+            height="15"
+            rx="3"
+            fill="url(#rs-pause-disabled-right)"
+          />
+        </g>
+
+        <defs>
+          <radialGradient
+            id="rs-pause-base-left"
+            cx="0"
+            cy="0"
+            r="1"
+            gradientUnits="userSpaceOnUse"
+            gradientTransform="
+              translate(3 0)
+              rotate(90)
+              scale(15 3.65341)
+            "
+          >
+            <stop
+              offset="0.166446"
+              stop-color="var(--rs-control-base-start)"
+            />
+            <stop
+              offset="0.902612"
+              stop-color="var(--rs-control-base-end)"
+            />
+            <stop
+              offset="1"
+              stop-color="var(--rs-control-base-end)"
+            />
+          </radialGradient>
+
+          <radialGradient
+            id="rs-pause-light-left"
+            cx="0"
+            cy="0"
+            r="1"
+            gradientUnits="userSpaceOnUse"
+            gradientTransform="
+              translate(3 0)
+              rotate(90)
+              scale(9.88636 3.77531)
+            "
+          >
+            <stop
+              stop-color="var(--rs-control-light-start)"
+            />
+            <stop
+              offset="0.643872"
+              stop-color="var(--rs-control-light-middle)"
+            />
+            <stop
+              offset="1"
+              stop-color="var(--rs-control-light-end)"
+            />
+          </radialGradient>
+
+          <radialGradient
+            id="rs-pause-base-right"
+            cx="0"
+            cy="0"
+            r="1"
+            gradientUnits="userSpaceOnUse"
+            gradientTransform="
+              translate(12 0)
+              rotate(90)
+              scale(15 3.65341)
+            "
+          >
+            <stop
+              offset="0.166446"
+              stop-color="var(--rs-control-base-start)"
+            />
+            <stop
+              offset="0.902612"
+              stop-color="var(--rs-control-base-end)"
+            />
+            <stop
+              offset="1"
+              stop-color="var(--rs-control-base-end)"
+            />
+          </radialGradient>
+
+          <radialGradient
+            id="rs-pause-light-right"
+            cx="0"
+            cy="0"
+            r="1"
+            gradientUnits="userSpaceOnUse"
+            gradientTransform="
+              translate(12 0)
+              rotate(90)
+              scale(9.88636 3.77531)
+            "
+          >
+            <stop
+              stop-color="var(--rs-control-light-start)"
+            />
+            <stop
+              offset="0.643872"
+              stop-color="var(--rs-control-light-middle)"
+            />
+            <stop
+              offset="1"
+              stop-color="var(--rs-control-light-end)"
+            />
+          </radialGradient>
+
+          <radialGradient
+            id="rs-pause-disabled-left"
+            cx="0"
+            cy="0"
+            r="1"
+            gradientUnits="userSpaceOnUse"
+            gradientTransform="
+              translate(3 15)
+              rotate(-90)
+              scale(15 5.7282)
+            "
+          >
+            <stop
+              stop-color="var(--rs-control-disabled-start)"
+            />
+            <stop
+              offset="1"
+              stop-color="var(--rs-control-disabled-end)"
+            />
+          </radialGradient>
+
+          <radialGradient
+            id="rs-pause-disabled-right"
+            cx="0"
+            cy="0"
+            r="1"
+            gradientUnits="userSpaceOnUse"
+            gradientTransform="
+              translate(12 15)
+              rotate(-90)
+              scale(15 5.7282)
+            "
+          >
+            <stop
+              stop-color="var(--rs-control-disabled-start)"
+            />
+            <stop
+              offset="1"
+              stop-color="var(--rs-control-disabled-end)"
+            />
+          </radialGradient>
+        </defs>
+      </svg>
+    `;
+  }
+
+  if (kind === 'stop') {
+    icon.innerHTML = `
+      <svg
+        width="15"
+        height="15"
+        viewBox="0 0 15 15"
+        fill="none"
+        xmlns="http://www.w3.org/2000/svg"
+        aria-hidden="true"
+      >
+        <g class="rs-player__svg-active">
+          <rect
+            width="15"
+            height="15"
+            rx="3"
+            fill="url(#rs-stop-base)"
+          />
+
+          <rect
+            width="15"
+            height="15"
+            rx="3"
+            fill="url(#rs-stop-light)"
+          />
+
+          <rect
+            x="0.5"
+            y="0.5"
+            width="14"
+            height="14"
+            rx="2.5"
+            fill="none"
+            stroke="var(--rs-control-stroke)"
+            style="mix-blend-mode: color-dodge"
+          />
+        </g>
+
+        <rect
+          class="rs-player__svg-disabled"
+          width="15"
+          height="15"
+          rx="3"
+          fill="url(#rs-stop-disabled)"
+        />
+
+        <defs>
+          <radialGradient
+            id="rs-stop-base"
+            cx="0"
+            cy="0"
+            r="1"
+            gradientUnits="userSpaceOnUse"
+            gradientTransform="
+              translate(7.5 0)
+              rotate(90)
+              scale(15 9.13352)
+            "
+          >
+            <stop
+              offset="0.166446"
+              stop-color="var(--rs-control-base-start)"
+            />
+            <stop
+              offset="0.902612"
+              stop-color="var(--rs-control-base-end)"
+            />
+            <stop
+              offset="1"
+              stop-color="var(--rs-control-base-end)"
+            />
+          </radialGradient>
+
+          <radialGradient
+            id="rs-stop-light"
+            cx="0"
+            cy="0"
+            r="1"
+            gradientUnits="userSpaceOnUse"
+            gradientTransform="
+              translate(7.5 0)
+              rotate(90)
+              scale(9.88636 9.43829)
+            "
+          >
+            <stop
+              stop-color="var(--rs-control-light-start)"
+            />
+            <stop
+              offset="0.643872"
+              stop-color="var(--rs-control-light-middle)"
+            />
+            <stop
+              offset="1"
+              stop-color="var(--rs-control-light-end)"
+            />
+          </radialGradient>
+
+          <radialGradient
+            id="rs-stop-disabled"
+            cx="0"
+            cy="0"
+            r="1"
+            gradientUnits="userSpaceOnUse"
+            gradientTransform="
+              translate(7.5 15)
+              rotate(-90)
+              scale(15 14.3205)
+            "
+          >
+            <stop
+              stop-color="var(--rs-control-disabled-start)"
+            />
+            <stop
+              offset="1"
+              stop-color="var(--rs-control-disabled-end)"
+            />
+          </radialGradient>
+        </defs>
+      </svg>
+    `;
+  }
+
   if (kind === 'play') {
     icon.innerHTML = `
       <svg

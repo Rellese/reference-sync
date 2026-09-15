@@ -239,7 +239,7 @@
    контейнера, не изменяя раскладку Progress bar.
    ============================================================ */
 
-.rs-player {
+
   .rs-player {
   /*
    * Единые параметры Play, Pause и Stop.
@@ -248,6 +248,7 @@
 
   --rs-control-base-start: #3B3B3B;
   --rs-control-base-end: #222222;
+  --rs-control-underlay: #D9D9D9;
 
   --rs-control-light-start: #6D6D6D;
   --rs-control-light-middle:
@@ -286,8 +287,6 @@
       var(--rs-control-disabled-start) 0%,
       var(--rs-control-disabled-end) 100%
     );
-
-  position: relative;
 
   position: relative;
   isolation: isolate;
@@ -476,33 +475,53 @@
 }
 
 /* ============================================================
-   Pause
+   Pause и Stop — оригинальные SVG из Figma
    ============================================================ */
 
-.rs-player__icon--pause {
-  display: flex;
-  flex-direction: row;
-  align-items: center;
-  gap: 3px;
+.rs-player__icon--pause,
+.rs-player__icon--stop {
+  overflow: visible;
+  border: 0;
+  border-radius: 0;
   background: transparent;
+  filter: none;
 }
 
-.rs-player__icon--pause::before,
-.rs-player__icon--pause::after {
-  content: '';
-  box-sizing: border-box;
+.rs-player__icon--pause svg,
+.rs-player__icon--stop svg {
   display: block;
-  flex: 0 0 6px;
-  width: 6px;
+  width: 15px;
   height: 15px;
-  background: var(--rs-control-active);
-  border: 1px solid var(--rs-control-stroke);
-  border-radius: 5px;
+  overflow: visible;
 }
 
-.rs-player:hover .rs-player__icon--pause::before,
-.rs-player:hover .rs-player__icon--pause::after {
-  box-shadow: var(--rs-control-hover-shadow);
+.rs-player__svg-active {
+  opacity: 1;
+}
+
+.rs-player__svg-disabled {
+  opacity: 0;
+}
+
+.rs-player:not(.is-on)
+  .rs-player__svg-active {
+  opacity: 0;
+}
+
+.rs-player:not(.is-on)
+  .rs-player__svg-disabled {
+  opacity: 1;
+}
+
+.rs-player.is-on:hover
+  .rs-player__icon--pause,
+.rs-player.is-on:hover
+  .rs-player__icon--stop {
+  filter:
+    drop-shadow(
+      0 1px 8px
+      rgba(0, 0, 0, 0.65)
+    );
 }
 
 /* ============================================================
@@ -554,21 +573,6 @@
 .rs-player:not(.is-on) {
   cursor: default;
   pointer-events: none;
-}
-
-.rs-player:not(.is-on) .rs-player__icon--stop {
-  background: var(--rs-control-disabled);
-  border-color: transparent;
-  box-shadow: none;
-}
-
-.rs-player:not(.is-on)
-  .rs-player__icon--pause::before,
-.rs-player:not(.is-on)
-  .rs-player__icon--pause::after {
-  background: var(--rs-control-disabled);
-  border-color: transparent;
-  box-shadow: none;
 }
 
 .rs-player:not(.is-on)
