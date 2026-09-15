@@ -797,6 +797,137 @@ function makePlayerButton(kind, onClick) {
     </svg>
   `;
 
+    const pressedFrame = el(
+    'span',
+    'rs-player__frame rs-player__frame--pressed',
+  );
+
+  const pressedGradientId =
+    `rs-player-pressed-border-${kind}`;
+
+  const pressedShadowId =
+    `rs-player-pressed-shadow-${kind}`;
+
+  pressedFrame.innerHTML = `
+    <svg
+      width="36"
+      height="37"
+      viewBox="0 0 36 37"
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+      aria-hidden="true"
+    >
+      <g filter="url(#${pressedShadowId})">
+        <rect
+          y="1"
+          width="36"
+          height="36"
+          rx="5"
+          fill="#151515"
+        />
+
+        <rect
+          x="0.5"
+          y="1.5"
+          width="35"
+          height="35"
+          rx="4.5"
+          fill="none"
+          stroke="url(#${pressedGradientId})"
+          stroke-opacity="0.3"
+        />
+      </g>
+
+      <defs>
+        <filter
+          id="${pressedShadowId}"
+          x="0"
+          y="1"
+          width="36"
+          height="37"
+          filterUnits="userSpaceOnUse"
+          color-interpolation-filters="sRGB"
+        >
+          <feFlood
+            flood-opacity="0"
+            result="BackgroundImageFix"
+          />
+
+          <feBlend
+            mode="normal"
+            in="SourceGraphic"
+            in2="BackgroundImageFix"
+            result="shape"
+          />
+
+          <feColorMatrix
+            in="SourceAlpha"
+            type="matrix"
+            values="
+              0 0 0 0 0
+              0 0 0 0 0
+              0 0 0 0 0
+              0 0 0 127 0
+            "
+            result="hardAlpha"
+          />
+
+          <feMorphology
+            in="SourceAlpha"
+            operator="erode"
+            radius="1"
+            result="pressedInnerShadow"
+          />
+
+          <feOffset dy="2" />
+
+          <feComposite
+            in2="hardAlpha"
+            operator="arithmetic"
+            k2="-1"
+            k3="1"
+          />
+
+          <feColorMatrix
+            type="matrix"
+            values="
+              0 0 0 0 0
+              0 0 0 0 0
+              0 0 0 0 0
+              0 0 0 0.1 0
+            "
+          />
+
+          <feBlend
+            mode="normal"
+            in2="shape"
+            result="pressedInnerShadow"
+          />
+        </filter>
+
+        <linearGradient
+          id="${pressedGradientId}"
+          x1="12.0936"
+          y1="-3.02829"
+          x2="37.4203"
+          y2="20.1515"
+          gradientUnits="userSpaceOnUse"
+        >
+          <stop
+            offset="0.264222"
+            stop-color="#707070"
+            stop-opacity="0"
+          />
+
+          <stop
+            offset="1"
+            stop-color="#707070"
+          />
+        </linearGradient>
+      </defs>
+    </svg>
+  `;
+
   const icons = el('div', 'rs-player__icons');
 
   const icon = el(
@@ -1409,6 +1540,7 @@ function makePlayerButton(kind, onClick) {
   button.append(
     enableFrame,
     hoveredFrame,
+    pressedFrame,
     icons,
   );
 
