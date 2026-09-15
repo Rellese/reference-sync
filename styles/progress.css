@@ -398,6 +398,7 @@
 .rs-player__icons {
   position: relative;
   z-index: 1;
+  isolation: isolate;
   box-sizing: border-box;
   display: grid;
   place-items: center;
@@ -407,6 +408,29 @@
   overflow: visible;
   transform: none;
   filter: none;
+}
+
+/*
+ * Отдельный слой Drop shadow под Controls.
+ * Он не зависит от прозрачности и структуры вложенного SVG.
+ */
+.rs-player__icons::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  width: 15px;
+  height: 15px;
+  border-radius: 3px;
+  pointer-events: none;
+  opacity: 0;
+
+  box-shadow:
+    0 0 8px
+    rgba(0, 0, 0, 0.65);
+
+  transition:
+    opacity 150ms ease-out;
 }
 
 /*
@@ -783,12 +807,13 @@
 }
 
 .rs-player.is-on:hover:not(:active)
-  .rs-player__icon > svg {
-  filter:
-    drop-shadow(
-      0 0 8px
-      rgba(0, 0, 0, 0.65)
-    );
+  .rs-player__icons::before {
+  opacity: 1;
+}
+
+.rs-player.is-on:active
+  .rs-player__icons::before {
+  opacity: 0;
 }
 
 /*
