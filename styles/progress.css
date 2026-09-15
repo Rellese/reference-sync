@@ -307,6 +307,22 @@
   outline: none;
 }
 
+/*
+ * Внутренний Button занимает ровно весь контейнер 36×36.
+ * Перемещается только он, внешний .rs-player остаётся на месте.
+ */
+.rs-player__button {
+  position: relative;
+  box-sizing: border-box;
+  display: grid;
+  place-items: center;
+  width: 36px;
+  min-width: 36px;
+  height: 36px;
+  transform: translateY(0);
+  transition: transform 150ms ease-out;
+}
+
 /* ============================================================
    Enable — точная внешняя рамка из SVG Figma
    ============================================================ */
@@ -382,6 +398,15 @@
 .rs-player__icons {
   position: relative;
   z-index: 1;
+  box-sizing: border-box;
+  display: grid;
+  place-items: center;
+  width: 15px;
+  min-width: 15px;
+  height: 15px;
+  overflow: visible;
+  transform: none;
+  filter: none;
 }
 
 /*
@@ -457,12 +482,6 @@
     opacity 150ms ease-out;
 }
 
-/* Hovered: внутренняя кнопка смещается вверх на 2px */
-.rs-player:hover::before,
-.rs-player:hover::after {
-  transform: translateY(-2px);
-}
-
 .rs-player:hover::after {
   opacity: 1;
 }
@@ -527,16 +546,6 @@
     filter 150ms ease-out;
 }
 
-.rs-player:hover .rs-player__icon {
-  transform: translateY(-2px);
-}
-
-.rs-player:active .rs-player__icon {
-  transform: translateY(2px);
-  transition-duration: 25ms;
-  transition-timing-function: ease-out;
-}
-
 /* ============================================================
    Stop
    ============================================================ */
@@ -545,10 +554,6 @@
   background: var(--rs-control-active);
   border: 1px solid var(--rs-control-stroke);
   border-radius: 3px;
-}
-
-.rs-player:hover .rs-player__icon--stop {
-  box-shadow: var(--rs-control-hover-shadow);
 }
 
 /* ============================================================
@@ -610,17 +615,6 @@
   opacity: 1;
 }
 
-.rs-player.is-on:hover
-  .rs-player__icon--pause,
-.rs-player.is-on:hover
-  .rs-player__icon--stop {
-  filter:
-    drop-shadow(
-      0 1px 8px
-      rgba(0, 0, 0, 0.65)
-    );
-}
-
 /* ============================================================
    Play — оригинальная форма из SVG
    ============================================================ */
@@ -651,13 +645,6 @@
 .rs-player__play-stroke {
   stroke: var(--rs-control-stroke);
   mix-blend-mode: color-dodge;
-}
-
-.rs-player:hover .rs-player__icon--play {
-  filter:
-    drop-shadow(
-      var(--rs-control-hover-shadow)
-    );
 }
 
 /* ============================================================
@@ -749,15 +736,58 @@
   transition-timing-function: ease-out;
 }
 
+/* ============================================================
+   Hovered
+
+   Структура:
+   .rs-player          — неподвижный контейнер 36×36;
+   .rs-player__button  — вся кнопка, поднимается на 2px;
+   .rs-player__icons   — Controls 15×15 внутри Button.
+   ============================================================ */
+
 /*
- * Controls — тень состояния Hovered:
+ * Эквивалент padding-bottom: 2px в Auto layout Figma:
+ * вся внутренняя кнопка поднимается на 2px,
+ * но внешний контейнер остаётся неподвижным.
+ */
+.rs-player.is-on:hover:not(:active)
+  .rs-player__button {
+  transform: translateY(-2px);
+}
+
+/*
+ * Controls не получает собственного смещения.
+ * Он перемещается вместе со всей кнопкой.
+ */
+.rs-player.is-on:hover:not(:active)
+  .rs-player__icons,
+.rs-player.is-on:hover:not(:active)
+  .rs-player__icon {
+  transform: none;
+}
+
+/*
+ * Сбрасываем все старые фильтры отдельных типов иконок.
+ */
+.rs-player.is-on:hover:not(:active)
+  .rs-player__icon,
+.rs-player.is-on:hover:not(:active)
+  .rs-player__icon > svg {
+  filter: none;
+  box-shadow: none;
+}
+
+/*
+ * Единая тень накладывается на общий контейнер Controls.
+ * Поэтому Play, Pause и Stop получают одинаковый эффект.
+ *
  * X: 0
  * Y: 0
  * Blur: 8px
  * Color: #000000 / 65%
  */
 .rs-player.is-on:hover:not(:active)
-  .rs-player__icon {
+  .rs-player__icons {
   filter:
     drop-shadow(
       0 0 8px
@@ -766,11 +796,27 @@
 }
 
 /*
- * При mousedown Hovered-тень сразу отключается.
- * Иконка переходит в State=Off.
+ * При нажатии Hovered заканчивается.
+ * Пока оставляем исходное положение — отдельное движение
+ * Pressed настроим на следующем этапе.
  */
 .rs-player.is-on:active
+  .rs-player__button {
+  transform: translateY(0);
+  transition-duration: 25ms;
+  transition-timing-function: ease-out;
+}
+
+.rs-player.is-on:active
+  .rs-player__icons,
+.rs-player.is-on:active
   .rs-player__icon {
+  transform: none;
+  filter: none;
+}
+
+.rs-player.is-on:active
+  .rs-player__icon > svg {
   filter: none;
 }
 
