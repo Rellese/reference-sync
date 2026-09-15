@@ -513,6 +513,26 @@
   opacity: 1;
 }
 
+/*
+ * Pressed preview.
+ * Иконка переходит в State=Off сразу при нажатии,
+ * не дожидаясь отпускания кнопки и события click.
+ */
+
+.rs-player.is-on:active
+  .rs-player__svg-active,
+.rs-player.is-on:active
+  .rs-player__play-active {
+  opacity: 0;
+}
+
+.rs-player.is-on:active
+  .rs-player__svg-disabled,
+.rs-player.is-on:active
+  .rs-player__play-disabled {
+  opacity: 1;
+}
+
 .rs-player.is-on:hover
   .rs-player__icon--pause,
 .rs-player.is-on:hover
