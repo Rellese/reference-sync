@@ -602,108 +602,118 @@ function makePlayerButton(kind, onClick) {
   if (kind === 'play') {
     icon.innerHTML = `
       <svg
-        viewBox="0 0 15 15"
         width="15"
         height="15"
+        viewBox="0 0 15 15"
         fill="none"
         xmlns="http://www.w3.org/2000/svg"
         aria-hidden="true"
       >
-        <defs>
-          <radialGradient
-            id="rs-play-base"
-            gradientUnits="userSpaceOnUse"
-            cx="7.5"
-            cy="0"
-            r="15"
-            gradientTransform="matrix(0.6089 0 0 1 2.93325 0)"
-          >
-            <stop
-              offset="16.64%"
-              stop-color="#3B3B3B"
-            />
-            <stop
-              offset="90.26%"
-              stop-color="#222222"
-            />
-            <stop
-              offset="100%"
-              stop-color="#222222"
-            />
-          </radialGradient>
-
-          <radialGradient
-            id="rs-play-light"
-            gradientUnits="userSpaceOnUse"
-            cx="7.5"
-            cy="0"
-            r="15"
-            gradientTransform="matrix(0.6292 0 0 0.6591 2.781 0)"
-          >
-            <stop
-              offset="0%"
-              stop-color="#6D6D6D"
-              stop-opacity="1"
-            />
-            <stop
-              offset="64.39%"
-              stop-color="#6D6D6D"
-              stop-opacity="0.2"
-            />
-            <stop
-              offset="100%"
-              stop-color="#6D6D6D"
-              stop-opacity="0"
-            />
-          </radialGradient>
-
-          <radialGradient
-            id="rs-play-disabled"
-            gradientUnits="userSpaceOnUse"
-            cx="7.5"
-            cy="15"
-            r="15"
-            gradientTransform="matrix(0.9547 0 0 1 0.33975 0)"
-          >
-            <stop
-              offset="0%"
-              stop-color="#6D6D6D"
-              stop-opacity="0.5"
-            />
-            <stop
-              offset="100%"
-              stop-color="#6D6D6D"
-              stop-opacity="0.1"
-            />
-          </radialGradient>
-        </defs>
-
         <path
           class="rs-player__play-active"
-          d="M1.6 1.1L13.8 7.5L1.6 13.9Z"
+          d="M13.9655 5.88932C15.3448 6.60518 15.3448 8.39482 13.9655 9.11068L3.10345 14.7481C1.72414 15.4639 -6.96187e-08 14.5691 0 13.1374L5.48247e-07 1.86263C6.17866e-07 0.430913 1.72414 -0.46391 3.10345 0.251947L13.9655 5.88932Z"
           fill="url(#rs-play-base)"
         />
 
         <path
           class="rs-player__play-active"
-          d="M1.6 1.1L13.8 7.5L1.6 13.9Z"
+          d="M13.9655 5.88932C15.3448 6.60518 15.3448 8.39482 13.9655 9.11068L3.10345 14.7481C1.72414 15.4639 -6.96187e-08 14.5691 0 13.1374L5.48247e-07 1.86263C6.17866e-07 0.430913 1.72414 -0.46391 3.10345 0.251947L13.9655 5.88932Z"
           fill="url(#rs-play-light)"
         />
 
         <path
-          class="rs-player__play-active"
-          d="M1.6 1.1L13.8 7.5L1.6 13.9Z"
-          stroke="#B4B4B4"
-          stroke-opacity="0.1"
-          stroke-width="1"
-          stroke-linejoin="round"
+          class="
+            rs-player__play-active
+            rs-player__play-stroke
+          "
+          d="M1.26465 0.695312C1.73426 0.451605 2.3382 0.417829 2.87305 0.695312L13.7354 6.33301C14.2638 6.60729 14.5 7.06535 14.5 7.5C14.5 7.93465 14.2638 8.39271 13.7354 8.66699L2.87305 14.3047C2.3382 14.5822 1.73426 14.5484 1.26465 14.3047C0.796005 14.0615 0.500128 13.6342 0.5 13.1377V1.8623C0.500128 1.36577 0.796006 0.938537 1.26465 0.695312Z"
+          fill="none"
         />
 
         <path
           class="rs-player__play-disabled"
-          d="M1.6 1.1L13.8 7.5L1.6 13.9Z"
+          d="M13.9655 5.88932C15.3448 6.60518 15.3448 8.39482 13.9655 9.11068L3.10345 14.7481C1.72414 15.4639 -6.96187e-08 14.5691 0 13.1374L5.48247e-07 1.86263C6.17866e-07 0.430913 1.72414 -0.46391 3.10345 0.251947L13.9655 5.88932Z"
           fill="url(#rs-play-disabled)"
         />
+
+        <defs>
+          <radialGradient
+            id="rs-play-base"
+            cx="0"
+            cy="0"
+            r="1"
+            gradientUnits="userSpaceOnUse"
+            gradientTransform="
+              translate(7.5 0)
+              rotate(90)
+              scale(15 9.13352)
+            "
+          >
+            <stop
+              offset="0.166446"
+              stop-color="var(--rs-control-base-start)"
+            />
+
+            <stop
+              offset="0.902612"
+              stop-color="var(--rs-control-base-end)"
+            />
+
+            <stop
+              offset="1"
+              stop-color="var(--rs-control-base-end)"
+            />
+          </radialGradient>
+
+          <radialGradient
+            id="rs-play-light"
+            cx="0"
+            cy="0"
+            r="1"
+            gradientUnits="userSpaceOnUse"
+            gradientTransform="
+              translate(7.5 0)
+              rotate(90)
+              scale(9.88636 9.43829)
+            "
+          >
+            <stop
+              stop-color="var(--rs-control-light-start)"
+            />
+
+            <stop
+              offset="0.643872"
+              stop-color="var(--rs-control-light-middle)"
+            />
+
+            <stop
+              offset="1"
+              stop-color="var(--rs-control-light-end)"
+            />
+          </radialGradient>
+
+          <radialGradient
+            id="rs-play-disabled"
+            cx="0"
+            cy="0"
+            r="1"
+            gradientUnits="userSpaceOnUse"
+            gradientTransform="
+              translate(7.5 15)
+              rotate(-90)
+              scale(15 14.3205)
+            "
+          >
+            <stop
+              stop-color="var(--rs-control-disabled-start)"
+            />
+
+            <stop
+              offset="1"
+              stop-color="var(--rs-control-disabled-end)"
+            />
+          </radialGradient>
+        </defs>
       </svg>
     `;
   }

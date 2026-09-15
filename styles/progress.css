@@ -240,26 +240,54 @@
    ============================================================ */
 
 .rs-player {
+  .rs-player {
+  /*
+   * Единые параметры Play, Pause и Stop.
+   * Цвета и прозрачность всех трёх иконок меняются здесь.
+   */
+
+  --rs-control-base-start: #3B3B3B;
+  --rs-control-base-end: #222222;
+
+  --rs-control-light-start: #6D6D6D;
+  --rs-control-light-middle:
+    rgba(109, 109, 109, 0.2);
+  --rs-control-light-end:
+    rgba(109, 109, 109, 0);
+
+  --rs-control-stroke:
+    rgba(180, 180, 180, 0.5);
+
+  --rs-control-disabled-start:
+    rgba(109, 109, 109, 0.5);
+  --rs-control-disabled-end:
+    rgba(109, 109, 109, 0.1);
+
+  --rs-control-hover-shadow:
+    0 1px 8px 1px rgba(0, 0, 0, 0.65);
+
   --rs-control-active:
     radial-gradient(
       62.92% 65.91% at 50% 0%,
-      #6d6d6d 0%,
-      rgba(109, 109, 109, 0.2) 64.39%,
-      rgba(109, 109, 109, 0) 100%
+      var(--rs-control-light-start) 0%,
+      var(--rs-control-light-middle) 64.39%,
+      var(--rs-control-light-end) 100%
     ),
     radial-gradient(
       60.89% 100% at 50% 0%,
-      #3b3b3b 16.64%,
-      #222222 90.26%,
-      #222222 100%
+      var(--rs-control-base-start) 16.64%,
+      var(--rs-control-base-end) 90.26%,
+      var(--rs-control-base-end) 100%
     );
 
   --rs-control-disabled:
     radial-gradient(
       95.47% 100% at 50% 100%,
-      rgba(109, 109, 109, 0.5) 0%,
-      rgba(109, 109, 109, 0.1) 100%
+      var(--rs-control-disabled-start) 0%,
+      var(--rs-control-disabled-end) 100%
     );
+
+  position: relative;
 
   position: relative;
   isolation: isolate;
@@ -439,13 +467,12 @@
 
 .rs-player__icon--stop {
   background: var(--rs-control-active);
-  border: 1px solid rgba(180, 180, 180, 0.5);
+  border: 1px solid var(--rs-control-stroke);
   border-radius: 3px;
 }
 
 .rs-player:hover .rs-player__icon--stop {
-  box-shadow:
-    0 1px 8px 1px rgba(0, 0, 0, 0.65);
+  box-shadow: var(--rs-control-hover-shadow);
 }
 
 /* ============================================================
@@ -469,26 +496,17 @@
   width: 6px;
   height: 15px;
   background: var(--rs-control-active);
-  border: 1px solid rgba(180, 180, 180, 0.5);
+  border: 1px solid var(--rs-control-stroke);
   border-radius: 5px;
 }
 
 .rs-player:hover .rs-player__icon--pause::before,
 .rs-player:hover .rs-player__icon--pause::after {
-  box-shadow:
-    0 1px 8px 1px rgba(0, 0, 0, 0.65);
+  box-shadow: var(--rs-control-hover-shadow);
 }
 
 /* ============================================================
-   Play
-
-   Используется SVG, потому что два треугольника с inset: 1px
-   не создают равномерную внутреннюю обводку на диагоналях.
-
-   SVG содержит:
-   1. нижний радиальный градиент;
-   2. верхний радиальный градиент;
-   3. отдельную обводку #B4B4B4 / 50%.
+   Play — оригинальная форма из SVG
    ============================================================ */
 
 .rs-player__icon--play {
@@ -496,7 +514,6 @@
   border: 0;
   border-radius: 0;
   background: transparent;
-  clip-path: none;
   filter: none;
 }
 
@@ -515,11 +532,15 @@
   opacity: 0;
 }
 
+.rs-player__play-stroke {
+  stroke: var(--rs-control-stroke);
+  mix-blend-mode: color-dodge;
+}
+
 .rs-player:hover .rs-player__icon--play {
   filter:
     drop-shadow(
-      0 1px 4px
-      rgba(0, 0, 0, 0.65)
+      var(--rs-control-hover-shadow)
     );
 }
 
