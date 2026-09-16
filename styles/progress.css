@@ -302,6 +302,7 @@
   color: inherit;
   cursor: pointer;
   outline: none;
+}
 
 /*
  * Внутренний Button занимает ровно весь контейнер 36×36.
