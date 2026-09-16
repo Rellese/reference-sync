@@ -19,6 +19,8 @@
    ============================================================ */
 
 import { createDiscoveryCounter, } from '../discovery-counter.js';
+import { runDiscoveryWithStop } from '../discovery-stop.js';
+import { postMatchesStopLink } from '../stop-link.js';
 import { nodeApi, ensureDir, workRoot } from '../node-bridge.js';
 import { runGallery, requireToolchain } from '../toolchain.js';
 import { looksOffline, RETRY_STEPS } from '../job-control.js';
@@ -768,6 +770,7 @@ export function createGallerySource(spec) {
     speedProfile = 'safe',
     collections = [],
     knownPostIds = new Set(),
+    stopLink = null,
     onProgress,
     onLog,
     signal,
@@ -775,6 +778,7 @@ export function createGallerySource(spec) {
     requireToolchain();
 
     let cookieDb = null;
+    let discoveryCounter;
 
     if (cookies && !cookieFile) {
       cookieDb =
@@ -812,8 +816,9 @@ export function createGallerySource(spec) {
     const posts = [];
     const postsById = new Map();
     let stoppedEarly = false;
+    const stopLinkTargets = [];
 
-    const discoveryCounter =
+    discoveryCounter =
       createDiscoveryCounter({
         idField: progressIdField,
         onProgress,
@@ -866,7 +871,9 @@ export function createGallerySource(spec) {
 
       let buffer = '';
 
-      const result = await runGallery(args, {
+      const result = await runDiscoveryWithStop(runGallery, args, {
+        stopLink,
+        recordToPost: (record) => normalize(record, { target, accountUsername: cleanUser }),
         signal,
         onStdout: (chunk) => {
           buffer += chunk;
@@ -881,7 +888,13 @@ export function createGallerySource(spec) {
         },
       });
 
-      if (result.code !== 0 && !buffer.trim()) {
+      if (result.stopLinkReached) {
+        stoppedEarly = true;
+        stopLinkTargets.push(String(target.id));
+        onLog?.(`Stop Link: достигнута граница в «${target.name}».`);
+      }
+
+      if (result.code !== 0 && !buffer.trim() && !result.stopLinkReached) {
         throw new Error(describeFailure(result, browser, title));
       }
 
@@ -893,6 +906,15 @@ export function createGallerySource(spec) {
       let targetAccepted = 0;
 
       for (const post of found) {
+        // Резервная проверка для версий движка без JSONL.
+        // Обязательно ДО дедупликации и объединения контейнеров.
+        if (postMatchesStopLink(post, stopLink)) {
+          stoppedEarly = true;
+          if (!stopLinkTargets.includes(String(target.id))) {
+            stopLinkTargets.push(String(target.id));
+          }
+          break;
+        }
         /*
         * Граница известной публикации применяется отдельно
         * к каждой выбранной папке.
@@ -1011,8 +1033,11 @@ export function createGallerySource(spec) {
       return {
         posts,
         stoppedEarly,
+        stopLinkReached: stopLinkTargets.length > 0,
+        stopLinkTargets,
       };
     } finally {
+      discoveryCounter?.dispose();
       cleanupCookieDb(cookieDb);
     }
   }

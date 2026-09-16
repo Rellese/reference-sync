@@ -3,9 +3,48 @@ import test from 'node:test';
 
 import {
   parseStopLink,
+  postMatchesStopLink,
+  stopLinkFromSettings,
   sameStopPublication,
   stopLinkPlaceholder,
 } from '../../js/stop-link.js';
+
+test('выключенный Stop Link игнорирует сохранённый URL', () => {
+  assert.equal(stopLinkFromSettings({ stopLinkEnabled: false, stopLinkUrl: 'bad' }), null);
+});
+
+test('включённый Stop Link отклоняет пустой URL и другую платформу', () => {
+  for (const url of ['', 'bad', 'https://pinterest.com/pin/123/']) {
+    assert.throws(() => stopLinkFromSettings({
+      platform: 'instagram', stopLinkEnabled: true, stopLinkUrl: url,
+    }), { code: 'INVALID_STOP_LINK' });
+  }
+});
+
+test('Stop Link сохраняет региональный домен и query, не дописывает placeholder', () => {
+  const url = 'https://ru.pinterest.com/pin/123/?test=1#pin';
+  assert.equal(stopLinkFromSettings({
+    platform: 'pinterest', stopLinkEnabled: true, stopLinkUrl: url,
+  }).url, url);
+});
+
+test('сопоставление использует post_shortcode, нормализованный ID и URL', () => {
+  const instagram = parseStopLink('https://instagram.com/reel/AbC-123/');
+  assert.equal(postMatchesStopLink({ source: 'instagram', raw: { post_shortcode: 'AbC-123' } }, instagram), true);
+  assert.equal(postMatchesStopLink({ url: 'https://instagram.com/p/AbC-123/?x=1' }, instagram), true);
+  assert.equal(postMatchesStopLink({ shortcode: 'abc-123' }, instagram), false);
+  const pin = parseStopLink('https://ru.pinterest.com/pin/123/');
+  assert.equal(postMatchesStopLink({ postId: 'pinterest:123' }, pin), true);
+  assert.equal(postMatchesStopLink({ source: 'x', externalId: '123' }, pin), false);
+  assert.equal(postMatchesStopLink({ postId: 'x:123' }, pin), false);
+  assert.equal(postMatchesStopLink({ raw: { user: { id: '123' }, board: { id: '123' } } }, pin), false);
+});
+
+test('поддельный домен и исполняемая схема отклоняются', () => {
+  for (const url of ['https://pinterest.com.evil.test/pin/123/', 'javascript:alert(1)', 'https://evilpinterest.com/pin/123/']) {
+    assert.equal(parseStopLink(url).ok, false);
+  }
+});
 
 test('распознаёт Instagram publication URL', () => {
   const result = parseStopLink(

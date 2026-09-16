@@ -26,6 +26,7 @@ import {
   normalizeAuthorFilterValue,
 } from './state.js';
 import { SEARCH_MODES } from './instagram.js';
+import { parseStopLink, stopLinkPlaceholder } from './stop-link.js';
 import {
   normalizeSelection,
   selectAll,
@@ -56,6 +57,12 @@ const TIP_FOLDERS =
   '"Продолжить"**. После этого выбранный режим поиска будет применён только ' +
   'к содержимому отмеченных коллекций. Если режим выключен, поиск ' +
   'выполняется по общему списку всех сохранённых публикаций.';
+
+const TIP_STOP_LINK =
+  'При следующем поиске идём от новых публикаций к старым. ' +
+  '**Указанная публикация и всё после неё не попадут в результат**. ' +
+  'В режиме папок каждая папка останавливается независимо. ' +
+  'Лимит N и граница прошлой синхронизации продолжают действовать.';
 
 const TIP_SPEED =
   'Влияет на скорость поиска и скачивания файлов. При количестве ' +
@@ -474,6 +481,58 @@ export function buildSettings({ onChange, onFolderSearch }) {
   );
   step2.appendChild(folderRow);
 
+  const stopLinkBlock = el('div', 'rs-stop-link');
+  const stopLinkFieldRow = el('div', 'rs-stop-link__field-row');
+  const stopLinkMessage = el('div', 'rs-stop-link__message');
+  stopLinkMessage.id = 'stop-link-message';
+  stopLinkMessage.setAttribute('aria-live', 'polite');
+
+  function validateStopLink() {
+    const parsed = parseStopLink(state.settings.stopLinkUrl, state.settings.platform);
+    const invalid = state.settings.stopLinkEnabled && !parsed.ok;
+    stopLinkBlock.classList.toggle('has-error', invalid);
+    stopLinkMessage.textContent = invalid ? parsed.message : '';
+    stopLinkField.input.setAttribute('aria-invalid', String(invalid));
+  }
+
+  const stopLinkField = createField({
+    value: s.stopLinkUrl,
+    placeholderPrefix: stopLinkPlaceholder(s.platform),
+    placeholderSuffix: 'ID публикации',
+    onInput(value) {
+      setSetting('stopLinkUrl', value, { record: false });
+      validateStopLink();
+    },
+    onCommit(value) {
+      setSetting('stopLinkUrl', value.trim());
+      stopLinkField.set(value.trim());
+      validateStopLink();
+    },
+  });
+  stopLinkField.input.id = 'stop-link-input';
+  stopLinkField.input.setAttribute('aria-label', 'Ссылка для остановки поиска');
+  stopLinkField.input.setAttribute('aria-describedby', stopLinkMessage.id);
+  const stopLinkSwitch = createSwitch({
+    checked: s.stopLinkEnabled,
+    label: 'Остановиться по ссылке',
+    onChange(value) {
+      setSetting('stopLinkEnabled', value);
+      stopLinkBlock.classList.toggle('is-enabled', value);
+      validateStopLink();
+      onChange?.('stopLinkEnabled', value);
+    },
+  });
+  const stopLinkSwitchRow = el('div', 'rs-switch-row');
+  stopLinkSwitchRow.append(
+    stopLinkSwitch.node, stopLinkSwitch.labelNode,
+    el('span', 'rs-switch-row__gap'), createInfo(TIP_STOP_LINK).node,
+  );
+  stopLinkFieldRow.append(stopLinkField.node, stopLinkMessage);
+  stopLinkBlock.append(stopLinkSwitchRow, stopLinkFieldRow);
+  stopLinkBlock.classList.toggle('is-enabled', s.stopLinkEnabled);
+  validateStopLink();
+  step2.appendChild(stopLinkBlock);
+
   /* ---------- Дополнительные фильтры ---------- */
   const step3 = el('div', 'rs-step');
 
@@ -662,6 +721,12 @@ export function buildSettings({ onChange, onFolderSearch }) {
         next.folderSearch,
         true,
       );
+
+      stopLinkSwitch.set(next.stopLinkEnabled, true);
+      stopLinkField.set(next.stopLinkUrl);
+      stopLinkField.setPlaceholderPrefix(stopLinkPlaceholder(next.platform));
+      stopLinkBlock.classList.toggle('is-enabled', next.stopLinkEnabled);
+      validateStopLink();
 
       filterSwitch.set(
         next.extraFilters,

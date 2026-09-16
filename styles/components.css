@@ -1313,6 +1313,52 @@
 .rs-field.is-focus .rs-field__input { color: var(--text-strong); }
 .rs-field__input::placeholder { color: var(--text-muted-20); }
 
+/* Stop Link: подсказка не является частью значения input. */
+.rs-field__split-placeholder {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  pointer-events: none;
+  font-family: var(--font-sans);
+  font-size: 12px;
+  line-height: 16px;
+}
+.rs-field__placeholder-prefix {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: rgba(112, 112, 112, 0.2);
+}
+.rs-field__placeholder-suffix {
+  flex: none;
+  margin-left: 2px;
+  color: rgba(112, 112, 112, 0.55);
+}
+.rs-field__input:not(:placeholder-shown) + .rs-field__split-placeholder,
+.rs-field.is-focus .rs-field__split-placeholder { display: none; }
+.rs-stop-link,
+.rs-stop-link__field-row {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+}
+.rs-stop-link__field-row { display: none; }
+.rs-stop-link.is-enabled .rs-stop-link__field-row { display: flex; }
+.rs-stop-link__message {
+  display: none;
+  font-family: var(--font-sans);
+  font-size: 11px;
+  line-height: 16px;
+  color: #FF4A3D;
+}
+.rs-stop-link.has-error .rs-stop-link__message { display: block; }
+.rs-stop-link.has-error .rs-field { border-color: rgba(255, 74, 61, 0.65); }
+
 /* Vector 2 — единый SVG-контур 10×5 из Input field */
 .rs-field__chevron {
   position: relative;

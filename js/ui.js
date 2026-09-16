@@ -568,6 +568,8 @@ export function createLabelWithInfo(title, tipText, options = {}) {
 export function createField({
   value = '',
   placeholder = '',
+  placeholderPrefix = '',
+  placeholderSuffix = '',
   at = false,
   chevron = false,
   readOnly = false,
@@ -585,9 +587,18 @@ export function createField({
   input.className = 'rs-field__input';
   input.type = 'text';
   input.value = value;
-  input.placeholder = placeholder;
+  const splitPlaceholder = placeholderPrefix || placeholderSuffix;
+  input.placeholder = splitPlaceholder ? ' ' : placeholder;
   if (readOnly) input.readOnly = true;
   body.appendChild(input);
+
+  const prefix = el('span', 'rs-field__placeholder-prefix', placeholderPrefix);
+  if (splitPlaceholder) {
+    const hint = el('span', 'rs-field__split-placeholder');
+    hint.setAttribute('aria-hidden', 'true');
+    hint.append(prefix, el('span', 'rs-field__placeholder-suffix', placeholderSuffix));
+    body.appendChild(hint);
+  }
 
   const chevronNode = el(
     'div',
@@ -694,6 +705,7 @@ export function createField({
     node: root,
     input,
     get value() { return input.value; },
+    setPlaceholderPrefix(next) { prefix.textContent = next; },
     set(next) { input.value = next ?? ''; },
     setDisabled(state) {
       const disabled = Boolean(state);
