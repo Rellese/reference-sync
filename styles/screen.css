@@ -1759,3 +1759,5 @@ M1-T09J(a) — дерево коллекций в таблице результ�
 .rs-archive__drop { white-space: pre-line; padding: 24px 12px; border: 1px dashed #707070; border-radius: 10px; background: var(--bg-row); color: var(--text-muted); font: 12px/1.6 var(--font-sans); cursor: pointer; }
 .rs-archive__drop:hover, .rs-archive__drop.is-over { border-color: var(--accent); color: var(--accent); }
 .rs-archive [hidden] { display: none; }
+/* Picker depth moves the whole row; do not indent its identity a second time. */
+.rs-collection-picker__row .rs-collection__identity { margin-left: 0; }

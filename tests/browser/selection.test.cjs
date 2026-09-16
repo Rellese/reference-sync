@@ -325,3 +325,11 @@ test('picker: dragging paints selection and deselection independently across fol
     for (const id of ['board', 'section', 'other']) await checked(picker(page, id), expected);
   }
 });
+
+test('picker: root and child folders have the same compact checkbox-to-icon gap', async t => {
+  const page = await setup(t);
+  await page.evaluate(() => { window.__testPicker([{ id: 'board', name: 'Board' }, { id: 'section', name: 'Section', parentId: 'board' }]); });
+  const gaps = await page.locator('[data-collection-picker-id]').evaluateAll(rows => rows.map(row =>
+    row.querySelector('.rs-collection__folder').getBoundingClientRect().left - row.querySelector('[role=checkbox]').getBoundingClientRect().right));
+  assert.deepEqual(gaps, [10, 10]);
+});
