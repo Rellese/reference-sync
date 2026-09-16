@@ -84,7 +84,7 @@
 }
 
 /* --- State=Off, Status=Hovered: ручка немного смещена --- */
-.rs-switch:not(.is-on):not(.is-hover-suppressed):hover .rs-switch__knob { animation: rs-switch-nudge 150ms ease; }
+.rs-switch:not(.is-on):not(.is-hover-suppressed):hover .rs-switch__knob { animation: rs-switch-nudge 300ms ease; }
 
 /* --- State=On --- */
 .rs-switch.is-on {
@@ -95,7 +95,7 @@
 .rs-switch.is-on .rs-switch__knob { left: 30.56%; }
 
 /* State=On, Status=Hovered: ручка отходит назад */
-.rs-switch.is-on:not(.is-hover-suppressed):hover .rs-switch__knob { animation: rs-switch-nudge-back 150ms ease; }
+.rs-switch.is-on:not(.is-hover-suppressed):hover .rs-switch__knob { animation: rs-switch-nudge-back 300ms ease; }
 
 .rs-switch.is-disabled { opacity: 0.4; pointer-events: none; }
 

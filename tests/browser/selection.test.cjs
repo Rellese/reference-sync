@@ -248,7 +248,8 @@ test('design: panel resizing and switch hover settle without a layout error', as
   assert.match(width, /^463px/);
   const sw = page.locator('.rs-switch').first();
   await sw.hover();
-  await page.waitForTimeout(200);
+  assert.equal(await sw.locator('.rs-switch__knob').evaluate(el => getComputedStyle(el).animationDuration), '0.3s');
+  await page.waitForTimeout(350);
   assert.equal(await sw.locator('.rs-switch__knob').evaluate(el => getComputedStyle(el).transform), 'none');
   await sw.click();
   assert.equal(await sw.evaluate(el => el.classList.contains('is-hover-suppressed')), true);
