@@ -17,6 +17,8 @@ export const defaultSettings = {
   searchMode: SEARCH_MODES.SMART,
   recentLimit: 50,
   folderSearch: false,
+  stopLinkEnabled: false,
+  stopLinkUrl: '',
   extraFilters: false,
   filterPhoto: true,
   filterVideo: true,
