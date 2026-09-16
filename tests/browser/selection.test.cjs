@@ -254,3 +254,24 @@ test('design: panel resizing and switch hover settle without a layout error', as
   assert.equal(await sw.evaluate(el => el.classList.contains('is-hover-suppressed')), true);
   assert.equal(await sw.locator('.rs-switch__knob').evaluate(el => getComputedStyle(el).animationName), 'none');
 });
+
+test('naming: add independent counters and descriptions, remove without leaking dropdowns', async t => {
+  const page = await setup(t);
+  await seed(page, { folders: false });
+  const cards = page.locator('.rs-naming__card');
+  assert.equal(await cards.count(), 3);
+  const menus = await page.locator('.rs-select-menu').count();
+  await page.getByRole('button', { name: '+ Добавить счётчик', exact: true }).click();
+  assert.equal(await cards.count(), 4);
+  await page.getByRole('button', { name: 'Удалить счётчик', exact: true }).last().click();
+  assert.equal(await cards.count(), 3);
+  assert.equal(await page.locator('.rs-select-menu').count(), menus);
+  await page.getByRole('button', { name: '+ Добавить описание', exact: true }).click();
+  assert.equal(await cards.count(), 4);
+  const text = page.locator('.rs-naming__text').last();
+  await text.fill('Custom footer');
+  await text.blur();
+  const saved = await page.evaluate(() => window.__rs.state.settings.descriptions);
+  assert.equal(saved[1].text, 'Custom footer');
+  assert.equal(await page.locator('.rs-row').first().textContent().then(s => s.includes('Custom footer')), true);
+});

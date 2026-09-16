@@ -3234,6 +3234,7 @@ function refreshNames() {
     descriptionPlacement:
       s.descriptionPlacement,
 
+    descriptions: s.descriptions,
     extraDescription:
       s.extraDescription,
   });

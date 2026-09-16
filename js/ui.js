@@ -811,6 +811,7 @@ export function createSelect({ options = [], value, onChange } = {}) {
   render();
 
   return {
+    dispose() { close(); menu.remove(); },
     node: field.node,
     input: field.input,
 

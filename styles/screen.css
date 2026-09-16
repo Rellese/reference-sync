@@ -1799,3 +1799,11 @@ M1-T09J(a) — дерево коллекций в таблице результ�
 .rs-panel-resizer--width { width: 5px; cursor: url('../assets/cursor-resize.svg') 14 9, col-resize; }
 .rs-panel-resizer--height { height: 5px; cursor: url('../assets/cursor-resize-vertical.svg') 9 14, row-resize; }
 .rs-table__column-resizer { cursor: url('../assets/cursor-resize.svg') 14 9, col-resize; }
+.rs-naming__section { display: flex; flex-direction: column; gap: 20px; min-width: 0; }
+.rs-naming__cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(260px, 100%), 1fr)); gap: 20px 30px; align-items: start; }
+.rs-naming__cards[hidden] { display: none; }
+.rs-naming__card { display: flex; flex-direction: column; gap: 15px; min-width: 0; }
+.rs-naming__card-title { display: flex; align-items: center; justify-content: space-between; font: 12px var(--font-mono); color: var(--text-muted); }
+.rs-naming__remove, .rs-naming__add { border: 1px solid var(--border-card); background: var(--bg-row); color: var(--text-muted); border-radius: 5px; cursor: pointer; padding: 8px; }
+.rs-naming__remove:hover, .rs-naming__add:hover { color: var(--accent); }
+.rs-naming__text { box-sizing: border-box; width: 100%; min-height: 72px; resize: vertical; border: 1px solid var(--border-card); border-radius: 10px; background: var(--bg-row); color: var(--text-muted); font: 12px var(--font-sans); padding: 10px; }
