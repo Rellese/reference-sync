@@ -172,6 +172,8 @@ let counterHistoryRecords = new Map();
  * Это состояние интерфейса, поэтому в настройки не записывается.
  */
 const collapsedCollectionIds = new Set();
+const collectionHeaderCheckboxes = new Map();
+const tablePostCopies = new Map();
 
 /*
  * Свёрнутые доски на первом этапе,
@@ -1275,19 +1277,19 @@ async function runSearch() {
     return;
   }
 
-  if (!s.username.trim()) {
-    ui.status.set('Не указан аккаунт', 'Введите Instagram-никнейм в шаге 1');
-    ui.log.add('Поиск невозможен: не заполнено имя аккаунта.', 'err');
-    return;
-  }
-
   let stopLink;
   try {
     stopLink = stopLinkFromSettings(s);
   } catch (error) {
-    ui.settings.sync();
+    ui.settings.showStopLinkError();
     ui.status.set('Проверьте ссылку остановки', error.message);
     ui.log.add(error.message, 'err');
+    return;
+  }
+
+  if (!s.username.trim()) {
+    ui.status.set('Не указан аккаунт', 'Введите Instagram-никнейм в шаге 1');
+    ui.log.add('Поиск невозможен: не заполнено имя аккаунта.', 'err');
     return;
   }
 
@@ -2541,6 +2543,46 @@ let collectionModalResolve = null;
 let collectionPickerResolve = null;
 let collectionPickerActive = false;
 const collectionPickerChecked = new Set();
+const collectionPickerCheckboxes = new Map();
+const collectionPickerGesture = createCheckboxGestureState();
+let collectionPickerItems = [];
+
+function syncSelectionCheckbox(checkbox, selected, total) {
+  checkbox.set(total > 0 && selected === total, true);
+  checkbox.setMixed(selected > 0 && selected < total);
+  checkbox.setDisabled(total === 0);
+}
+
+function syncCollectionPickerSelection() {
+  for (const [id, entry] of collectionPickerCheckboxes) {
+    const checked = collectionPickerChecked.has(id);
+    entry.checkbox.set(checked, true);
+    entry.row.classList.toggle('is-selected', checked);
+  }
+  ui.footer.action.setDisabled(collectionPickerChecked.size === 0);
+  updateCollectionPickerTitle();
+}
+
+function selectPickerRow(id, checked, event) {
+  const ids = event?.shiftKey
+    ? applyShiftSelection({
+      orderedIds: [...collectionPickerCheckboxes.keys()],
+      selectedIds: collectionPickerChecked,
+      anchorId: collectionPickerGesture.getAnchor(),
+      targetId: id,
+      checked,
+    }).affectedIds
+    : [id];
+
+  if (!event?.shiftKey || !collectionPickerCheckboxes.has(collectionPickerGesture.getAnchor())) {
+    collectionPickerGesture.setAnchor(id);
+  }
+  for (const targetId of ids) {
+    if (checked) collectionPickerChecked.add(targetId);
+    else collectionPickerChecked.delete(targetId);
+  }
+  syncCollectionPickerSelection();
+}
 
 let collectionPickerTotal = 0;
 let collectionPickerFoundCount = 0;
@@ -2548,6 +2590,7 @@ let collectionPickerFoundCount = 0;
 function updateCollectionPickerTitle() {
   const count = collectionPickerChecked.size;
   const total = collectionPickerTotal;
+  syncSelectionCheckbox(ui.results.selectAll, count, total);
   ui.results.title.textContent = total
     ? `Найденные коллекции — ${count} из ${total}`
     : 'Найденные коллекции';
@@ -2582,6 +2625,12 @@ function selectCollectionsInTable(
   collections,
 ) {
   collectionPickerActive = true;
+  stopTableSelectionSync();
+  stopTableSelectionTitleUpdate();
+  stopTableAutoScroll();
+  tableSelectionGesture.reset();
+  collectionPickerItems = collections;
+  collectionPickerGesture.reset();
   collectionPickerChecked.clear();
   collapsedCollectionPickerIds.clear();
 
@@ -2616,6 +2665,7 @@ function selectCollectionsInTable(
 function renderCollectionPickerTree(
   collections,
 ) {
+  collectionPickerCheckboxes.clear();
   const body =
     ui.results.body;
 
@@ -2843,23 +2893,8 @@ function createCollectionPickerRow(
       checked:
         collectionPickerChecked.has(id),
 
-      onChange(value) {
-        if (value) {
-          collectionPickerChecked.add(id);
-        } else {
-          collectionPickerChecked.delete(id);
-        }
-
-        root.classList.toggle(
-          'is-selected',
-          value,
-        );
-
-        ui.footer.action.setDisabled(
-          collectionPickerChecked.size === 0,
-        );
-
-        updateCollectionPickerTitle();
+      onChange(value, event) {
+        selectPickerRow(id, value, event);
       },
     });
 
@@ -2931,31 +2966,19 @@ function createCollectionPickerRow(
       );
   }
 
-  const toggleCheckbox = () => {
-    checkbox.set(
-      !checkbox.value,
-    );
+  collectionPickerCheckboxes.set(id, { checkbox, row: root });
+  root.dataset.collectionPickerId = id;
+
+  const toggleCheckbox = (event) => {
+    selectPickerRow(id, !collectionPickerChecked.has(id), event);
   };
 
-  root.addEventListener(
-    'click',
-    toggleCheckbox,
-  );
-
-  root.addEventListener(
-    'keydown',
-    (event) => {
-      if (
-        event.key !== 'Enter' &&
-        event.key !== ' '
-      ) {
-        return;
-      }
-
-      event.preventDefault();
-      toggleCheckbox();
-    },
-  );
+  root.addEventListener('click', toggleCheckbox);
+  root.addEventListener('keydown', (event) => {
+    if (event.key !== 'Enter' && event.key !== ' ') return;
+    event.preventDefault();
+    toggleCheckbox(event);
+  });
 
   root.classList.toggle(
     'is-selected',
@@ -3629,27 +3652,13 @@ function setTablePostChecked(post, checked) {
 }
 
 function syncTablePostCheckbox(post) {
-  const entry =
-    tableCheckboxes.get(post.postId);
-
-  if (!entry) return;
-
-  const visual =
-    tablePostVisualState(post);
-
-  entry.checkbox.set(
-    visual.checked,
-    true,
-  );
-
-  entry.checkbox.setMixed(
-    visual.mixed,
-  );
-
-  entry.row.classList.toggle(
-    'is-selected',
-    visual.selected,
-  );
+  const visual = tablePostVisualState(post);
+  for (const entry of tablePostCopies.get(post.postId) || []) {
+    entry.checkbox.set(visual.checked, true);
+    entry.checkbox.setMixed(visual.mixed);
+    entry.row.classList.toggle('is-selected', visual.selected);
+    entry.row.closest('.rs-collection__post')?.classList.toggle('is-selected', visual.selected);
+  }
 }
 
 function pressTableRange(
@@ -3699,6 +3708,16 @@ function clearTableRangePreview() {
   tableRangePreviewIds.clear();
 }
 
+function tablePostsInDisplayOrder() {
+  const posts = new Map();
+  for (const row of ui.results.body.querySelectorAll('[data-table-post-id]')) {
+    if (row.closest('.is-collapsed')) continue;
+    const id = row.dataset.tablePostId;
+    if (!posts.has(id)) posts.set(id, tableCheckboxes.get(id).post);
+  }
+  return [...posts.values()];
+}
+
 function previewTableRange(targetPostId) {
   const anchorPostId =
     tableSelectionGesture.getAnchor();
@@ -3711,9 +3730,7 @@ function previewTableRange(targetPostId) {
     return;
   }
 
-  const orderedPostIds = [
-    ...tableCheckboxes.keys(),
-  ];
+  const orderedPostIds = tablePostsInDisplayOrder().map(post => post.postId);
 
   const range = checkboxRange(
     orderedPostIds,
@@ -3794,6 +3811,18 @@ function updateTableSelectionTitle(
     posts.length,
   );
 
+  const selectable = posts.filter(collectionPostSelectable);
+  syncSelectionCheckbox(
+    ui.results.selectAll,
+    selectedVisiblePostCount(selectable),
+    selectable.length,
+  );
+  for (const { posts: groupPosts, checkbox, row } of collectionHeaderCheckboxes.values()) {
+    const selection = collectionSelectionState(groupPosts, state.selected, collectionPostSelectable);
+    checkbox.set(selection.checked, true);
+    checkbox.setMixed(selection.mixed);
+    row.classList.toggle('is-selected', selection.selectedCount > 0);
+  }
   syncFooterActionAvailability();
 }
 
@@ -3911,7 +3940,7 @@ function applyTableShiftSelection(
   targetPost,
   checked,
 ) {
-  const posts = visiblePosts();
+  const posts = tablePostsInDisplayOrder();
 
   const result = applyShiftSelection({
     orderedIds: posts.map(
@@ -4044,41 +4073,14 @@ function collectionPostSelectable(post) {
 function applyCollectionSelectionChanges(changes) {
   if (!Array.isArray(changes)) return;
 
-  const effectiveChanges = [];
-
+  beginTableSelectionHistory();
+  const postsById = new Map(state.posts.map(post => [post.postId, post]));
   for (const change of changes) {
-    const post = state.posts.find(
-      (item) => item.postId === change.postId,
-    );
-
+    const post = postsById.get(change.postId);
     if (!post || !collectionPostSelectable(post)) continue;
-
-    const beforeSelected = state.selected.has(change.postId);
-    if (beforeSelected === change.after.selected) continue;
-
-    if (change.after.selected) {
-      state.selected.add(change.postId);
-    } else {
-      state.selected.delete(change.postId);
-    }
-
-    const components = Array.isArray(post.selectedComponents)
-      ? [...post.selectedComponents]
-      : undefined;
-
-    effectiveChanges.push({
-      postId: change.postId,
-      before: { selected: beforeSelected, components },
-      after: { selected: state.selected.has(change.postId), components },
-    });
+    setTablePostChecked(post, change.after.selected);
   }
-
-  if (!effectiveChanges.length) {
-    renderTable();
-    return;
-  }
-
-  recordSelectionChange(effectiveChanges);
+  finishTableSelectionHistory();
   refreshNames();
   renderTable();
 }
@@ -4226,6 +4228,8 @@ function createCollectionHeader(
         );
       },
     });
+
+  collectionHeaderCheckboxes.set(group.id, { posts: groupPosts, checkbox, row: root });
 
   /*
    * Нажатие checkbox не должно одновременно сворачивать папку.
@@ -4479,6 +4483,8 @@ function renderTable() {
   const body = ui.results.body;
   clear(body);
   tableCheckboxes.clear();
+  tablePostCopies.clear();
+  collectionHeaderCheckboxes.clear();
 
   const posts = visiblePosts();
 
@@ -4492,12 +4498,6 @@ function renderTable() {
     ui.footer.action.setDisabled(state.selected.size === 0);
   }
   ui.results.resetAllButton.node.style.display = hasEdits() ? '' : 'none';
-
-  const selectedVisible = posts.filter((post) => state.selected.has(post.postId));
-  if (!posts.length) ui.results.selectAll.set(false, true);
-  else if (selectedVisible.length === posts.length) ui.results.selectAll.set(true, true);
-  else if (selectedVisible.length) ui.results.selectAll.setMixed(true);
-  else ui.results.selectAll.set(false, true);
 
   if (!posts.length) {
     const empty = el('div', 'rs-empty');
@@ -4572,7 +4572,7 @@ const checkbox = createCheckbox({
 
   onChange: (value, event) => {
     beginTableSelectionHistory();
-    const checked = parentMixed
+    const checked = tablePostVisualState(post).mixed
       ? nextTablePostState(post)
       : value;
 
@@ -4663,14 +4663,11 @@ const checkbox = createCheckbox({
 row.dataset.tablePostId =
   post.postId;
 
-tableCheckboxes.set(
-  post.postId,
-  {
-    checkbox,
-    row,
-    post,
-  },
-);
+const entry = { checkbox, row, post };
+if (!tableCheckboxes.has(post.postId)) tableCheckboxes.set(post.postId, entry);
+const copies = tablePostCopies.get(post.postId) || [];
+copies.push(entry);
+tablePostCopies.set(post.postId, copies);
 
 row.addEventListener(
   'pointerenter',
@@ -5303,6 +5300,18 @@ function startEdit(node, postId, field, multiline = false) {
 }
 
 function toggleAll(value) {
+  if (collectionPickerActive) {
+    collectionPickerGesture.reset();
+    collectionPickerChecked.clear();
+    if (value) {
+      for (const collection of collectionPickerItems) {
+        collectionPickerChecked.add(String(collection.id));
+      }
+    }
+    syncCollectionPickerSelection();
+    return;
+  }
+
   tableSelectionGesture.reset();
   beginTableSelectionHistory();
   stopTableAutoScroll();

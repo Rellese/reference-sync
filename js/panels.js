@@ -487,9 +487,11 @@ export function buildSettings({ onChange, onFolderSearch }) {
   stopLinkMessage.id = 'stop-link-message';
   stopLinkMessage.setAttribute('aria-live', 'polite');
 
+  let stopLinkValidationRequested = false;
+
   function validateStopLink() {
     const parsed = parseStopLink(state.settings.stopLinkUrl, state.settings.platform);
-    const invalid = state.settings.stopLinkEnabled && !parsed.ok;
+    const invalid = stopLinkValidationRequested && state.settings.stopLinkEnabled && !parsed.ok;
     stopLinkBlock.classList.toggle('has-error', invalid);
     stopLinkMessage.textContent = invalid ? parsed.message : '';
     stopLinkField.input.setAttribute('aria-invalid', String(invalid));
@@ -516,6 +518,7 @@ export function buildSettings({ onChange, onFolderSearch }) {
     checked: s.stopLinkEnabled,
     label: 'Остановиться по ссылке',
     onChange(value) {
+      stopLinkValidationRequested = false;
       setSetting('stopLinkEnabled', value);
       stopLinkBlock.classList.toggle('is-enabled', value);
       validateStopLink();
@@ -689,6 +692,12 @@ export function buildSettings({ onChange, onFolderSearch }) {
 
   return {
     node: root,
+    showStopLinkError() {
+      stopLinkValidationRequested = true;
+      validateStopLink();
+      stopLinkField.input.focus();
+      stopLinkFieldRow.scrollIntoView({ block: 'nearest' });
+    },
     sync(nextSettings = state.settings) {
       const next =
         nextSettings || state.settings;
