@@ -333,3 +333,18 @@ test('picker: root and child folders have the same compact checkbox-to-icon gap'
     row.querySelector('.rs-collection__folder').getBoundingClientRect().left - row.querySelector('[role=checkbox]').getBoundingClientRect().right));
   assert.deepEqual(gaps, [10, 10]);
 });
+
+test('panel divider double-click restores default width and automatic naming height', async t => {
+  const page = await setup(t);
+  const width = page.locator('.rs-panel-resizer--width');
+  await width.focus(); await page.keyboard.press('ArrowRight');
+  await width.dblclick();
+  assert.equal(await page.locator('.rs-work').evaluate(el => parseFloat(getComputedStyle(el).gridTemplateColumns)), 403);
+  const height = page.locator('.rs-panel-resizer--height');
+  await height.focus(); await page.keyboard.press('ArrowUp');
+  assert.notEqual(await page.locator('.rs-right').evaluate(el => el.style.getPropertyValue('--rs-naming-height')), '');
+  await height.dblclick();
+  assert.equal(await page.locator('.rs-right').evaluate(el => el.style.getPropertyValue('--rs-naming-height')), '');
+  const saved = await page.evaluate(() => JSON.parse(localStorage.getItem('rs-panel-sizes')));
+  assert.deepEqual(saved, { width: 403, height: null });
+});

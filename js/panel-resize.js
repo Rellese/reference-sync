@@ -53,6 +53,12 @@ export function installPanelResizers({ app, work, right, settings, results, nami
     handle.addEventListener('pointerup', stop);
     handle.addEventListener('pointercancel', stop);
     handle.addEventListener('lostpointercapture', stop);
+    handle.addEventListener('dblclick', event => {
+      event.preventDefault();
+      if (axis === 'width') width = 403;
+      else { height = null; right.style.removeProperty('--rs-naming-height'); }
+      apply(); position(); save();
+    });
     handle.addEventListener('keydown', event => {
       if (!['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(event.key)) return;
       event.preventDefault();
