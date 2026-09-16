@@ -1,0 +1,978 @@
+diff --git a/js/stop-link.js b/js/stop-link.js
+index 82f0f3d..55b7ac1 100644
+--- a/js/stop-link.js
++++ b/js/stop-link.js
+@@ -211,3 +211,205 @@ export function sameStopPublication(
+     normalizeId(right.publicationId)
+   );
+ }
++
++function cleanPostId(value) {
++  return clean(value)
++    .replace(/^[a-z0-9_-]+:/i, '')
++    .replace(/^\/+|\/+$/g, '');
++}
++
++function postSourceCode(post) {
++  const source = clean(
++    post?.source ??
++    post?.sourceCode ??
++    post?.platform,
++  ).toLowerCase();
++
++  if (source) return source;
++
++  const postId = clean(post?.postId);
++  const separator = postId.indexOf(':');
++
++  return separator > 0
++    ? postId.slice(0, separator).toLowerCase()
++    : '';
++}
++
++function publicationCandidates(post) {
++  const values = [
++    post?.externalId,
++    post?.publicationId,
++    post?.shortcode,
++    post?.code,
++    post?.id,
++    post?.postId,
++    post?.raw?.post_id,
++    post?.raw?.id,
++    post?.raw?.pk,
++    post?.raw?.shortcode,
++    post?.raw?.code,
++  ];
++
++  return new Set(
++    values
++      .map(cleanPostId)
++      .filter(Boolean),
++  );
++}
++
++export function postMatchesStopLink(post, stopLink) {
++  if (!post || !stopLink?.ok) return false;
++
++  const sourceCode = postSourceCode(post);
++
++  if (
++    sourceCode &&
++    sourceCode !== stopLink.sourceCode
++  ) {
++    return false;
++  }
++
++  const expectedId = cleanPostId(
++    stopLink.publicationId,
++  );
++
++  if (
++    expectedId &&
++    publicationCandidates(post).has(expectedId)
++  ) {
++    return true;
++  }
++
++  const urls = [
++    post?.url,
++    post?.postUrl,
++    post?.canonicalUrl,
++    post?.webpageUrl,
++    post?.raw?.post_url,
++    post?.raw?.canonical_url,
++    post?.raw?.webpage_url,
++    post?.raw?._metadataUrl,
++  ];
++
++  for (const value of urls) {
++    const url = clean(value);
++    if (!url) continue;
++
++    const parsed = parseStopLink(
++      url,
++      stopLink.sourceCode,
++    );
++
++    if (
++      parsed.ok &&
++      sameStopPublication(parsed, stopLink)
++    ) {
++      return true;
++    }
++  }
++
++  return false;
++}
++
++function postOccurrences(post) {
++  if (
++    Array.isArray(post?.collectionOccurrences) &&
++    post.collectionOccurrences.length
++  ) {
++    return post.collectionOccurrences
++      .map((occurrence) => ({
++        ...occurrence,
++        collectionId: clean(
++          occurrence?.collectionId,
++        ),
++      }))
++      .filter((occurrence) =>
++        Boolean(occurrence.collectionId));
++  }
++
++  const collectionId = clean(
++    post?.collectionId,
++  );
++
++  if (!collectionId) return [];
++
++  return [{
++    occurrenceId:
++      clean(post?.occurrenceId) ||
++      `${collectionId}:${clean(post?.postId)}`,
++
++    collectionId,
++    collectionName:
++      clean(post?.collectionName),
++
++    collectionType:
++      clean(post?.collectionType),
++
++    parentId:
++      clean(post?.collectionParentId),
++
++    parentName:
++      clean(post?.collectionParentName),
++
++    isDuplicate: false,
++  }];
++}
++
++function cloneWithOccurrences(post, occurrences) {
++  const first = occurrences[0];
++
++  return {
++    ...post,
++
++    collectionId:
++      first?.collectionId || '',
++
++    collectionName:
++      first?.collectionName || '',
++
++    collectionType:
++      first?.collectionType || '',
++
++    collectionParentId:
++      first?.parentId || '',
++
++    collectionParentName:
++      first?.parentName || '',
++
++    collectionOccurrences:
++      occurrences.map((occurrence) => ({
++        ...occurrence,
++      })),
++  };
++}
++
++/*
++ * В обычном режиме порядок posts считается порядком выдачи:
++ * от новых публикаций к старым.
++ *
++ * В папочном режиме граница применяется отдельно к каждому
++ * collectionId. Остальные папки продолжают выдачу независимо.
++ */
++export function applyStopLinkBoundary(
++  posts,
++  stopLink,
++  {
++    folderSearch = false,
++  } = {},
++) {
++  const sourcePosts = Array.isArray(posts)
++    ? posts
++    : [];
++
++  if (!stopLink?.ok) {
++    return [...sourcePosts];
++  }
++
++  if (!folderSearch) {
++    const boundaryIndex = sourcePosts.findIndex(
++      (post) =>
++        postMatchesStopLink(post, stopLink),
++    );
++
++    return boundaryIndex < 0
++      ? [...sourcePosts]
++      : sourcePosts.slice(0, boundaryIndex);
++  }
++
++  const stoppedCollections = new Set();
++  const result = [];
++
++  for (const post of sourcePosts) {
++    const occurrences = postOccurrences(post);
++    const matchesBoundary =
++      postMatchesStopLink(post, stopLink);
++
++    /*
++     * Старые публикации удаляются только из тех папок,
++     * где граница уже была найдена.
++     */
++    const availableOccurrences =
++      occurrences.filter(
++        (occurrence) =>
++          !stoppedCollections.has(
++            occurrence.collectionId,
++          ),
++      );
++
++    if (matchesBoundary) {
++      /*
++       * Сама граничная публикация не попадает в результат.
++       * Останавливаются только её папочные вхождения.
++       */
++      for (const occurrence of availableOccurrences) {
++        stoppedCollections.add(
++          occurrence.collectionId,
++        );
++      }
++
++      continue;
++    }
++
++    if (!occurrences.length) {
++      result.push(post);
++      continue;
++    }
++
++    if (!availableOccurrences.length) {
++      continue;
++    }
++
++    if (
++      availableOccurrences.length ===
++      occurrences.length
++    ) {
++      result.push(post);
++      continue;
++    }
++
++    result.push(
++      cloneWithOccurrences(
++        post,
++        availableOccurrences,
++      ),
++    );
++  }
++
++  return result;
++}
+diff --git a/js/state.js b/js/state.js
+index 23883a1..8233d86 100644
+--- a/js/state.js
++++ b/js/state.js
+@@ -4,6 +4,11 @@
+ ============================================================ */
+ 
+ import { SEARCH_MODES } from './instagram.js';
++import {
++  applyStopLinkBoundary,
++  parseStopLink,
++} from './stop-link.js';
++
+ import { createHistory } from './history.js';
+ 
+ const STORAGE_KEY = 'reference-sync.settings.v1';
+@@ -289,18 +294,35 @@ export function parseAuthorFilter(value) {
+ 
+ /* Список публикаций после применения фильтров */
+ export function visiblePosts() {
+   const s = state.settings;
+-  if (!s.extraFilters) return state.posts;
++
++  let posts = state.posts;
++
++  if (s.stopLinkEnabled) {
++    const stopLink = parseStopLink(
++      s.stopLinkUrl,
++      s.platform,
++    );
++
++    if (stopLink.ok) {
++      posts = applyStopLinkBoundary(
++        posts,
++        stopLink,
++        {
++          folderSearch: s.folderSearch,
++        },
++      );
++    }
++  }
++
++  if (!s.extraFilters) return posts;
+ 
+   const include = parseAuthorFilter(
+     s.authorInclude,
+   );
+ 
+   const exclude = parseAuthorFilter(
+     s.authorExclude,
+   );
+ 
+-  return state.posts.filter((post) => {
++  return posts.filter((post) => {
+     const isVideo = post.type.toLowerCase().includes('видео');
+     const isCarousel = post.componentCount > 1;
+     const isPhoto = !isVideo && !isCarousel;
+diff --git a/js/ui.js b/js/ui.js
+index 7eeef07..a64791d 100644
+--- a/js/ui.js
++++ b/js/ui.js
+@@ -568,11 +568,14 @@ export function createField({
+   value = '',
+   placeholder = '',
++  placeholderPrefix = '',
++  placeholderSuffix = '',
+   at = false,
+   chevron = false,
+   readOnly = false,
+   onInput,
+   onCommit,
+ } = {}) {
+   const root = el('div', 'rs-field');
+   if (at) root.classList.add('has-at');
+   if (chevron) root.classList.add('has-chevron');
+ 
+   const body = el('div', 'rs-field__body');
+   body.appendChild(el('span', 'rs-field__at', '@'));
+ 
+   const input = document.createElement('input');
+   input.className = 'rs-field__input';
+   input.type = 'text';
+   input.value = value;
+-  input.placeholder = placeholder;
++
++  const hasSplitPlaceholder =
++    Boolean(
++      placeholderPrefix ||
++      placeholderSuffix,
++    );
++
++  input.placeholder = hasSplitPlaceholder
++    ? ' '
++    : placeholder;
++
+   if (readOnly) input.readOnly = true;
++
+   body.appendChild(input);
+ 
++  if (hasSplitPlaceholder) {
++    const placeholderNode = el(
++      'span',
++      'rs-field__split-placeholder',
++    );
++
++    placeholderNode.setAttribute(
++      'aria-hidden',
++      'true',
++    );
++
++    placeholderNode.append(
++      el(
++        'span',
++        'rs-field__placeholder-prefix',
++        placeholderPrefix,
++      ),
++
++      el(
++        'span',
++        'rs-field__placeholder-suffix',
++        placeholderSuffix,
++      ),
++    );
++
++    body.appendChild(placeholderNode);
++  }
++
+   const chevronNode = el(
+     'div',
+     'rs-field__chevron',
+diff --git a/js/panels.js b/js/panels.js
+index 0589541..2ec62ca 100644
+--- a/js/panels.js
++++ b/js/panels.js
+@@ -26,6 +26,11 @@ import {
+   normalizeAuthorFilterValue,
+ } from './state.js';
+ 
++import {
++  parseStopLink,
++  stopLinkPlaceholder,
++} from './stop-link.js';
++
+ import { SEARCH_MODES } from './instagram.js';
+ 
+ import {
+@@ -57,6 +62,11 @@ const TIP_FOLDERS =
+   'в содержимом отмеченных коллекций. Если режим выключен, поиск ' +
+   'выполняется по общему списку всех сохранённых публикаций.';
+ 
++const TIP_STOP_LINK =
++  'Поиск идёт от новых публикаций к старым. Когда ReferenceSync найдёт ' +
++  'указанную публикацию, **она и всё расположенное ниже неё не попадут ' +
++  'в результат**. В режиме папок граница применяется отдельно к каждой папке.';
++
+ const TIP_SPEED =
+   'Влияет на скорость поиска и скачивания файлов. При количестве ' +
+   '**>1000 файлов рекомендуется выбирать безопасный режим** иначе есть шанс ' +
+@@ -472,7 +482,112 @@ export function buildSettings({ onChange, onFolderSearch }) {
+   createInfo(TIP_FOLDERS).node,
+ );
+ 
+-step2.appendChild(folderRow);
++  step2.appendChild(folderRow);
++
++  /*
++   * Stop Link расположен сразу под поиском в папках.
++   * Placeholder является только визуальной подсказкой:
++   * в state всегда сохраняется полный URL пользователя.
++   */
++  const stopLinkBlock = el(
++    'div',
++    'rs-stop-link',
++  );
++
++  const stopLinkFieldRow = el(
++    'div',
++    'rs-step__row rs-stop-link__field-row',
++  );
++
++  const stopLinkMessage = el(
++    'div',
++    'rs-stop-link__message',
++  );
++
++  const stopLinkField = createField({
++    value: s.stopLinkUrl,
++
++    placeholderPrefix:
++      stopLinkPlaceholder(s.platform),
++
++    placeholderSuffix:
++      'ID публикации',
++
++    onInput: (value) => {
++      setSetting(
++        'stopLinkUrl',
++        value,
++        { record: false },
++      );
++
++      stopLinkMessage.textContent = '';
++      stopLinkBlock.classList.remove(
++        'has-error',
++      );
++
++      if (onChange) {
++        onChange(
++          'stopLinkUrl',
++          value,
++        );
++      }
++    },
++
++    onCommit: (value) => {
++      const originalUrl =
++        String(value || '').trim();
++
++      stopLinkField.set(originalUrl);
++
++      setSetting(
++        'stopLinkUrl',
++        originalUrl,
++      );
++
++      if (!originalUrl) {
++        stopLinkMessage.textContent = '';
++        stopLinkBlock.classList.remove(
++          'has-error',
++        );
++        return;
++      }
++
++      const parsed = parseStopLink(
++        originalUrl,
++        state.settings.platform,
++      );
++
++      stopLinkBlock.classList.toggle(
++        'has-error',
++        !parsed.ok,
++      );
++
++      stopLinkMessage.textContent =
++        parsed.ok
++          ? ''
++          : parsed.message;
++
++      if (onChange) {
++        onChange(
++          'stopLinkUrl',
++          originalUrl,
++        );
++      }
++    },
++  });
++
++  const stopLinkSwitch = createSwitch({
++    checked: s.stopLinkEnabled,
++    label: 'Остановиться по ссылке',
++
++    onChange: (value) => {
++      setSetting(
++        'stopLinkEnabled',
++        value,
++      );
++
++      stopLinkBlock.classList.toggle(
++        'is-enabled',
++        value,
++      );
++
++      if (onChange) {
++        onChange(
++          'stopLinkEnabled',
++          value,
++        );
++      }
++    },
++  });
++
++  const stopLinkSwitchRow = el(
++    'div',
++    'rs-switch-row',
++  );
++
++  stopLinkSwitchRow.append(
++    stopLinkSwitch.node,
++    stopLinkSwitch.labelNode,
++    el('span', 'rs-switch-row__gap'),
++    createInfo(TIP_STOP_LINK).node,
++  );
++
++  stopLinkFieldRow.append(
++    stopLinkField.node,
++    stopLinkMessage,
++  );
++
++  stopLinkBlock.classList.toggle(
++    'is-enabled',
++    s.stopLinkEnabled,
++  );
++
++  stopLinkBlock.append(
++    stopLinkSwitchRow,
++    stopLinkFieldRow,
++  );
++
++  step2.appendChild(stopLinkBlock);
+ 
+   /* ---------- Дополнительные фильтры ---------- */
+   const step3 = el('div', 'rs-step');
+diff --git a/js/main.js b/js/main.js
+index a3940d7..ea07be5 100644
+--- a/js/main.js
++++ b/js/main.js
+@@ -53,6 +53,10 @@ import {
+   redact,
+ } from './instagram.js';
+ 
++import {
++  parseStopLink,
++} from './stop-link.js';
++
+ import {
+   getSource,
+ } from './sources/index.js';
+@@ -1488,6 +1492,21 @@ async function runSearch() {
+   let discoveryResult;
+ 
+   try {
++    if (s.stopLinkEnabled) {
++      const stopLink = parseStopLink(
++        s.stopLinkUrl,
++        s.platform,
++      );
++
++      if (!stopLink.ok) {
++        const error = new Error(
++          stopLink.message,
++        );
++
++        error.code = 'INVALID_STOP_LINK';
++        throw error;
++      }
++    }
++
+     if (s.folderSearch) {
+       const source =
+         getSource(s.platform);
+diff --git a/styles/components.css b/styles/components.css
+index 3cd3ef8..a16ae3f 100644
+--- a/styles/components.css
++++ b/styles/components.css
+@@ -1277,6 +1277,7 @@
+ 
+ .rs-field__body {
++  position: relative;
+   display: flex;
+   flex: 1 1 auto;
+   align-items: center;
+@@ -1313,6 +1314,79 @@
+ .rs-field.is-focus .rs-field__input { color: var(--text-strong); }
+ .rs-field__input::placeholder { color: var(--text-muted-20); }
+ 
++/*
++ * Двухчастный placeholder.
++ *
++ * URL-префикс показывается слабее, ID публикации — ярче.
++ * Это только визуальный слой: в value input ничего не добавляется.
++ */
++.rs-field__split-placeholder {
++  position: absolute;
++  inset: 0;
++  z-index: 0;
++
++  display: flex;
++  align-items: center;
++
++  min-width: 0;
++  padding: 0;
++
++  font-family: var(--font-mono);
++  font-size: 10px;
++  line-height: 13px;
++  letter-spacing: 0.02em;
++
++  white-space: nowrap;
++  overflow: hidden;
++  pointer-events: none;
++}
++
++.rs-field__placeholder-prefix {
++  flex: 0 1 auto;
++  min-width: 0;
++  overflow: hidden;
++  text-overflow: ellipsis;
++  color: rgba(112, 112, 112, 0.2);
++}
++
++.rs-field__placeholder-suffix {
++  flex: none;
++  margin-left: 2px;
++  color: rgba(112, 112, 112, 0.55);
++}
++
++.rs-field__input {
++  position: relative;
++  z-index: 1;
++  background: transparent;
++}
++
++.rs-field__input:not(:placeholder-shown)
++  + .rs-field__split-placeholder,
++.rs-field.is-focus
++  .rs-field__split-placeholder {
++  opacity: 0;
++}
++
++.rs-stop-link {
++  display: flex;
++  flex-direction: column;
++  align-items: stretch;
++  gap: 8px;
++}
++
++.rs-stop-link__field-row {
++  display: none;
++}
++
++.rs-stop-link.is-enabled
++  .rs-stop-link__field-row {
++  display: flex;
++}
++
++.rs-stop-link__message {
++  display: none;
++  min-height: 13px;
++  font-family: var(--font-mono);
++  font-size: 10px;
++  line-height: 13px;
++  letter-spacing: 0.02em;
++  color: #FF4A3D;
++}
++
++.rs-stop-link.has-error
++  .rs-stop-link__message {
++  display: block;
++}
++
++.rs-stop-link.has-error .rs-field {
++  border-color: rgba(255, 74, 61, 0.65);
++}
++
+ /* Vector 2 — единый SVG-контур 10×5 из Input field */
+ .rs-field__chevron {
+   position: relative;
+diff --git a/tests/unit/stop-link.test.js b/tests/unit/stop-link.test.js
+index a50e958..ecb3572 100644
+--- a/tests/unit/stop-link.test.js
++++ b/tests/unit/stop-link.test.js
+@@ -2,6 +2,8 @@ import assert from 'node:assert/strict';
+ import test from 'node:test';
+ 
+ import {
++  applyStopLinkBoundary,
++  postMatchesStopLink,
+   parseStopLink,
+   sameStopPublication,
+   stopLinkPlaceholder,
+@@ -144,3 +146,193 @@ test('возвращает placeholder выбранной соцсети', () => {
+     'https://www.instagram.com/p/',
+   );
+ });
++
++test('сопоставляет Stop Link с externalId публикации', () => {
++  const stopLink = parseStopLink(
++    'https://ru.pinterest.com/pin/222/',
++    'pinterest',
++  );
++
++  assert.equal(
++    postMatchesStopLink(
++      {
++        postId: 'pinterest:222',
++        externalId: '222',
++        source: 'pinterest',
++      },
++      stopLink,
++    ),
++    true,
++  );
++});
++
++test('сопоставляет Instagram Stop Link по URL публикации', () => {
++  const stopLink = parseStopLink(
++    'https://www.instagram.com/reel/ABC_123/',
++    'instagram',
++  );
++
++  assert.equal(
++    postMatchesStopLink(
++      {
++        postId: '987654321',
++        source: 'instagram',
++        url:
++          'https://www.instagram.com/reel/ABC_123/?utm_source=test',
++      },
++      stopLink,
++    ),
++    true,
++  );
++});
++
++test('обычный режим исключает границу и старые публикации', () => {
++  const stopLink = parseStopLink(
++    'https://www.pinterest.com/pin/3/',
++    'pinterest',
++  );
++
++  const posts = [
++    {
++      postId: 'pinterest:1',
++      externalId: '1',
++      source: 'pinterest',
++    },
++    {
++      postId: 'pinterest:2',
++      externalId: '2',
++      source: 'pinterest',
++    },
++    {
++      postId: 'pinterest:3',
++      externalId: '3',
++      source: 'pinterest',
++    },
++    {
++      postId: 'pinterest:4',
++      externalId: '4',
++      source: 'pinterest',
++    },
++  ];
++
++  assert.deepEqual(
++    applyStopLinkBoundary(
++      posts,
++      stopLink,
++    ).map((post) => post.externalId),
++    ['1', '2'],
++  );
++});
++
++test('если граница не найдена, список не изменяется', () => {
++  const stopLink = parseStopLink(
++    'https://www.pinterest.com/pin/999/',
++    'pinterest',
++  );
++
++  const posts = [
++    {
++      postId: 'pinterest:1',
++      externalId: '1',
++      source: 'pinterest',
++    },
++    {
++      postId: 'pinterest:2',
++      externalId: '2',
++      source: 'pinterest',
++    },
++  ];
++
++  assert.deepEqual(
++    applyStopLinkBoundary(
++      posts,
++      stopLink,
++    ),
++    posts,
++  );
++});
++
++test('в папочном режиме останавливается только папка с границей', () => {
++  const stopLink = parseStopLink(
++    'https://www.pinterest.com/pin/stop/',
++    'pinterest',
++  );
++
++  /*
++   * Pinterest принимает числовой ID, поэтому для проверки
++   * используем реальный числовой URL.
++   */
++  const numericStopLink = parseStopLink(
++    'https://www.pinterest.com/pin/300/',
++    'pinterest',
++  );
++
++  const posts = [
++    {
++      postId: 'pinterest:100',
++      externalId: '100',
++      source: 'pinterest',
++      collectionOccurrences: [{
++        collectionId: 'folder-a',
++        collectionName: 'Folder A',
++      }],
++    },
++    {
++      postId: 'pinterest:200',
++      externalId: '200',
++      source: 'pinterest',
++      collectionOccurrences: [{
++        collectionId: 'folder-b',
++        collectionName: 'Folder B',
++      }],
++    },
++    {
++      postId: 'pinterest:300',
++      externalId: '300',
++      source: 'pinterest',
++      collectionOccurrences: [{
++        collectionId: 'folder-a',
++        collectionName: 'Folder A',
++      }],
++    },
++    {
++      postId: 'pinterest:400',
++      externalId: '400',
++      source: 'pinterest',
++      collectionOccurrences: [{
++        collectionId: 'folder-a',
++        collectionName: 'Folder A',
++      }],
++    },
++    {
++      postId: 'pinterest:500',
++      externalId: '500',
++      source: 'pinterest',
++      collectionOccurrences: [{
++        collectionId: 'folder-b',
++        collectionName: 'Folder B',
++      }],
++    },
++  ];
++
++  assert.equal(stopLink.ok, false);
++
++  const result = applyStopLinkBoundary(
++    posts,
++    numericStopLink,
++    {
++      folderSearch: true,
++    },
++  );
++
++  assert.deepEqual(
++    result.map((post) => post.externalId),
++    ['100', '200', '500'],
++  );
++});
++
++test('граничная публикация удаляется из всех её папочных вхождений', () => {
++  const stopLink = parseStopLink(
++    'https://www.pinterest.com/pin/300/',
++    'pinterest',
++  );
++
++  const result = applyStopLinkBoundary(
++    [
++      {
++        postId: 'pinterest:300',
++        externalId: '300',
++        source: 'pinterest',
++        collectionOccurrences: [
++          { collectionId: 'folder-a' },
++          { collectionId: 'folder-b' },
++        ],
++      },
++      {
++        postId: 'pinterest:301',
++        externalId: '301',
++        source: 'pinterest',
++        collectionOccurrences: [
++          { collectionId: 'folder-a' },
++        ],
++      },
++      {
++        postId: 'pinterest:302',
++        externalId: '302',
++        source: 'pinterest',
++        collectionOccurrences: [
++          { collectionId: 'folder-c' },
++        ],
++      },
++    ],
++    stopLink,
++    {
++      folderSearch: true,
++    },
++  );
++
++  assert.deepEqual(
++    result.map((post) => post.externalId),
++    ['302'],
++  );
++});
