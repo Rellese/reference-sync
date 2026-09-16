@@ -210,6 +210,39 @@ export function parseStopLink(
   };
 }
 
+/* Проверяется до чтения cookies и запуска поиска. Выключенный режим
+ * игнорирует сохранённый URL, даже если он относится к другой платформе. */
+export function stopLinkFromSettings(settings) {
+  if (!settings.stopLinkEnabled) return null;
+  const result = parseStopLink(settings.stopLinkUrl, settings.platform);
+  if (!result.ok) {
+    const error = new Error(result.message);
+    error.code = 'INVALID_STOP_LINK';
+    throw error;
+  }
+  return result;
+}
+
+/* Сравниваем только ID публикации и её URL, не вложенные ID автора,
+ * доски или файла. Нормализацию raw-ID выполняет сам source adapter. */
+export function postMatchesStopLink(post, stopLink) {
+  if (!post || !stopLink?.ok) return false;
+  const source = clean(post.source || post.sourceCode).toLowerCase();
+  const prefixed = clean(post.postId).match(/^([a-z]+):(.*)$/i);
+  if (source && source !== stopLink.sourceCode) return false;
+  if (prefixed && prefixed[1] !== stopLink.sourceCode) return false;
+
+  const ids = [
+    post.externalId, post.publicationId, post.shortcode,
+    post.raw?.post_shortcode, post.raw?.shortcode, post.raw?.code,
+    prefixed ? prefixed[2] : post.postId,
+  ];
+  if (ids.some((id) => clean(id) === stopLink.publicationId)) return true;
+
+  return [post.url, post.postUrl, post.canonicalUrl].some((url) =>
+    url && sameStopPublication(parseStopLink(url, stopLink.sourceCode), stopLink));
+}
+
 export function sameStopPublication(
   left,
   right,

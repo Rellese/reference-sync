@@ -38,6 +38,8 @@ import {
 import {
   createDiscoveryCounter,
 } from './discovery-counter.js';
+import { runDiscoveryWithStop } from './discovery-stop.js';
+import { postMatchesStopLink } from './stop-link.js';
 
 /* Максимум попыток на одну публикацию при обрыве связи —
    ровно столько, сколько ступеней в лестнице пауз (5…30 с) */
@@ -273,6 +275,7 @@ async function runGallery(args, options = {}) {
   ].join('\n');
 
   if (
+    options.signal?.aborted ||
     firstResult.code === 0 ||
     !isTransientCookieReadError(output)
   ) {
@@ -980,6 +983,7 @@ export async function discoverSaved({
   speedProfile = 'safe',
   collections = [],
   knownPostIds = new Set(),
+  stopLink = null,
   onProgress,
   onLog,
   signal,
@@ -1021,6 +1025,7 @@ export async function discoverSaved({
   const posts = [];
   const postsByKey = new Map();
   let stoppedEarly = false;
+  const stopLinkTargets = [];
 
   const discoveryCounter =
   createDiscoveryCounter({
@@ -1038,6 +1043,7 @@ export async function discoverSaved({
       ? Math.max(0, Number(limit) || 0)
       : 0;
 
+  try {
   for (const target of targets) {
     throwIfAborted(signal);
 
@@ -1071,7 +1077,13 @@ export async function discoverSaved({
     let targetStoppedEarly = false;
 
     try {
-      result = await runGallery(args, {
+      result = await runDiscoveryWithStop(runGallery, args, {
+        stopLink,
+        recordToPost: (record) => ({
+          source: 'instagram',
+          raw: record,
+          url: record.post_url || record.url,
+        }),
         signal,
 
         onStdout: (chunk) => {
@@ -1120,6 +1132,13 @@ export async function discoverSaved({
       );
     }
 
+    if (result.stopLinkReached) {
+      stoppedEarly = true;
+      targetStoppedEarly = true;
+      stopLinkTargets.push(String(target.id));
+      onLog?.(`Stop Link: достигнута граница в «${target.name}».`);
+    }
+
     const records = buildPostRecords(
       collectPostRecords(
         parseJsonStream(buffer),
@@ -1134,6 +1153,16 @@ export async function discoverSaved({
       });
 
       if (!post) continue;
+
+      // До known-post и дедупликации: граница независима в каждой папке.
+      if (postMatchesStopLink(post, stopLink)) {
+        stoppedEarly = true;
+        targetStoppedEarly = true;
+        if (!stopLinkTargets.includes(String(target.id))) {
+          stopLinkTargets.push(String(target.id));
+        }
+        break;
+      }
 
       const postUrl = String(post.url || '')
         .replace(/[?#].*$/, '')
@@ -1292,9 +1321,14 @@ export async function discoverSaved({
   return {
     posts: outputPosts,
     stoppedEarly,
+    stopLinkReached: stopLinkTargets.length > 0,
+    stopLinkTargets,
     savedUrl,
     occurrenceCount,
   };
+  } finally {
+    discoveryCounter.dispose();
+  }
 }
 
 /* Диагностика ошибок. Перенос classify_failure() */

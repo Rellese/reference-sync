@@ -75,6 +75,7 @@ import {
   getSource,
   getSourceForPosts,
 } from './sources/index.js';
+import { stopLinkFromSettings } from './stop-link.js';
 
 import {
   checkEagle,
@@ -587,6 +588,7 @@ async function boot() {
   ui.social = buildSocial({
     onSelect: (platform) => {
       setSetting('platform', platform);
+      ui.settings?.sync();
       ui.log.add(`Выбрана платформа: ${platform}`);
     },
   });
@@ -1279,6 +1281,16 @@ async function runSearch() {
     return;
   }
 
+  let stopLink;
+  try {
+    stopLink = stopLinkFromSettings(s);
+  } catch (error) {
+    ui.settings.sync();
+    ui.status.set('Проверьте ссылку остановки', error.message);
+    ui.log.add(error.message, 'err');
+    return;
+  }
+
   if (!nodeApi.available) {
     ui.log.add('Поиск доступен только внутри Eagle.', 'err');
     return;
@@ -1602,6 +1614,7 @@ async function runSearch() {
                   )
                 : [],
             knownPostIds: state.knownPostIds,
+            stopLink,
             signal: operationController.signal,
             onProgress: (progress) => {
               if (
@@ -1672,6 +1685,10 @@ async function runSearch() {
     }
 
     let { posts, stoppedEarly } = discoveryResult;
+    const stopLinkReached = Boolean(discoveryResult.stopLinkReached);
+    if (stopLink && !stopLinkReached) {
+      ui.log.add('Stop Link не встретился в проверенном диапазоне. Действуют выбранный режим поиска и лимит.');
+    }
 
         /*
      * Универсальные источники повторяют семантику Instagram:
@@ -1743,11 +1760,15 @@ async function runSearch() {
       ui.status.showProgress(false);
       ui.status.set(
         'Новых публикаций для импорта нет',
-        'Все найденные публикации уже добавлены в Eagle',
+        stopLinkReached
+          ? 'Достигнута ссылка остановки; перед ней нет публикаций для импорта'
+          : 'В выбранном диапазоне нет новых публикаций',
       );
 
       ui.log.add(
-        'Все найденные публикации уже добавлены в Eagle.',
+        stopLinkReached
+          ? 'Поиск завершён на Stop Link без новых публикаций.'
+          : 'В выбранном диапазоне нет новых публикаций.',
         'ok',
       );
       discardRecovery();
@@ -1758,9 +1779,11 @@ async function runSearch() {
     ui.footer.action.setLabel('Скачать и добавить в Eagle');
     ui.status.showProgress(false);
     ui.status.set(`Найдено публикаций: ${posts.length}`,
-      stoppedEarly
-        ? 'Остановлено на границе прошлой синхронизации'
-        : 'Проверьте выбор и нажмите «Скачать и добавить в Eagle»');
+      stopLinkReached
+        ? 'Достигнута ссылка остановки (Stop Link)'
+        : stoppedEarly
+          ? 'Остановлено на границе прошлой синхронизации'
+          : 'Проверьте выбор и нажмите «Скачать и добавить в Eagle»');
     ui.log.add(`Поиск завершён: ${posts.length} публикаций.`, 'ok');
   } catch (error) {
     phase = 'idle';
