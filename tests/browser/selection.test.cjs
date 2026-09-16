@@ -275,3 +275,26 @@ test('naming: add independent counters and descriptions, remove without leaking 
   assert.equal(saved[1].text, 'Custom footer');
   assert.equal(await page.locator('.rs-row').first().textContent().then(s => s.includes('Custom footer')), true);
 });
+
+test('folder design: checkboxes stay aligned at every depth and thumbnails indent by 33px', async t => {
+  const page = await setup(t);
+  await seed(page);
+  await page.evaluate(() => {
+    window.__rs.state.settings.thumbnails = true;
+    window.__rs.setPosts(window.__rs.state.posts);
+  });
+  const positions = await page.evaluate(() => {
+    const x = selector => document.querySelector(selector).getBoundingClientRect().x;
+    return {
+      root: x('[data-collection-id="board"] > .rs-collection__head [role=checkbox]'),
+      child: x('[data-collection-id="section"] > .rs-collection__head [role=checkbox]'),
+      post: x('[data-table-post-id="b"] [role=checkbox]'),
+      rootThumb: x('[data-table-post-id="a"] .rs-thumb'),
+      childThumb: x('[data-table-post-id="b"] .rs-thumb'),
+    };
+  });
+  assert.equal(positions.root, positions.child);
+  assert.equal(positions.child, positions.post);
+  assert.equal(positions.childThumb - positions.rootThumb, 33);
+  if (process.env.UI_SCREENSHOT) await page.screenshot({ path: `${process.env.UI_SCREENSHOT}-tree.png` });
+});

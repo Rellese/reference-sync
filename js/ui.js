@@ -1418,6 +1418,7 @@ export function createSocialButton({
   const root = el('div', 'rs-soc');
   root.title = title;
   root.setAttribute('role', 'button');
+  root.setAttribute('aria-disabled', String(locked));
   root.setAttribute('tabindex', locked ? '-1' : '0');
 
   root.appendChild(el('div', 'rs-soc__base'));
@@ -1434,6 +1435,9 @@ export function createSocialButton({
   root.classList.toggle('is-on', Boolean(active));
   root.classList.toggle('is-locked', Boolean(locked));
 
+  root.addEventListener('keydown', event => {
+    if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); root.click(); }
+  });
   root.addEventListener('click', () => {
     if (root.classList.contains('is-locked')) return;
     if (onClick) onClick();

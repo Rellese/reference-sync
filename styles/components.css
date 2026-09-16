@@ -3051,3 +3051,8 @@ textarea.rs-editable {
 }
 
 .rs-field__at { font-size: 0; background: url('../assets/field-at.svg') center / 14px 14px no-repeat; }
+/* Full_design/Social media button: pressed icon layers use overlay. */
+.rs-soc:not(.is-locked):active .rs-soc__icon { color: #FDF1E5; mix-blend-mode: overlay; filter: none; transition: none; }
+.rs-soc:not(.is-locked):active .rs-soc__plate { top: 2px; transition: none; }
+.rs-soc__plate, .rs-soc__icon { transition-duration: 150ms; }
+.rs-soc.is-locked { pointer-events: none; }
