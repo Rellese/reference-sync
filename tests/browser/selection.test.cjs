@@ -200,3 +200,38 @@ test('folder selection restores carousel components after select-all clears them
   await checked(row(page, 'b'), true);
   await checked(folder(page, 'board'), true);
 });
+
+test('long table: stable scroll extent and immediate text while thumbnails load', async t => {
+  const page = await setup(t);
+  await page.route('**/delayed-thumbnail.svg', async route => {
+    await new Promise(resolve => setTimeout(resolve, 250));
+    await route.fulfill({ contentType: 'image/svg+xml', body: '<svg xmlns="http://www.w3.org/2000/svg" width="40" height="40"><rect width="40" height="40" fill="red"/></svg>' });
+  });
+  await page.evaluate(() => {
+    const { state, setPosts } = window.__rs;
+    state.settings.folderSearch = false;
+    state.settings.thumbnails = true;
+    state.collections = [];
+    setPosts(Array.from({ length: 1000 }, (_, i) => ({
+      postId: `long-${i}`, username: '@fixture', description: `Visible text ${i}`,
+      url: `https://www.instagram.com/p/long-${i}/`, type: 'photo', componentCount: 1,
+      previewUrl: '/delayed-thumbnail.svg', components: [{ index: 1, type: 'image' }],
+    })));
+  });
+  const sizes = await page.evaluate(async () => {
+    const body = document.querySelector('.rs-table__body');
+    const initial = body.scrollHeight;
+    body.scrollTop = body.scrollHeight;
+    await new Promise(requestAnimationFrame);
+    const last = body.querySelector('.rs-row:last-child');
+    return { initial, final: body.scrollHeight, text: last.textContent,
+      rowHeight: last.getBoundingClientRect().height,
+      visibility: getComputedStyle(last).contentVisibility };
+  });
+  assert.equal(sizes.initial, sizes.final);
+  assert.equal(sizes.rowHeight, 70);
+  assert.equal(sizes.visibility, 'visible');
+  assert.match(sizes.text, /Visible text 999/);
+  await page.locator('.rs-row:last-child .rs-thumb img').waitFor();
+  await page.waitForFunction(() => !document.querySelector('.rs-row:last-child .rs-thumb').classList.contains('is-loading'));
+});

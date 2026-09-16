@@ -1,3 +1,4 @@
+import { attachThumbnail } from './thumbnail.js';
 /* ============================================================
    ReferenceSync — точка входа плагина Eagle
 
@@ -4742,15 +4743,7 @@ if (isKnown) {
 
   const thumb = el('div', 'rs-thumb');
   if (state.settings.thumbnails && post.previewUrl) {
-    const image = document.createElement('img');
-    image.loading = 'lazy';
-    image.src = post.previewUrl;
-    image.alt = '';
-    image.addEventListener('error', () => {
-      thumb.classList.add('is-empty');
-      thumb.removeChild(image);
-    });
-    thumb.appendChild(image);
+    attachThumbnail(thumb, post.previewUrl);
   } else {
     thumb.classList.add('is-empty');
   }

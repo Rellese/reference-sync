@@ -1,3 +1,4 @@
+import { attachThumbnail } from './thumbnail.js';
 /* ============================================================
    ReferenceSync — сборка панелей интерфейса
    Соответствие блокам Figma:
@@ -3163,17 +3164,7 @@ function syncComponentCheckboxes() {
             'rs-carousel-modal__thumbnail',
           );
 
-          const image = document.createElement('img');
-          image.loading = 'lazy';
-          image.src = component.previewUrl;
-          image.alt = '';
-
-          image.addEventListener('error', () => {
-            thumbnail.classList.add('is-empty');
-            image.remove();
-          });
-
-          thumbnail.appendChild(image);
+          attachThumbnail(thumbnail, component.previewUrl);
           row.appendChild(thumbnail);
         }
 

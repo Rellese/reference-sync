@@ -748,16 +748,13 @@ html.is-resizing-table-column * {
   background: transparent;
   transition: background 120ms ease;
 
-  /*
-   * M1-T08E:
-   * Chromium не выполняет layout и paint строк,
-   * находящихся далеко за пределами таблицы.
-   *
-   * 70px — штатная высота строки из макета.
-   */
-  content-visibility: auto;
-  contain: layout style paint;
-  contain-intrinsic-size: 70px;
+  /* Stable geometry keeps the native scrollbar accurate at every scroll position.
+     Text remains painted; only image decoding is deferred. */
+  height: 70px;
+  contain: layout style;
+}
+.rs-row > .rs-table__grid {
+  height: 70px;
 }
 .rs-row:nth-child(odd) {
   background: var(--bg-row);
@@ -1774,4 +1771,20 @@ M1-T09J(a) — дерево коллекций в таблице результ�
   left: calc(30px + 403px + 5px);
   right: 30px;
   width: auto;
+}
+
+/* Loading only affects the thumbnail, never the publication text. */
+.rs-thumb.is-loading,
+.rs-carousel-modal__thumbnail.is-loading {
+  background: linear-gradient(100deg, #292929 20%, #414141 45%, #292929 70%);
+  background-size: 240% 100%;
+  animation: rs-thumbnail-loading 1.3s ease-in-out infinite;
+}
+.is-loading > img { opacity: 0; }
+@keyframes rs-thumbnail-loading {
+  from { background-position: 100% 0; }
+  to { background-position: -100% 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .rs-thumb.is-loading, .rs-carousel-modal__thumbnail.is-loading { animation: none; }
 }
