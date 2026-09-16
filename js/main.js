@@ -1,3 +1,4 @@
+import { installPanelResizers } from './panel-resize.js';
 import { attachThumbnail } from './thumbnail.js';
 /* ============================================================
    ReferenceSync — точка входа плагина Eagle
@@ -678,6 +679,7 @@ async function boot() {
   );
 
   document.body.appendChild(app);
+  installPanelResizers({ app, work, right, settings: ui.settings.node, results: ui.results.node, naming: ui.naming.node });
 
   renderTable();
   bindShortcuts();

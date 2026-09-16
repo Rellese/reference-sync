@@ -235,3 +235,22 @@ test('long table: stable scroll extent and immediate text while thumbnails load'
   await page.locator('.rs-row:last-child .rs-thumb img').waitFor();
   await page.waitForFunction(() => !document.querySelector('.rs-row:last-child .rs-thumb').classList.contains('is-loading'));
 });
+
+test('design: panel resizing and switch hover settle without a layout error', async t => {
+  const page = await setup(t);
+  const handle = page.locator('.rs-panel-resizer--width');
+  const box = await handle.boundingBox();
+  await page.mouse.move(box.x + 2, box.y + 100);
+  await page.mouse.down();
+  await page.mouse.move(box.x + 62, box.y + 100);
+  await page.mouse.up();
+  const width = await page.locator('.rs-work').evaluate(el => getComputedStyle(el).gridTemplateColumns);
+  assert.match(width, /^463px/);
+  const sw = page.locator('.rs-switch').first();
+  await sw.hover();
+  await page.waitForTimeout(200);
+  assert.equal(await sw.locator('.rs-switch__knob').evaluate(el => getComputedStyle(el).transform), 'none');
+  await sw.click();
+  assert.equal(await sw.evaluate(el => el.classList.contains('is-hover-suppressed')), true);
+  assert.equal(await sw.locator('.rs-switch__knob').evaluate(el => getComputedStyle(el).animationName), 'none');
+});

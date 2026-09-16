@@ -84,7 +84,7 @@
 }
 
 /* --- State=Off, Status=Hovered: ручка немного смещена --- */
-.rs-switch:not(.is-on):hover .rs-switch__knob { left: 13.89%; }
+.rs-switch:not(.is-on):not(.is-hover-suppressed):hover .rs-switch__knob { animation: rs-switch-nudge 150ms ease; }
 
 /* --- State=On --- */
 .rs-switch.is-on {
@@ -95,7 +95,7 @@
 .rs-switch.is-on .rs-switch__knob { left: 30.56%; }
 
 /* State=On, Status=Hovered: ручка отходит назад */
-.rs-switch.is-on:hover .rs-switch__knob { left: 22.22%; }
+.rs-switch.is-on:not(.is-hover-suppressed):hover .rs-switch__knob { animation: rs-switch-nudge-back 150ms ease; }
 
 .rs-switch.is-disabled { opacity: 0.4; pointer-events: none; }
 
@@ -3040,3 +3040,14 @@ textarea.rs-editable {
   opacity: 1;
   pointer-events: auto;
 }
+
+@keyframes rs-switch-nudge { 50% { transform: translateX(3px); } }
+@keyframes rs-switch-nudge-back { 50% { transform: translateX(-3px); } }
+.rs-switch.is-hover-suppressed,
+.rs-switch.is-hover-suppressed::after,
+.rs-switch.is-hover-suppressed .rs-switch__knob { transition: none; animation: none; }
+@media (prefers-reduced-motion: reduce) {
+  .rs-switch .rs-switch__knob { animation: none !important; transition: none; }
+}
+
+.rs-field__at { font-size: 0; background: url('../assets/field-at.svg') center / 14px 14px no-repeat; }

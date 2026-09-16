@@ -36,10 +36,12 @@ export function createSwitch({ checked = false, onChange, label, id } = {}) {
   const toggle = () => {
     if (root.classList.contains('is-disabled')) return;
     value = !value;
+    root.classList.add('is-hover-suppressed');
     apply();
     if (onChange) onChange(value);
   };
 
+  root.addEventListener('pointerleave', () => root.classList.remove('is-hover-suppressed'));
   root.addEventListener('click', toggle);
   root.addEventListener('keydown', (event) => {
     if (event.key === ' ' || event.key === 'Enter') {

@@ -1788,3 +1788,14 @@ M1-T09J(a) — дерево коллекций в таблице результ�
 @media (prefers-reduced-motion: reduce) {
   .rs-thumb.is-loading, .rs-carousel-modal__thumbnail.is-loading { animation: none; }
 }
+
+.rs-work { grid-template-columns: var(--rs-settings-width, 403px) minmax(0, 1fr); }
+.rs-right { grid-template-rows: auto minmax(100px, 1fr) var(--rs-naming-height, auto); }
+.rs-footer { left: calc(var(--rs-settings-width, 403px) + 35px); }
+.rs-right[style*="--rs-naming-height"] .rs-naming { max-height: none; min-height: 0; }
+.rs-right[style*="--rs-naming-height"] .rs-naming__body { max-height: 100%; box-sizing: border-box; }
+.rs-panel-resizer { position: absolute; z-index: 12; border-radius: 2.5px; touch-action: none; }
+.rs-panel-resizer:hover, .rs-panel-resizer.is-dragging, .rs-panel-resizer:focus-visible { background: rgba(211,82,45,.5); outline: none; }
+.rs-panel-resizer--width { width: 5px; cursor: url('../assets/cursor-resize.svg') 14 9, col-resize; }
+.rs-panel-resizer--height { height: 5px; cursor: url('../assets/cursor-resize-vertical.svg') 9 14, row-resize; }
+.rs-table__column-resizer { cursor: url('../assets/cursor-resize.svg') 14 9, col-resize; }
