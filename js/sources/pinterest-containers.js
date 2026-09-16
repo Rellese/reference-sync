@@ -1112,3 +1112,39 @@ export async function listPinterestContainers({
     );
   }
 }
+
+
+export function pinterestSessionFromHtml(html) {
+  const match = String(html).match(/<script[^>]+id=["']__PWS_DATA__["'][^>]*>([\s\S]*?)<\/script>/i);
+  if (!match) return { status: 'unknown', authenticated: false };
+  let data;
+  try { data = JSON.parse(match[1]); } catch { return { status: 'unknown', authenticated: false }; }
+  const context = data.initialReduxState?.context || data.props?.initialReduxState?.context;
+  if (context?.isAuth === false) return { authenticated: false, status: 'signed-out' };
+  const user = context?.user;
+  if (context?.isAuth === true && user?.username) {
+    return { authenticated: true, username: String(user.username) };
+  }
+  return { authenticated: false, status: 'unknown' };
+}
+
+export async function verifyPinterestSession({ browser, browserProfile, signal }) {
+  const cookieFile = pinterestCookieSnapshotPath();
+  if (!cookieFile) return { authenticated: false, status: 'unavailable' };
+  try {
+    const result = await runGallery([
+      '--config-ignore', '--no-input', '--cookies-from-browser',
+      browserCookieSpecForProfile(browser, browserProfile),
+      '--cookies-export', cookieFile, '--no-download', 'http://0/file.jpg',
+    ], { signal, timeout: 45000 });
+    if (result.code !== 0) throw new Error('Не удалось прочитать профиль браузера');
+    nodeApi.fs.chmodSync(cookieFile, 0o600);
+    const cookies = readPinterestCookies(cookieFile);
+    const response = await requestText({
+      path: '/', signal,
+      headers: { Cookie: cookieHeader(cookies), 'User-Agent': browserUserAgent(), Accept: 'text/html' },
+    });
+    if (response.statusCode !== 200) return { authenticated: false, status: 'unknown' };
+    return pinterestSessionFromHtml(response.body);
+  } finally { removePinterestCookieSnapshot(cookieFile); }
+}

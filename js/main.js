@@ -76,6 +76,8 @@ import {
   getSourceForPosts,
 } from './sources/index.js';
 import { stopLinkFromSettings } from './stop-link.js';
+import { discoverInstalledBrowsers } from './browser-installations.js';
+import { createProfileSessionController } from './profile-session.js';
 
 import {
   checkEagle,
@@ -591,15 +593,15 @@ async function boot() {
     onSelect: (platform) => {
       setSetting('platform', platform);
       ui.settings?.sync();
+      refreshProfileSession();
       ui.log.add(`Выбрана платформа: ${platform}`);
     },
   });
 
   ui.settings = buildSettings({
     onChange: (key) => {
-      if (key === 'browser') {
-        refreshBrowserProfiles();
-      }
+      if (key === 'browser') refreshBrowserProfiles();
+      else if (key === 'browserProfile') refreshProfileSession();
 
       if (key === 'extraFilters' || key.startsWith('filter') ||
           key.startsWith('author')) {
@@ -692,6 +694,11 @@ async function boot() {
    Профили выбранного браузера
    ------------------------------------------------------------ */
 function refreshBrowserProfiles() {
+  const installed = discoverInstalledBrowsers();
+  if (!installed.some(entry => entry.value === state.settings.browser)) {
+    setSetting('browser', installed[0]?.value || '');
+  }
+  ui.settings.setBrowsers(installed, state.settings.browser);
   const browser = state.settings.browser;
   const profiles = discoverBrowserProfiles(browser);
 
@@ -703,6 +710,7 @@ function refreshBrowserProfiles() {
 
   setSetting('browserProfile', selectedId);
   ui.settings.setBrowserProfiles(profiles, selectedId);
+  refreshProfileSession();
 
   if (!profiles.length) {
     ui.log?.add(
@@ -774,6 +782,7 @@ async function checkToolchain() {
   });
 
   if (toolchain.ready) {
+    refreshProfileSession();
     ui.results.engine.setState('ready',
       `Движок загрузки готов · gallery-dl ${versionString(toolchain.version)}`,
       { button: 'Обновить' });
@@ -815,6 +824,7 @@ async function prepareToolchain() {
       },
     });
 
+    refreshProfileSession();
     ui.results.engine.setState('ready',
       `Движок загрузки готов · gallery-dl ${versionString(toolchain.version)}`,
       { button: 'Обновить', progress: 100 });
@@ -969,6 +979,32 @@ function publicationInfo() {
   };
 }
 
+const profileSession = createProfileSessionController({
+  async probe(settings, signal) {
+    if (!nodeApi.available || !toolchain.ready) return { status: 'unavailable' };
+    const probe = getSource(settings.platform).probe;
+    if (probe) return probe({ ...settings, signal });
+    return { status: 'unavailable' };
+  },
+  onState(result) {
+    const settings = result.settings;
+    const source = getSource(settings.platform).title;
+    const profiles = discoverBrowserProfiles(settings.browser);
+    const profile = profiles.find(p => p.id === settings.browserProfile);
+    const name = profile ? `${profile.name} (${profile.id})` : 'Стандартный профиль';
+    const status = result.status === 'authenticated' ? `В ${source} авторизован **@${result.username}**.`
+      : result.status === 'checking' ? 'Проверяем аккаунт…'
+      : result.status === 'signed-out' ? `Вход в ${source} не выполнен.`
+      : result.status === 'unavailable' ? 'Аккаунт будет проверен после подготовки движка.'
+      : 'Не удалось определить аккаунт. Проверьте вход и доступ к браузеру.';
+    ui.settings?.setProfileHint(`${name}. ${status}`, source);
+  },
+});
+
+function refreshProfileSession() {
+  if (state.settings.source === 'browser') profileSession.refresh(state.settings);
+}
+
 async function requireMatchingInstagramSession(settings, signal) {
   const browserName = browserDisplayName(settings.browser);
 
@@ -1009,10 +1045,11 @@ async function requireMatchingInstagramSession(settings, signal) {
   try{
     throwIfAborted(signal);
 
-    ui.settings.setInstagramProfileHint(
-      session.username,
-      browserName,
-    );
+    if (settings.browser === state.settings.browser &&
+        settings.browserProfile === state.settings.browserProfile &&
+        state.settings.platform === 'instagram') {
+      ui.settings.setInstagramProfileHint(session.username, browserName);
+    }
 
     if (!session.authenticated) {
       const error = new Error(

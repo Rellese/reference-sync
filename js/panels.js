@@ -26,6 +26,7 @@ import {
   normalizeAuthorFilterValue,
 } from './state.js';
 import { SEARCH_MODES } from './instagram.js';
+import { discoverInstalledBrowsers } from './browser-installations.js';
 import { parseStopLink, stopLinkPlaceholder } from './stop-link.js';
 import {
   normalizeSelection,
@@ -71,8 +72,7 @@ const TIP_SPEED =
   'подходит только для небольших партий.';
 
 const TIP_ACCOUNT =
-  'Имя пользователя Instagram без символа @. Используется вход, уже ' +
-  'выполненный в выбранном браузере — **пароль не запрашивается и не хранится**.';
+  '**Имя владельца сохранённых публикаций**, без @. Оно должно совпадать с аккаунтом выбранной соцсети в профиле браузера.';
 
 const TIP_BROWSER =
   'ReferenceSync читает cookies выбранного браузера. **В нём должен быть ' +
@@ -322,13 +322,7 @@ export function buildSettings({ onChange, onFolderSearch }) {
   const browserLabel = createLabelWithInfo(
     'Браузер с выполненным входом', TIP_BROWSER).node;
   const browserSelect = createSelect({
-    options: [
-      { value: 'chrome', label: 'Google Chrome' },
-      { value: 'yandex', label: 'Яндекс.Браузер' },
-      { value: 'safari', label: 'Safari' },
-      { value: 'firefox', label: 'Firefox' },
-      { value: 'edge', label: 'Microsoft Edge' },
-    ],
+    options: discoverInstalledBrowsers(),
     value: s.browser,
     onChange: (value) => {
       setSetting('browser', value);
@@ -769,6 +763,16 @@ export function buildSettings({ onChange, onFolderSearch }) {
       );
     },
 
+    setBrowsers(options, value) {
+      browserSelect.setOptions(options, value);
+      browserSelect.setDisabled(options.length === 0);
+    },
+    setProfileHint(text, platform) {
+      profileLabel.info?.setText(text);
+      browserHint.textContent = text.replace(/\*\*/g, '');
+      const label = accountLabel.querySelector('.rs-field-label__text');
+      if (label) label.textContent = platform + '-аккаунт';
+    },
     setUsername(value) {
       accountField.set(value);
     },
