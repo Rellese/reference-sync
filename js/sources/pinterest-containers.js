@@ -1,3 +1,5 @@
+import { pinterestSessionFromHtml, pinterestCookieHeaderForHost, pinterestRedirect } from '../pinterest-session.js';
+export { pinterestSessionFromHtml } from '../pinterest-session.js';
 /* ============================================================
    Pinterest — список досок и вложенных разделов
 
@@ -337,6 +339,7 @@ function browserUserAgent() {
 }
 
 function requestText({
+  hostname = HOST,
   path,
   headers,
   signal,
@@ -371,7 +374,7 @@ function requestText({
         nodeApi.https.request(
           {
             protocol: 'https:',
-            hostname: HOST,
+            hostname,
             path,
             method: 'GET',
             headers,
@@ -385,9 +388,12 @@ function requestText({
               'data',
               (chunk) => {
                 body += chunk;
+                if (body.length > 8 * 1024 * 1024) request.destroy(new Error('Слишком большой ответ Pinterest'));
               },
             );
 
+            response.on('error', error => finish(reject, error));
+            response.on('aborted', () => finish(reject, new Error('Ответ Pinterest прерван')));
             response.on(
               'end',
               () => {
@@ -396,6 +402,7 @@ function requestText({
                     response.statusCode || 0,
 
                   body,
+                  location: response.headers?.location || '',
                 });
               },
             );
@@ -1114,20 +1121,6 @@ export async function listPinterestContainers({
 }
 
 
-export function pinterestSessionFromHtml(html) {
-  const match = String(html).match(/<script[^>]+id=["']__PWS_DATA__["'][^>]*>([\s\S]*?)<\/script>/i);
-  if (!match) return { status: 'unknown', authenticated: false };
-  let data;
-  try { data = JSON.parse(match[1]); } catch { return { status: 'unknown', authenticated: false }; }
-  const context = data.initialReduxState?.context || data.props?.initialReduxState?.context;
-  if (context?.isAuth === false) return { authenticated: false, status: 'signed-out' };
-  const user = context?.user;
-  if (context?.isAuth === true && user?.username) {
-    return { authenticated: true, username: String(user.username) };
-  }
-  return { authenticated: false, status: 'unknown' };
-}
-
 export async function verifyPinterestSession({ browser, browserProfile, signal }) {
   const cookieFile = pinterestCookieSnapshotPath();
   if (!cookieFile) return { authenticated: false, status: 'unavailable' };
@@ -1139,12 +1132,21 @@ export async function verifyPinterestSession({ browser, browserProfile, signal }
     ], { signal, timeout: 45000 });
     if (result.code !== 0) throw new Error('Не удалось прочитать профиль браузера');
     nodeApi.fs.chmodSync(cookieFile, 0o600);
-    const cookies = readPinterestCookies(cookieFile);
-    const response = await requestText({
-      path: '/', signal,
-      headers: { Cookie: cookieHeader(cookies), 'User-Agent': browserUserAgent(), Accept: 'text/html' },
-    });
-    if (response.statusCode !== 200) return { authenticated: false, status: 'unknown' };
-    return pinterestSessionFromHtml(response.body);
+    const cookieText = nodeApi.fs.readFileSync(cookieFile, 'utf8');
+    let url = new URL(ROOT);
+    for (let redirects = 0; redirects <= 3; redirects++) {
+      const response = await requestText({
+        hostname: url.hostname, path: url.pathname + url.search, signal,
+        headers: { Cookie: pinterestCookieHeaderForHost(cookieText, url.hostname), 'User-Agent': browserUserAgent(), Accept: 'text/html', 'Accept-Encoding': 'identity' },
+      });
+      if (response.statusCode >= 300 && response.statusCode < 400 && response.location) {
+        const next = pinterestRedirect(response.location, url);
+        if (!next) break;
+        url = next; continue;
+      }
+      if (response.statusCode === 200) return pinterestSessionFromHtml(response.body);
+      break;
+    }
+    return { authenticated: false, status: 'unknown' };
   } finally { removePinterestCookieSnapshot(cookieFile); }
 }

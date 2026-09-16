@@ -35,3 +35,16 @@ test('Pinterest identity requires an authenticated session context, never a pin 
   assert.equal(pinterestSessionFromHtml(html({ initialReduxState: { pins: { username: 'author' } } })).status, 'unknown');
   assert.equal(pinterestSessionFromHtml(html({ initialReduxState: { context: { isAuth: true, user: { username: 'owner' } } } })).username, 'owner');
 });
+
+test('Pinterest supports initial props and session user references, without guessing public identities', async () => {
+  const { pinterestSessionFromHtml, pinterestCookieHeaderForHost, pinterestRedirect } = await import('../../js/pinterest-session.js');
+  const html = data => `<script id="__PWS_INITIAL_PROPS__">${JSON.stringify(data)}</script>`;
+  assert.equal(pinterestSessionFromHtml(html({ initialReduxState: { context: { isAuth: true, user: '7' }, users: { 7: { username: 'owner' }, 8: { username: 'someone-else' } } } })).username, 'owner');
+  assert.equal(pinterestSessionFromHtml(html({ context: { isAuth: true, user: { username: 'session-owner' } } })).username, 'session-owner');
+  assert.equal(pinterestSessionFromHtml(html({ initialReduxState: { users: { 7: { username: 'public-user' } } } })).status, 'unknown');
+  const jar = '.pinterest.com\tTRUE\t/\tTRUE\t0\tsession\tshared\nwww.pinterest.com\tFALSE\t/\tTRUE\t0\thostonly\tprivate';
+  assert.equal(pinterestCookieHeaderForHost(jar, 'ru.pinterest.com'), 'session=shared');
+  assert.equal(pinterestCookieHeaderForHost(jar, 'evil.test'), '');
+  assert.equal(pinterestRedirect('https://ru.pinterest.com/', 'https://www.pinterest.com/').hostname, 'ru.pinterest.com');
+  assert.equal(pinterestRedirect('https://pinterest.com.evil.test/', 'https://www.pinterest.com/'), null);
+});
