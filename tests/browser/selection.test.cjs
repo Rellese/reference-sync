@@ -298,3 +298,14 @@ test('folder design: checkboxes stay aligned at every depth and thumbnails inden
   assert.equal(positions.childThumb - positions.rootThumb, 33);
   if (process.env.UI_SCREENSHOT) await page.screenshot({ path: `${process.env.UI_SCREENSHOT}-tree.png` });
 });
+
+test('archive mode replaces browser fields with a file drop zone', async t => {
+  const page = await setup(t);
+  await page.getByText('Из архива Meta', { exact: true }).click();
+  assert.equal(await page.locator('.rs-archive__drop').isVisible(), true);
+  assert.equal(await page.getByText('Браузер с выполненным входом', { exact: true }).isVisible(), false);
+  await page.locator('.rs-archive input[type=file]').setInputFiles({ name: 'test.json', mimeType: 'application/json', buffer: Buffer.from('[]') });
+  await page.getByText('Чтение архивов доступно внутри Eagle', { exact: true }).waitFor();
+  await page.getByText('Через авторизованный браузер', { exact: true }).click();
+  assert.equal(await page.locator('.rs-archive__drop').isVisible(), false);
+});

@@ -1,3 +1,5 @@
+import { readArchive } from './archive-reader.js';
+import { resolveArchiveLinks, downloadArchivePosts } from './archive-transfer.js';
 import { installPanelResizers } from './panel-resize.js';
 import { attachThumbnail } from './thumbnail.js';
 /* ============================================================
@@ -144,6 +146,7 @@ import {
 
 /* Текущая фаза: idle | searching | ready | importing */
 let phase = 'idle';
+let archiveData = null;
 
 let ui = {};
 
@@ -463,6 +466,12 @@ async function restoreInterruptedJob() {
   }
 
   recoveryState = stored;
+  if (stored.settings?.source === 'meta') {
+    archiveData = { source: stored.settings.platform, posts: stored.posts || [], collections: stored.archiveCollections || [], links: stored.archiveLinks || [], stagingRoot: stored.stagingRoot };
+    state.collections = archiveData.collections;
+    ui.settings.setArchiveStatus(`Восстановлено публикаций: ${archiveData.posts.length}. Ссылок: ${archiveData.links.length}.`, archiveData.links.length);
+    ui.results.showArchive();
+  }
 
   if (
     stored.settings &&
@@ -601,6 +610,8 @@ async function boot() {
   });
 
   ui.settings = buildSettings({
+    onArchive: readSelectedArchive,
+    onArchiveResolve: resolveSelectedArchive,
     onChange: (key) => {
       if (key === 'browser') refreshBrowserProfiles();
       else if (key === 'browserProfile') refreshProfileSession();
@@ -1270,6 +1281,65 @@ function resolveSelectedCollections(
     }));
 }
 
+function presentArchive() {
+  state.posts = [...new Map(archiveData.posts.map(post => [post.postId, post])).values()];
+  state.collections = archiveData.collections || [];
+  state.selected = new Set(state.posts.filter(post => !state.knownPostIds.has(post.postId)).map(post => post.postId));
+  resetAllEdits(); refreshNames(); renderTable();
+  phase = state.posts.length ? 'ready' : 'idle';
+  ui.results.showArchive();
+  ui.footer.action.setLabel(state.posts.length ? 'Скачать и добавить в Eagle' : 'Начать поиск');
+  ui.settings.setArchiveStatus(`Публикаций с медиа: ${state.posts.length}. Ссылок без медиа: ${archiveData.links.length}.`, archiveData.links.length);
+  ui.status.set('Архив прочитан', archiveData.links.length ? 'Для ссылок нажмите «Загрузить публикации по ссылкам»' : 'Выберите публикации для импорта');
+  checkpointRecovery('ready', { stagingRoot: archiveData.stagingRoot, archiveLinks: archiveData.links, archiveCollections: archiveData.collections });
+}
+async function readSelectedArchive(file) {
+  if (phase === 'searching' || phase === 'importing') return;
+  const source = state.settings.platform;
+  if (!['instagram', 'pinterest'].includes(source)) { ui.status.set('Архив недоступен', 'Выберите Instagram или Pinterest'); return; }
+  let filePath = file?.path;
+  try { if (!filePath) filePath = window.require?.('electron')?.webUtils?.getPathForFile(file); } catch {}
+  if (!filePath) { ui.status.set('Не удалось открыть файл', 'Чтение архивов доступно внутри Eagle'); return; }
+  phase = 'searching'; manualStopRequested = false;
+  state.abortController = new AbortController();
+  ui.footer.action.setLabel('Остановить');
+  ui.status.set('Чтение архива…', file.name || '', true);
+  try {
+    const result = await readArchive(filePath, { source, signal: state.abortController.signal,
+      onProgress: ({ current, total }) => ui.status.set('Распаковка архива…', `${current} из ${total}`, true) });
+    discardRecovery();
+    archiveData = result;
+    await refreshImportRegistry();
+    presentArchive();
+  } catch (error) {
+    phase = state.posts.length ? 'ready' : 'idle';
+    ui.status.set('Архив не прочитан', error.message);
+    ui.footer.action.setLabel(state.posts.length ? 'Скачать и добавить в Eagle' : 'Начать поиск');
+  } finally { state.abortController = null; }
+}
+async function resolveSelectedArchive() {
+  if (phase === 'searching' || phase === 'importing' || !archiveData?.links.length) return;
+  if (archiveData.source !== state.settings.platform) { ui.status.set('Выберите соцсеть архива', archiveData.source); return; }
+  if (!await ensureToolchain()) return;
+  phase = 'searching'; manualStopRequested = false;
+  state.abortController = new AbortController(); ui.footer.action.setLabel('Остановить');
+  try {
+    const result = await resolveArchiveLinks(archiveData.links, { settings: { ...state.settings }, signal: state.abortController.signal,
+      onProgress: (current, total) => ui.status.set('Получение публикаций из архива…', `${current} из ${total}`, true),
+      onResolved: (link, posts) => {
+        archiveData.posts.push(...posts);
+        archiveData.links = archiveData.links.filter(item => item.publicationId !== link.publicationId);
+        state.posts = archiveData.posts;
+        checkpointRecovery('searching', { stagingRoot: archiveData.stagingRoot, archiveLinks: archiveData.links, archiveCollections: archiveData.collections });
+      },
+    });
+    archiveData.links = result.failed;
+    presentArchive();
+  } catch (error) {
+    presentArchive(); ui.status.set('Обработка ссылок прервана', error.message);
+  } finally { state.abortController = null; }
+}
+
 /* ---------- Поиск ---------- */
 async function runSearch() {
   /* Настройки фиксируются на момент нажатия «Поиск».
@@ -1312,8 +1382,8 @@ async function runSearch() {
   }
 
   if (s.source === 'meta') {
-    ui.log.add('Разбор архива Meta пока не реализован.', 'warn');
-    ui.status.set('Источник недоступен', 'Выберите «Через авторизованный браузер»');
+    if (archiveData?.links.length) await resolveSelectedArchive();
+    else ui.status.set('Выберите архив', 'Перетащите ZIP, JSON или HTML в область выбора файла');
     return;
   }
 
@@ -1991,7 +2061,9 @@ async function runImport() {
     return;
   }
 
-  if (!await ensureToolchain()) return;
+  const isArchiveImport = chosen.some(post => post.archiveLocal || post.archiveLink);
+  const onlyLocalArchive = chosen.every(post => post.archiveLocal);
+  if (!onlyLocalArchive && !await ensureToolchain()) return;
 
   phase = 'importing';
   manualStopRequested = false;
@@ -2022,11 +2094,11 @@ async function runImport() {
   try {
     const isInstagramImport =
       activeImportSource.code ===
-      'instagram';
+      'instagram' && !isArchiveImport;
 
     const isPinterestImport =
       activeImportSource.code ===
-      'pinterest';
+      'pinterest' && !isArchiveImport;
 
     const session =
       isInstagramImport
@@ -2082,7 +2154,7 @@ async function runImport() {
     const {
       results: newResults,
       stopReason: downloadStopReason,
-    } = await runDownload({
+    } = await (isArchiveImport ? options => downloadArchivePosts(options, runDownload) : runDownload)({
       posts: postsToDownload,
       stagingRoot: recoveryState?.stagingRoot || '',
       browser: s.browser,
@@ -5391,6 +5463,7 @@ function clearResults() {
     state.collections = [];
   }
 
+  archiveData = null;
   state.posts = [];
   state.selected.clear();
   state.generated.clear();

@@ -1755,3 +1755,7 @@ M1-T09J(a) — дерево коллекций в таблице результ�
 .rs-naming__remove, .rs-naming__add { border: 1px solid var(--border-card); background: var(--bg-row); color: var(--text-muted); border-radius: 5px; cursor: pointer; padding: 8px; }
 .rs-naming__remove:hover, .rs-naming__add:hover { color: var(--accent); }
 .rs-naming__text { box-sizing: border-box; width: 100%; min-height: 72px; resize: vertical; border: 1px solid var(--border-card); border-radius: 10px; background: var(--bg-row); color: var(--text-muted); font: 12px var(--font-sans); padding: 10px; }
+.rs-archive { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.rs-archive__drop { white-space: pre-line; padding: 24px 12px; border: 1px dashed #707070; border-radius: 10px; background: var(--bg-row); color: var(--text-muted); font: 12px/1.6 var(--font-sans); cursor: pointer; }
+.rs-archive__drop:hover, .rs-archive__drop.is-over { border-color: var(--accent); color: var(--accent); }
+.rs-archive [hidden] { display: none; }

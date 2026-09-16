@@ -1,3 +1,4 @@
+import { createArchivePicker } from './archive-panel.js';
 import { attachThumbnail } from './thumbnail.js';
 /* ============================================================
    ReferenceSync — сборка панелей интерфейса
@@ -255,7 +256,7 @@ function formatAuthorFieldInput(field, event) {
 /* ============================================================
    3 блок — настройки поиска (шаг 1 и шаг 2)
    ============================================================ */
-export function buildSettings({ onChange, onFolderSearch }) {
+export function buildSettings({ onChange, onFolderSearch, onArchive, onArchiveResolve }) {
   const root = el('div', 'rs-panel');
   const body = el('div', 'rs-panel__body rs-scroll');
 
@@ -291,8 +292,8 @@ export function buildSettings({ onChange, onFolderSearch }) {
   );
   step1.appendChild(sourceList);
 
-  const metaHint = el('div', 'rs-hint',
-    'Интерфейс готов. Разбор архива Meta подключим следующим этапом.');
+  const archivePicker = createArchivePicker(onArchive, onArchiveResolve);
+  const metaHint = archivePicker.node;
   metaHint.style.display = s.source === 'meta' ? '' : 'none';
   step1.appendChild(metaHint);
 
@@ -691,11 +692,13 @@ export function buildSettings({ onChange, onFolderSearch }) {
       stopLinkField.input.focus();
       stopLinkFieldRow.scrollIntoView({ block: 'nearest' });
     },
+    setArchiveStatus: archivePicker.setStatus,
     sync(nextSettings = state.settings) {
       const next =
         nextSettings || state.settings;
 
       sourceGroup.set(next.source);
+      sourceGroup.rowOf('meta').querySelector('.rs-radio-row__label')?.replaceChildren(document.createTextNode(next.platform === 'pinterest' ? 'Из архива Pinterest' : 'Из архива Meta'));
 
       browserBlock.style.display =
         next.source === 'browser'
@@ -1753,6 +1756,7 @@ export function buildResults({ onClear, onToggleAll, onThumbnails, onRowToggle,
   root.append(head, engineEmpty, table);
 
   return {
+    showArchive() { engineEmpty.hidden = true; head.hidden = false; table.hidden = false; },
     node: root,
     body,
     title,
