@@ -1,3 +1,4 @@
+import { startPickerDrag } from './picker-drag.js';
 import { readArchive } from './archive-reader.js';
 import { resolveArchiveLinks, downloadArchivePosts } from './archive-transfer.js';
 import { installPanelResizers } from './panel-resize.js';
@@ -3006,6 +3007,20 @@ function createCollectionPickerRow(
       checked:
         collectionPickerChecked.has(id),
 
+      onPointerDown(event) {
+        const checked = !collectionPickerChecked.has(id);
+        if (event.shiftKey) { selectPickerRow(id, checked, event); return true; }
+        collectionPickerGesture.beginDrag(id, checked);
+        selectPickerRow(id, checked);
+        startPickerDrag({ event, body: ui.results.body, gesture: collectionPickerGesture,
+          active: () => collectionPickerActive,
+          apply: (targetId, value) => {
+            if (value) collectionPickerChecked.add(targetId); else collectionPickerChecked.delete(targetId);
+            syncCollectionPickerSelection();
+          },
+        });
+        return true;
+      },
       onChange(value, event) {
         selectPickerRow(id, value, event);
       },

@@ -309,3 +309,19 @@ test('archive mode replaces browser fields with a file drop zone', async t => {
   await page.getByText('Через авторизованный браузер', { exact: true }).click();
   assert.equal(await page.locator('.rs-archive__drop').isVisible(), false);
 });
+
+test('picker: dragging paints selection and deselection independently across folders', async t => {
+  const page = await setup(t);
+  await page.evaluate(() => { window.__testPicker([
+    { id: 'board', name: 'Board' }, { id: 'section', name: 'Section', parentId: 'board' }, { id: 'other', name: 'Other' },
+  ]); });
+  for (const expected of [true, false]) {
+    const start = await picker(page, 'board').boundingBox();
+    const end = await picker(page, 'other').boundingBox();
+    await page.mouse.move(start.x + 6, start.y + 6);
+    await page.mouse.down();
+    await page.mouse.move(end.x + 6, end.y + 6, { steps: 12 });
+    await page.mouse.up();
+    for (const id of ['board', 'section', 'other']) await checked(picker(page, id), expected);
+  }
+});
