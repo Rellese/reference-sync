@@ -1,3 +1,4 @@
+import { downloadMediaPlan } from './media-download.js';
 /* ============================================================
    ReferenceSync — движок Instagram
 
@@ -1363,81 +1364,6 @@ export function redact(text) {
     .replace(/(ds_user_id\s*[=:]\s*)[^;\s,"']+/gi, '$1<REDACTED>');
 }
 
-async function downloadDirectComponents({
-  plan,
-  postDir,
-  cookieFile,
-  profile,
-  signal,
-  onStderr,
-}) {
-  let stdout = '';
-  let stderr = '';
-
-  for (const component of plan) {
-    throwIfAborted(signal);
-
-    const filename =
-      `${component.componentIndex}.${component.extension}`;
-
-    const destination = nodeApi.path.join(
-      postDir,
-      filename,
-    );
-
-    const result = await runGallery([
-      '--config-ignore',
-      '--no-input',
-      '--cookies', cookieFile,
-      '--retries', String(profile.retries),
-      '--http-timeout', '60',
-      '--dest', postDir,
-      '--filename', filename,
-      '--directory', '',
-      component.url,
-    ], {
-      signal,
-      onStdout: (chunk) => {
-        stdout += chunk;
-      },
-      onStderr: (chunk) => {
-        stderr += chunk;
-        if (onStderr) onStderr(chunk);
-      },
-    });
-
-    stdout += `\n${result.stdout || ''}`;
-    stderr += `\n${result.stderr || ''}`;
-
-    let downloaded = false;
-
-    try {
-      downloaded =
-        result.code === 0 &&
-        nodeApi.fs.existsSync(destination) &&
-        nodeApi.fs.statSync(destination).size > 0;
-    } catch (_) {
-      downloaded = false;
-    }
-
-    if (!downloaded) {
-      return {
-        code: result.code || 1,
-        stdout,
-        stderr:
-          `${stderr}\nПрямая ссылка компонента ` +
-          `${component.componentIndex} недоступна.`,
-      };
-    }
-  }
-
-  return {
-    code: 0,
-    stdout,
-    stderr,
-  };
-}
-
 /* ------------------------------------------------------------
    Скачивание выбранных публикаций во временную папку.
    Перенос instagram_download_staging.py: файлы сначала
@@ -1567,9 +1493,10 @@ if (onLog) {
         let result;
 
         if (directPlan.length) {
-          result = await downloadDirectComponents({
+          result = await downloadMediaPlan({
 
             plan: directPlan,
+            control,
             postDir,
             cookieFile: activeCookieFile,
             profile,
@@ -1581,7 +1508,7 @@ if (onLog) {
             `\n${result.stdout || ''}` +
             `\n${result.stderr || ''}`;
 
-          if (result.code !== 0) {
+          if (result.code !== 0 && !/HTTP 429/.test(result.stderr || '')) {
             if (onLog) {
               onLog(
                 `Прямая ссылка устарела: ${post.url}. ` +

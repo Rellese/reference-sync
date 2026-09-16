@@ -12,7 +12,8 @@ export async function runDiscoveryWithStop(run, args, {
   ...options
 } = {}) {
   throwIfAborted(signal);
-  if (!stopLink?.ok) return run(args, { ...options, signal, onStdout });
+  if (!stopLink?.ok) return run(args, { ...options, signal, onStdout,
+    env: { ...options.env, PYTHONUNBUFFERED: '1' } });
 
   const controller = new AbortController();
   const abort = () => controller.abort();

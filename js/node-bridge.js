@@ -36,6 +36,7 @@ export const nodeApi = (() => {
       https
     ),
     childProcess,
+    stream: tryRequire('stream'),
     fs,
     path,
     os,

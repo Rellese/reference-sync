@@ -1696,6 +1696,7 @@ async function runSearch() {
                 true,
               );
 
+              ui.results.setTitle(0, discoveryFound);
               ui.status.progress.update({
                 mode: 'search',
                 lead: collectionName
