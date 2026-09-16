@@ -100,6 +100,7 @@ export function createJobControl({ onStateChange } = {}) {
   let resumeWaiters = [];
   /* Таймер отсчёта до попытки переподключения */
   let countdownTimer = 0;
+  let finishCountdown = null;
   let retryIndex = 0;
 
   function notify() {
@@ -127,6 +128,7 @@ export function createJobControl({ onStateChange } = {}) {
      onTick(secondsLeft) вызывается каждую секунду — из него
      рисуется «Countdown to connection» в состоянии 5. */
   async function waitForConnection({ onTick } = {}) {
+    await checkpoint();
     offline = true;
     const seconds = RETRY_STEPS[Math.min(retryIndex, RETRY_STEPS.length - 1)];
     retryIndex += 1;
@@ -136,19 +138,21 @@ export function createJobControl({ onStateChange } = {}) {
     if (onTick) onTick(left);
 
     await new Promise((resolve) => {
+      finishCountdown = () => {
+        clearInterval(countdownTimer);
+        countdownTimer = 0;
+        finishCountdown = null;
+        resolve();
+      };
       countdownTimer = setInterval(() => {
         if (stopped) {
-          clearInterval(countdownTimer);
-          countdownTimer = 0;
-          resolve();
+          finishCountdown();
           return;
         }
         left -= 1;
         if (onTick) onTick(Math.max(0, left));
         if (left <= 0) {
-          clearInterval(countdownTimer);
-          countdownTimer = 0;
-          resolve();
+          finishCountdown();
         }
       }, 1000);
     });
@@ -176,10 +180,7 @@ export function createJobControl({ onStateChange } = {}) {
       if (stopped) return;
       stopped = true;
       paused = false;
-      if (countdownTimer) {
-        clearInterval(countdownTimer);
-        countdownTimer = 0;
-      }
+      finishCountdown?.();
       notify();
       releaseWaiters();
     },

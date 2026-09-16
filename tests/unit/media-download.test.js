@@ -39,3 +39,26 @@ test('media stream is written atomically and HTML/partial responses are rejected
   await assert.rejects(downloadMedia('https://cdn.example/image.jpg', destination), /429/);
   await assert.rejects(downloadMedia('http://cdn.example/image.jpg', destination), /HTTPS/);
 });
+
+test('abort during asynchronous file open waits for close and removes the partial file', async t => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'rs-media-abort-'));
+  const original = { ...nodeApi };
+  t.after(() => { Object.assign(nodeApi, original); fs.rmSync(root, { recursive: true, force: true }); });
+  Object.assign(nodeApi, { fs, path, stream });
+  const controller = new AbortController();
+  nodeApi.https = { get(url, options, callback) {
+    const request = new EventEmitter(); request.setTimeout = () => {}; request.destroy = () => {};
+    queueMicrotask(() => {
+      const response = new stream.PassThrough();
+      response.statusCode = 200; response.headers = { 'content-type': 'image/jpeg' };
+      callback(response);
+      response.write(Buffer.from([255, 216]));
+      controller.abort();
+    });
+    return request;
+  } };
+  const destination = path.join(root, '1.jpg');
+  await assert.rejects(downloadMedia('https://cdn.example/image.jpg', destination, { signal: controller.signal }), /STOPPED/);
+  assert.equal(fs.existsSync(destination), false);
+  assert.equal(fs.existsSync(destination + '.part'), false);
+});

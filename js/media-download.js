@@ -10,15 +10,24 @@ export async function downloadMedia(url, destination, { signal, agent, redirects
   const { fs, https } = nodeApi;
   try {
     return await new Promise((resolve, reject) => {
-      let settled = false, output;
+      let settled = false, output, activeResponse;
       const finish = (error, value) => {
         if (settled) return;
         settled = true;
         signal?.removeEventListener('abort', abort);
-        if (error) { output?.destroy(); reject(error); }
+        if (error) {
+          activeResponse?.destroy();
+          // Await close: unlinking before the asynchronous open can leave a .part behind.
+          if (output && !output.closed) {
+            output.once('close', () => reject(error));
+            output.destroy();
+          } else reject(error);
+        }
         else resolve(value);
       };
       const request = https.get(parsed, { agent, headers: { 'User-Agent': 'ReferenceSync/1.2' } }, response => {
+        if (settled) { response.destroy(); return; }
+        activeResponse = response;
         const status = response.statusCode || 0;
         if (status >= 300 && status < 400 && response.headers.location) {
           response.resume();
@@ -36,6 +45,7 @@ export async function downloadMedia(url, destination, { signal, agent, redirects
         output = fs.createWriteStream(partial, { mode: 0o600 });
         response.on('data', chunk => { bytes += chunk.length; });
         nodeApi.stream.pipeline(response, output, error => {
+          if (settled) return;
           if (error) { finish(error); return; }
           const expected = Number(response.headers['content-length']);
           if (!bytes || (expected > 0 && bytes !== expected)) { finish(new Error('MEDIA_INCOMPLETE')); return; }
