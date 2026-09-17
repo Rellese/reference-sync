@@ -5,7 +5,7 @@ const http = require('node:http');
 const fs = require('node:fs/promises');
 const path = require('node:path');
 const { chromium } = require('playwright');
-const root = path.resolve(__dirname, '../..');
+const root = path.resolve(process.env.RELEASE_ROOT || path.resolve(__dirname, '../..'));
 let browser, server, base;
 const types = { '.js': 'text/javascript', '.css': 'text/css', '.html': 'text/html', '.svg': 'image/svg+xml' };
 
