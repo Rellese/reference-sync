@@ -1080,8 +1080,11 @@ export async function discoverSaved({
     try {
       result = await runDiscoveryWithStop(runGallery, args, {
         stopLink,
+        knownPostIds,
+        stopAtKnown: stopsAtKnownPost(searchMode),
         recordToPost: (record) => ({
           source: 'instagram',
+          postId: textValue(record.post_id, record.external_id),
           raw: record,
           url: record.post_url || record.url,
         }),
@@ -1131,6 +1134,11 @@ export async function discoverSaved({
       throw makeInstagramRateLimitError(
         'Instagram временно ограничил запросы во время поиска.',
       );
+    }
+
+    if (result.knownPostReached) {
+      stoppedEarly = true;
+      targetStoppedEarly = true;
     }
 
     if (result.stopLinkReached) {
