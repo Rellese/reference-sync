@@ -1011,7 +1011,11 @@ const profileSession = createProfileSessionController({
       : result.status === 'checking' ? 'Проверяем аккаунт…'
       : result.status === 'signed-out' ? `Вход в ${source} не выполнен.`
       : result.status === 'unavailable' ? 'Аккаунт будет проверен после подготовки движка.'
-      : 'Не удалось определить аккаунт. Проверьте вход и доступ к браузеру.';
+      : result.status === 'network-error' ? `Не удалось связаться с ${source}. Проверьте соединение и VPN.`
+      : result.status === 'browser-error' ? 'Не удалось прочитать выбранный профиль браузера. Проверьте доступ к нему.'
+      : result.status === 'access-denied' ? `${source} отклонил проверку. Откройте сайт в выбранном профиле браузера.`
+      : result.status === 'rate-limited' ? `${source} временно ограничил запросы. Повторите проверку позже.`
+      : 'Сайт ответил, но не передал данные аккаунта. Проверьте вход в выбранном профиле.';
     ui.settings?.setProfileHint(`${name}. ${status}`, source);
   },
 });

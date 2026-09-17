@@ -1,4 +1,4 @@
-import { pinterestSessionFromHtml, pinterestCookieHeaderForHost, pinterestRedirect } from '../pinterest-session.js';
+import { probePinterestAccount } from '../pinterest-session.js';
 export { pinterestSessionFromHtml } from '../pinterest-session.js';
 /* ============================================================
    Pinterest — список досок и вложенных разделов
@@ -1130,23 +1130,14 @@ export async function verifyPinterestSession({ browser, browserProfile, signal }
       browserCookieSpecForProfile(browser, browserProfile),
       '--cookies-export', cookieFile, '--no-download', 'http://0/file.jpg',
     ], { signal, timeout: 45000 });
-    if (result.code !== 0) throw new Error('Не удалось прочитать профиль браузера');
+    if (result.code !== 0 || !nodeApi.fs.existsSync(cookieFile)) return { authenticated: false, status: 'browser-error' };
     nodeApi.fs.chmodSync(cookieFile, 0o600);
     const cookieText = nodeApi.fs.readFileSync(cookieFile, 'utf8');
-    let url = new URL(ROOT);
-    for (let redirects = 0; redirects <= 3; redirects++) {
-      const response = await requestText({
-        hostname: url.hostname, path: url.pathname + url.search, signal,
-        headers: { Cookie: pinterestCookieHeaderForHost(cookieText, url.hostname), 'User-Agent': browserUserAgent(), Accept: 'text/html', 'Accept-Encoding': 'identity' },
-      });
-      if (response.statusCode >= 300 && response.statusCode < 400 && response.location) {
-        const next = pinterestRedirect(response.location, url);
-        if (!next) break;
-        url = next; continue;
-      }
-      if (response.statusCode === 200) return pinterestSessionFromHtml(response.body);
-      break;
+    try {
+      return await probePinterestAccount({ cookieText, request: requestText, userAgent: browserUserAgent(), signal });
+    } catch (error) {
+      if (signal?.aborted) throw error;
+      return { authenticated: false, status: 'network-error' };
     }
-    return { authenticated: false, status: 'unknown' };
   } finally { removePinterestCookieSnapshot(cookieFile); }
 }

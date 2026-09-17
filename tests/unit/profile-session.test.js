@@ -48,3 +48,62 @@ test('Pinterest supports initial props and session user references, without gues
   assert.equal(pinterestRedirect('https://ru.pinterest.com/', 'https://www.pinterest.com/').hostname, 'ru.pinterest.com');
   assert.equal(pinterestRedirect('https://pinterest.com.evil.test/', 'https://www.pinterest.com/'), null);
 });
+
+test('Pinterest recognizes snake-case session authentication and rejects conflicting flags', async () => {
+  const { pinterestSessionFromPayload } = await import('../../js/pinterest-session.js');
+  const context = { is_authenticated: true, user: { username: 'session-owner' } };
+  assert.equal(pinterestSessionFromPayload({ client_context: context }).username, 'session-owner');
+  assert.equal(pinterestSessionFromPayload({ client_context: { ...context, isAuth: false } }).status, 'signed-out');
+  assert.equal(pinterestSessionFromPayload({ resource_response: { data: { username: 'public-owner' } } }).status, 'unknown');
+});
+
+const sessionJar = '.pinterest.com\tTRUE\t/\tTRUE\t0\t_pinterest_sess\tfixture-only';
+test('Pinterest uses API session context when HTML has no identity', async () => {
+  const { probePinterestAccount } = await import('../../js/pinterest-session.js');
+  const calls = [];
+  const result = await probePinterestAccount({ cookieText: sessionJar, userAgent: 'fixture', request: async options => {
+    calls.push(options);
+    return calls.length === 1 ? { statusCode: 200, body: '<html></html>' }
+      : { statusCode: 200, body: JSON.stringify({ client_context: { is_authenticated: true, user: { username: 'owner' } },
+          resource_response: { data: { username: 'not-the-owner' } } }) };
+  } });
+  assert.equal(result.username, 'owner');
+  assert.equal(calls.length, 2);
+  assert.ok(calls[1].path.startsWith('/resource/BoardPickerBoardsResource/get/'));
+  assert.equal(calls[1].headers.Cookie, '_pinterest_sess=fixture-only');
+});
+
+test('Pinterest requires a session cookie and does not send an anonymous probe', async () => {
+  const { probePinterestAccount } = await import('../../js/pinterest-session.js');
+  const result = await probePinterestAccount({ cookieText: '', request: () => assert.fail('no request') });
+  assert.equal(result.status, 'signed-out');
+});
+
+test('Pinterest redirects retain domain scoping and cannot leak cookies outside Pinterest', async () => {
+  const { probePinterestAccount } = await import('../../js/pinterest-session.js');
+  const calls = [];
+  const result = await probePinterestAccount({ cookieText: sessionJar + '\nwww.pinterest.com\tFALSE\t/\tTRUE\t0\thostonly\tprivate', request: async options => {
+    calls.push(options);
+    return calls.length === 1 ? { statusCode: 302, location: 'https://ru.pinterest.com/' }
+      : { statusCode: 200, body: '<script id="__PWS_DATA__">{"context":{"isAuth":true,"user":{"username":"owner"}}}</script>' };
+  } });
+  assert.equal(result.username, 'owner');
+  assert.equal(calls[1].headers.Cookie, '_pinterest_sess=fixture-only');
+  let count = 0;
+  await probePinterestAccount({ cookieText: sessionJar, request: async () => {
+    count++; return { statusCode: 302, location: 'https://evil.test/' };
+  } });
+  assert.equal(count, 1);
+});
+
+for (const [code, status] of [[401, 'signed-out'], [403, 'access-denied'], [429, 'rate-limited'], [503, 'network-error']]) {
+  test(`Pinterest reports HTTP ${code} distinctly without retrying`, async () => {
+    const { probePinterestAccount } = await import('../../js/pinterest-session.js');
+    let calls = 0;
+    const result = await probePinterestAccount({ cookieText: sessionJar, request: async () => {
+      calls++; return { statusCode: code, body: '' };
+    } });
+    assert.equal(result.status, status);
+    assert.equal(calls, 1);
+  });
+}
