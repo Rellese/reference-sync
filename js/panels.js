@@ -848,12 +848,14 @@ export function buildStatus({ onCommand } = {}) {
 
     set(message, hintMessage, busy = false) {
       setUiText(text, message);
+      setLocalizedProperty(text, 'title', L(message));
 
       if (
         hintMessage !== undefined &&
         hintMessage !== null
       ) {
         setUiText(hint, hintMessage);
+        setLocalizedProperty(hint, 'title', L(hintMessage));
       }
 
       root.classList.toggle(

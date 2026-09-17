@@ -423,3 +423,44 @@ test('languages: switch live, retain user data and selection, restore saved loca
   assert.deepEqual(untranslated, []);
 
 });
+
+test('localized layout: labels and controls fit minimum window and narrow panels', async t => {
+  const page = await setup(t);
+  await page.setViewportSize({ width: 1200, height: 760 });
+  await page.evaluate(() => {
+    const { ui, state } = window.__rs;
+    state.settings.extraFilters = true; ui.settings.sync();
+    ui.status.set('Поиск завершён на Stop Link без новых публикаций.', 'Проверьте выбор и нажмите «Скачать и добавить в Eagle»');
+    for (let i = 0; i < 13; i++) document.querySelector('.rs-panel-resizer--width').dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowLeft', bubbles: true }));
+    ui.naming.node.style.setProperty('--rs-naming-height', '300px');
+  });
+  for (const code of ['EN', 'FR', 'ES', '中文', 'РУ']) {
+    await page.getByRole('button', { name: code, exact: true }).click();
+    const overflow = await page.evaluate(() => {
+      const selectors = '.rs-step__title,.rs-radio-row,.rs-switch-row,.rs-field-label,.rs-naming__label,.rs-naming__add,.rs-results__title-row';
+      return [...document.querySelectorAll(selectors)].filter(el => el.getClientRects().length && el.scrollWidth > el.clientWidth + 2)
+        .map(el => ({ className: el.className, text: el.textContent, excess: el.scrollWidth - el.clientWidth }));
+    });
+    assert.deepEqual(overflow, [], code);
+    const overlappingHeaders = await page.locator('.rs-table__col').evaluateAll(cells => cells.filter(cell => {
+      const range = document.createRange(); range.selectNodeContents(cell.firstChild);
+      const box = cell.getBoundingClientRect();
+      return [...range.getClientRects()].some(rect => rect.right > box.right + 1 || rect.bottom > box.bottom + 1);
+    }).map(cell => cell.textContent));
+    assert.deepEqual(overlappingHeaders, [], `${code} table headings`);
+
+    assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
+    if (process.env.UI_SCREENSHOT && code === 'FR') await page.screenshot({ path: process.env.UI_SCREENSHOT + '-french-small.png' });
+    await page.evaluate(() => window.__rs.ui.carouselModal.open({
+      post: { postId: 'layout', components: [{ index: 1, mediaType: 'image' }, { index: 2, mediaType: 'video' }] },
+      selection: new Set([0, 1]), thumbnails: false,
+    }));
+    const clipped = await page.locator('.rs-carousel-modal__controls > *').evaluateAll(buttons => buttons
+      .filter(button => button.scrollWidth > button.clientWidth + 2)
+      .map(button => button.textContent));
+    assert.deepEqual(clipped, [], `${code} carousel controls`);
+    if (process.env.UI_SCREENSHOT && code === 'FR') await page.screenshot({ path: process.env.UI_SCREENSHOT + '-french-carousel.png' });
+    await page.evaluate(() => window.__rs.ui.carouselModal.close());
+
+  }
+});

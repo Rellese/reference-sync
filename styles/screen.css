@@ -1777,3 +1777,14 @@ M1-T09J(a) — дерево коллекций в таблице результ�
 
 .rs-naming .rs-spinner__value { text-align: left; padding-left: 14px; }
 .rs-naming .rs-field__input::placeholder { color: #707070; opacity: 1; }
+
+/* Translated headings can occupy two lines without covering the next column. */
+.rs-table__col { white-space: normal; overflow-wrap: anywhere; }
+.rs-step__title, .rs-field-label__text, .rs-naming__label,
+.rs-radio-row__label, .rs-switch-row__label { min-width: 0; overflow-wrap: anywhere; }
+.rs-results__title-row { gap: 12px; }
+.rs-results__title { min-width: 0; overflow-wrap: anywhere; }
+html[lang='zh-CN'] .rs-header__subtitle,
+html[lang='zh-CN'] .rs-step__title,
+html[lang='zh-CN'] .rs-field-label__text { letter-spacing: 0.03em; }
+.rs-field-label__text { flex: 0 1 auto; }
