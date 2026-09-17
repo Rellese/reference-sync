@@ -1,5 +1,7 @@
+import { diagnostics } from './diagnostics.js';
 // Columns: Russian source, English, French, Spanish, Simplified Chinese.
 export const messages = [
+  ...diagnostics,
   ["Название", "Name", "Nom", "Nombre", "名称"],
   ["Описание", "Description", "Description", "Descripción", "描述"],
   ["Название и описание", "Name and description", "Nom et description", "Nombre y descripción", "名称和描述"],

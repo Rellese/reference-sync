@@ -1,4 +1,4 @@
-import { L, setText, setLocalizedProperty, bindTextRender } from './i18n.js';
+import { setUiText, L, setText, setLocalizedProperty, bindTextRender } from './i18n.js';
 /* ============================================================
    ReferenceSync — прогресс-бар (блок 4)
 
@@ -495,7 +495,7 @@ export function createProgressBar({ onCommand } = {}) {
 
   function renderSplitLabel(node, text) {
     setText(node, '');
-    const idx = text.indexOf(':');
+    const idx = text.search(/[:：]/);
     if (idx === -1) {
       const only = el('span', 'rs-progress__label-value');
       setText(only, text);
@@ -544,7 +544,7 @@ export function createProgressBar({ onCommand } = {}) {
         );
       }
       if (typeof progress === 'number') animateTo(progress);
-      if (interestText !== undefined) setText(interest, interestText);
+      if (interestText !== undefined) setUiText(interest, interestText);
       return this;
     },
 

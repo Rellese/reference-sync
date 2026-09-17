@@ -1,3 +1,4 @@
+import { L, setLocalizedProperty } from './i18n.js';
 // Handles occupy only the five-pixel gaps between the affected panels.
 export function installPanelResizers({ app, work, right, settings, results, naming }) {
   const handles = [];
@@ -32,7 +33,7 @@ export function installPanelResizers({ app, work, right, settings, results, nami
     handle.className = `rs-panel-resizer rs-panel-resizer--${axis}`;
     handle.tabIndex = 0;
     handle.setAttribute('role', 'separator');
-    handle.setAttribute('aria-label', axis === 'width' ? 'Ширина настроек' : 'Высота настроек имён');
+    setLocalizedProperty(handle, 'ariaLabel', L(axis === 'width' ? 'Ширина настроек' : 'Высота настроек имён'));
     handle.setAttribute('aria-orientation', axis === 'width' ? 'vertical' : 'horizontal');
     let drag = null;
     handle.addEventListener('pointerdown', event => {

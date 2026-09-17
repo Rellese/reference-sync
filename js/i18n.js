@@ -19,17 +19,39 @@ export function normalizeLanguage(code) {
   return value === 'ру' ? 'ru' : value === '中文' ? 'zh' : languages.includes(value) ? value : 'ru';
 }
 export const getLanguage = () => language;
-export function translate(source, locale = language) {
+const translatedSlots = new Map([
+  ['Ошибка: {0}', [0]], ['Ошибка: {0} — {1}', [1]],
+  ['Не скачано: {0} — {1}', [1]], ['Импорт прерван: {0}', [0]],
+  ['Ошибка определения источника: {0}', [0]],
+  ['Импортировано в Eagle: {0}', [0]], ['Добавлено: {0} / {1}', [0, 1]],
+  ['Импорт завершён: {0}.', [0]], ['{0} · Не удалось: {1}', [0]],
+  ['{0} Название профиля и почта берутся из настроек браузера. ReferenceSync использует cookies именно этого профиля. Если в браузере открыто несколько аккаунтов, выберите имя или почту, которые указаны в нужном окне Chrome.', [0]],
+]);
+const countWords = {
+  en: [['post', 'posts'], ['item', 'items']], fr: [['publication', 'publications'], ['élément', 'éléments']],
+  es: [['publicación', 'publicaciones'], ['elemento', 'elementos']], zh: [['个帖子', '个帖子'], ['个项目', '个项目']],
+};
+export function translate(source, locale = language, depth = 0) {
   if (source?.parts) return source.parts.map(part => part instanceof InterfaceText ? translate(part, locale) : String(part ?? '')).join('');
   const text = String(source ?? '');
   const column = { en: 1, fr: 2, es: 3, zh: 4 }[normalizeLanguage(locale)];
-  if (!column) return text;
+  if (!column || depth > 4) return text;
+  const count = text.match(/^(\d+) (публикаци[яйи]|элемент(?:а|ов)?)$/);
+  if (count) {
+    const words = countWords[normalizeLanguage(locale)][count[2].startsWith('публикац') ? 0 : 1];
+    return `${count[1]} ${words[Number(count[1]) === 1 ? 0 : 1]}`;
+  }
+  if (/^\d+ публикаци[яйи] \/ \d+ элемент(?:а|ов)?$/.test(text)) {
+    return text.split(' / ').map(part => translate(part, locale, depth + 1)).join(' / ');
+  }
   const row = exact.get(text);
   if (row) return row[column];
   for (const pattern of patterns) {
     const match = pattern.regex.exec(text);
     if (!match) continue;
-    const values = new Map(pattern.slots.map((slot, i) => [slot, match[i + 1]]));
+    const localized = translatedSlots.get(pattern.row[0]) || [];
+    const values = new Map(pattern.slots.map((slot, i) => [slot, localized.includes(Number(slot.slice(1, -1)))
+      ? translate(match[i + 1], locale, depth + 1) : match[i + 1]]));
     return pattern.row[column].replace(/\{\d+\}/g, slot => values.get(slot) ?? slot);
   }
   return text;

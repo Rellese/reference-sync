@@ -1,4 +1,4 @@
-import { joinText, L, setText, setUiText, setLocalizedProperty, bindTextRender, normalizeLanguage, getLanguage } from './i18n.js';
+import { translate, joinText, L, setText, setUiText, setLocalizedProperty, bindTextRender, normalizeLanguage, getLanguage } from './i18n.js';
 import { createArchivePicker } from './archive-panel.js';
 import { attachThumbnail } from './thumbnail.js';
 /* ============================================================
@@ -199,7 +199,7 @@ export function buildSocial({ onSelect }) {
     const button = createSocialButton({
       icon: iconCache[platform.icon],
       title: platform.ready ? platform.title
-        : `${platform.title} — ${platform.notReadyReason}`,
+        : joinText(platform.title, ' — ', L(platform.notReadyReason)),
       active: platform.id === state.settings.platform,
       locked: !platform.ready,
       onClick: () => {
@@ -1593,12 +1593,9 @@ export function buildResults({ onClear, onToggleAll, onThumbnails, onRowToggle,
         resizer.dataset.resizeIndex =
           String(index);
 
-        resizer.setAttribute(
-          'aria-label',
-          `Изменить ширину колонки ${
-            column.label || 'выбора'
-          }`,
-        );
+        bindTextRender(resizer, 'column-label', L(column.label || 'выбора'), (node, label) => {
+          node.ariaLabel = translate(`Изменить ширину колонки ${label}`);
+        });
 
         cell.appendChild(resizer);
       }
@@ -2840,7 +2837,7 @@ function syncComponentCheckboxes() {
         const media = el(
           'span',
           'rs-carousel-modal__media',
-          display.label,
+          L(display.label),
         );
 
         const label = el(

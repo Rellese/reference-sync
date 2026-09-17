@@ -29,3 +29,12 @@ test('language normalization supports current and previously saved language code
   assert.equal(translate('Готов к работе'), 'Listo');
   setLanguage('ru'); assert.equal(translate('Готов к работе'), 'Готов к работе');
 });
+
+test('import summaries and nested diagnostics translate without changing user values', () => {
+  assert.equal(translate('Импортировано в Eagle: 21 элемент', 'en'), 'Imported into Eagle: 21 items');
+  assert.equal(translate('Добавлено: 1 публикация / 2 элемента', 'fr'), 'Ajouté : 1 publication / 2 éléments');
+  assert.equal(translate('Импорт завершён: 2 публикации / 3 элемента.', 'es'), 'Importación finalizada: 2 publicaciones / 3 elementos.');
+  assert.equal(translate('Ошибка: Архив повреждён или обрезан', 'en'), 'Error: Archive is damaged or truncated');
+  assert.equal(translate('Не скачано: Описание — Файл исчез до импорта', 'en'), 'Not downloaded: Описание — File disappeared before import');
+  assert.equal(translate('Видео · MP4', 'zh'), '视频 · MP4');
+});

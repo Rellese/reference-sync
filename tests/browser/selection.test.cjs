@@ -464,3 +464,29 @@ test('localized layout: labels and controls fit minimum window and narrow panels
 
   }
 });
+
+test('languages: dynamic errors, progress, carousel files and user content stay correctly separated', async t => {
+  const page = await setup(t);
+  await page.getByRole('button', { name: 'EN', exact: true }).click();
+  await page.evaluate(async () => {
+    const { el } = await import('/js/ui.js');
+    document.body.appendChild(el('div', 'fixture-user-content', 'Готов к работе'));
+    const { ui } = window.__rs;
+    ui.status.set('Ошибка поиска', 'Вставьте ссылку на публикацию.');
+    ui.status.progress.update({ mode: 'complete', found: 'Найдено: 21', selected: 'Выбрано: 2/21 публикаций', interest: '2 ПУБ. / 3 ЭЛ.' });
+    ui.carouselModal.open({ post: { postId: 'lang', components: [
+      { index: 1, mediaType: 'image', extension: 'jpg' }, { index: 2, mediaType: 'video', extension: 'mp4' },
+    ] }, selection: new Set([0, 1]), thumbnails: false });
+  });
+  assert.deepEqual(await page.locator('.rs-carousel-modal__media').allTextContents(), ['Image · JPG', 'Video · MP4']);
+  await page.evaluate(() => window.__rs.ui.carouselModal.close());
+  assert.equal(await page.locator('.rs-status__text').textContent(), 'Search error');
+  assert.equal(await page.locator('.rs-status__hint').textContent(), 'Paste a link to a post.');
+  assert.equal(await page.locator('.rs-progress__interest').textContent(), '2 POSTS / 3 ITEMS');
+  await page.getByRole('button', { name: 'FR', exact: true }).click();
+  assert.equal(await page.locator('.fixture-user-content').textContent(), 'Готов к работе');
+  assert.equal(await page.locator('.rs-status__text').textContent(), 'Erreur de recherche');
+  assert.equal(await page.locator('.rs-status__hint').getAttribute('title'), 'Collez un lien vers une publication.');
+  assert.deepEqual(await page.locator('.rs-carousel-modal__media').allTextContents(), ['Image · JPG', 'Vidéo · MP4']);
+  assert.equal(await page.locator('.rs-panel-resizer--width').getAttribute('aria-label'), 'Largeur des paramètres');
+});
