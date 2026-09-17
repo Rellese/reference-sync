@@ -1,17 +1,18 @@
+import { L, setLocalizedProperty } from './i18n.js';
 import { el, clear, createSwitch, createSelect, createField, createSpinner, createRadioGroup, createInfo } from './ui.js';
 import { state, setSetting, numberingCounters } from './state.js';
 
 const destinations = [
-  { value: 'name', label: 'Название' }, { value: 'description', label: 'Описание' },
-  { value: 'both', label: 'Название и описание' },
+  { value: 'name', label: L('Название') }, { value: 'description', label: L('Описание') },
+  { value: 'both', label: L('Название и описание') },
 ];
 const modes = [
-  { value: 'global', label: 'Общий номер публикации' },
-  { value: 'carousel', label: 'Номер элемента карусели' },
-  { value: 'batch', label: 'Номер в текущей загрузке' },
-  { value: 'author', label: 'Номер публикации автора' },
-  { value: 'type', label: 'Номер публикации этого типа' },
-  { value: 'none', label: 'Не использовать' },
+  { value: 'global', label: L('Общий номер публикации') },
+  { value: 'carousel', label: L('Номер элемента карусели') },
+  { value: 'batch', label: L('Номер в текущей загрузке') },
+  { value: 'author', label: L('Номер публикации автора') },
+  { value: 'type', label: L('Номер публикации этого типа') },
+  { value: 'none', label: L('Не использовать') },
 ];
 const countersOf = s => numberingCounters(s).map((counter, index) => ({
   destination: s.numberingDestination, marker: index === 0 ? s.numberingMarker : '',
@@ -28,7 +29,7 @@ export function buildNaming({ onChange } = {}) {
   let selects = [];
   const cell = (label, node) => {
     const box = el('div', 'rs-naming__cell');
-    box.append(el('div', 'rs-naming__label', label), node);
+    box.append(el('div', 'rs-naming__label', L(label)), node);
     return box;
   };
   function select(options, value, onChange) {
@@ -54,7 +55,7 @@ export function buildNaming({ onChange } = {}) {
   function render(s) {
     selects.forEach(control => control.dispose()); selects = [];
     clear(body);
-    body.appendChild(el('div', 'rs-naming__title', '3. Нумерация и описание'));
+    body.appendChild(el('div', 'rs-naming__title', L('3. Нумерация и описание')));
     const columns = el('div', 'rs-naming__columns');
     body.appendChild(columns);
     for (const kind of ['counters', 'descriptions']) {
@@ -62,30 +63,30 @@ export function buildNaming({ onChange } = {}) {
       const enabledKey = isCounter ? 'numberingEnabled' : 'descriptionEnabled';
       const section = el('div', 'rs-naming__section');
       const grid = el('div', 'rs-naming__cards');
-      const toggle = createSwitch({ checked: s[enabledKey], label: isCounter ? 'Использовать нумерацию' : 'Добавить описание',
+      const toggle = createSwitch({ checked: s[enabledKey], label: L(isCounter ? 'Использовать нумерацию' : 'Добавить описание'),
         onChange: value => { setSetting(enabledKey, value); grid.hidden = !value; onChange?.(); } });
       const head = toggle.row;
-      head.append(createInfo(isCounter
+      head.append(createInfo(L(isCounter
         ? '**Каждый счётчик независим.** «С начала» считает от верхней публикации, «С конца» — от нижней. Результат виден в таблице до импорта.'
-        : '**Несколько текстов** можно добавить в имя, описание или оба поля, до или после исходного текста.').node);
+        : '**Несколько текстов** можно добавить в имя, описание или оба поля, до или после исходного текста.')).node);
       section.append(head, grid);
       grid.hidden = !s[enabledKey];
       const items = isCounter ? countersOf(s) : descriptionsOf(s);
       items.forEach((item, index) => {
         const card = el('div', 'rs-naming__card');
         const ordinal = ['Первое', 'Второе', 'Третье'][index];
-        const title = el('div', 'rs-naming__card-title', ordinal ? `${ordinal} ${isCounter ? 'число' : 'описание'}` : `${isCounter ? 'Число' : 'Описание'} ${index + 1}`);
+        const title = el('div', 'rs-naming__card-title', L(ordinal ? `${ordinal} ${isCounter ? 'число' : 'описание'}` : `${isCounter ? 'Число' : 'Описание'} ${index + 1}`));
         const remove = el('button', 'rs-naming__remove', '×');
-        remove.title = isCounter ? 'Удалить счётчик' : 'Удалить описание';
-        remove.setAttribute('aria-label', remove.title);
+        setLocalizedProperty(remove, 'title', L(isCounter ? 'Удалить счётчик' : 'Удалить описание'));
+        setLocalizedProperty(remove, 'ariaLabel', L(isCounter ? 'Удалить счётчик' : 'Удалить описание'));
         remove.addEventListener('click', () => mutate(kind, index));
         title.appendChild(remove); card.appendChild(title);
         const change = patch => update(kind, index, patch);
         const optionsRow = el('div', 'rs-naming__options');
         optionsRow.appendChild(cell('Добавлять в:', select(destinations, item.destination, value => change({ destination: value }))));
         const direction = createRadioGroup(isCounter
-          ? [{ value: 'start', label: 'С начала' }, { value: 'end', label: 'С конца' }]
-          : [{ value: 'start', label: 'Начало списка' }, { value: 'end', label: 'Конец списка' }],
+          ? [{ value: 'start', label: L('С начала') }, { value: 'end', label: L('С конца') }]
+          : [{ value: 'start', label: L('Начало списка') }, { value: 'end', label: L('Конец списка') }],
         { value: isCounter ? item.direction : item.placement,
           onChange: value => change({ [isCounter ? 'direction' : 'placement']: value }) });
         const radios = el('div', 'rs-filter-row');
@@ -99,13 +100,13 @@ export function buildNaming({ onChange } = {}) {
           card.appendChild(cell('Начальная цифра нумерации:', spinner.node));
           card.appendChild(cell('Текст перед номером:', createField({ value: item.marker, onCommit: value => change({ marker: value }) }).node));
         } else {
-          const text = createField({ value: item.text || '', placeholder: 'Необязательный текст для выбранных публикаций', onCommit: value => change({ text: value }) });
+          const text = createField({ value: item.text || '', placeholder: L('Необязательный текст для выбранных публикаций'), onCommit: value => change({ text: value }) });
           text.input.classList.add('rs-naming__text');
           card.appendChild(cell('Дополнительное описание:', text.node));
         }
         grid.appendChild(card);
       });
-      const add = el('button', 'rs-naming__add', isCounter ? '+ Добавить ещё счётчик' : '+ Добавить ещё описание');
+      const add = el('button', 'rs-naming__add', L(isCounter ? '+ Добавить ещё счётчик' : '+ Добавить ещё описание'));
       add.addEventListener('click', () => mutate(kind, null));
       grid.appendChild(add);
       columns.appendChild(section);

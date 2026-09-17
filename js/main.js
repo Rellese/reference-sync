@@ -1,3 +1,4 @@
+import { joinText, L, setText, setUiText, setLocalizedProperty, setLanguage } from './i18n.js';
 import { startPickerDrag } from './picker-drag.js';
 import { readArchive } from './archive-reader.js';
 import { resolveArchiveLinks, downloadArchivePosts } from './archive-transfer.js';
@@ -585,6 +586,7 @@ function bindCloseLifecycle() {
 async function boot() {
   bindCloseLifecycle();
   loadSettings();
+  setLanguage(state.settings.language);
   state.importRecords = loadImportRecords();
 
   counterHistoryRecords =
@@ -596,8 +598,7 @@ async function boot() {
 
   ui.header = buildHeader({
     onLanguage: (code) => {
-      setSetting('language', code);
-      ui.log.add(`Язык интерфейса: ${code}. Перевод строк подключим позже.`, 'warn');
+      setSetting('language', setLanguage(code));
     },
   });
 
@@ -1006,7 +1007,7 @@ const profileSession = createProfileSessionController({
     const source = getSource(settings.platform).title;
     const profiles = discoverBrowserProfiles(settings.browser);
     const profile = profiles.find(p => p.id === settings.browserProfile);
-    const name = profile ? `${profile.name} (${profile.id})` : 'Стандартный профиль';
+    const name = profile ? `${profile.name} (${profile.id})` : L('Стандартный профиль');
     const status = result.status === 'authenticated' ? `В ${source} авторизован **@${result.username}**.`
       : result.status === 'checking' ? 'Проверяем аккаунт…'
       : result.status === 'signed-out' ? `Вход в ${source} не выполнен.`
@@ -1016,7 +1017,7 @@ const profileSession = createProfileSessionController({
       : result.status === 'access-denied' ? `${source} отклонил проверку. Откройте сайт в выбранном профиле браузера.`
       : result.status === 'rate-limited' ? `${source} временно ограничил запросы. Повторите проверку позже.`
       : 'Сайт ответил, но не передал данные аккаунта. Проверьте вход в выбранном профиле.';
-    ui.settings?.setProfileHint(`${name}. ${status}`, source);
+    ui.settings?.setProfileHint(joinText(name, '. ', L(status)), source);
   },
 });
 
@@ -2709,9 +2710,9 @@ function updateCollectionPickerTitle() {
   const count = collectionPickerChecked.size;
   const total = collectionPickerTotal;
   syncSelectionCheckbox(ui.results.selectAll, count, total);
-  ui.results.title.textContent = total
+  setText(ui.results.title, L(total
     ? `Найденные коллекции — ${count} из ${total}`
-    : 'Найденные коллекции';
+    : 'Найденные коллекции'));
 
   ui.status.progress.update({
     lead: `Найдено: ${collectionPickerFoundCount} коллекций`,
@@ -2797,13 +2798,13 @@ function renderCollectionPickerTree(
       el(
         'div',
         'rs-empty__title',
-        'Коллекции не найдены',
+        L('Коллекции не найдены'),
       ),
 
       el(
         'div',
         'rs-empty__text',
-        'В этом аккаунте нет доступных коллекций.',
+        L('В этом аккаунте нет доступных коллекций.'),
       ),
     );
 
@@ -3132,8 +3133,7 @@ function openCollectionModal(
   const list = ui.modal.list;
   clear(list);
 
-  ui.modal.title.textContent =
-    'Выберите коллекции';
+  setText(ui.modal.title, L('Выберите коллекции'));
 
   const boxes = new Map();
 
@@ -3182,7 +3182,7 @@ function openCollectionModal(
       el(
         'div',
         'rs-hint',
-        'Доступные коллекции не найдены.',
+        L('Доступные коллекции не найдены.'),
       ),
     );
   }
@@ -4635,11 +4635,11 @@ function renderTable() {
   if (!posts.length) {
     const empty = el('div', 'rs-empty');
     empty.append(
-      el('div', 'rs-empty__title', 'Список пуст'),
+      el('div', 'rs-empty__title', L('Список пуст')),
       el('div', 'rs-empty__text',
-        state.posts.length
+        L(state.posts.length
           ? 'Все публикации скрыты фильтрами. Измените условия в шаге 2.'
-          : 'Заполните шаг 1, выберите режим поиска и нажмите «Начать поиск».'),
+          : 'Заполните шаг 1, выберите режим поиска и нажмите «Начать поиск».')),
     );
     body.appendChild(empty);
     return;
@@ -4672,7 +4672,7 @@ function renderRow(post) {
   row.classList.toggle('is-imported', isKnown);
 
   if (isKnown) {
-    row.title = 'Эта публикация уже добавлена в Eagle';
+    setLocalizedProperty(row, 'title', L('Эта публикация уже добавлена в Eagle'));
   }
 const grid = el('div', 'rs-table__grid');
 const carouselState = currentCarouselState(post);
@@ -4878,7 +4878,7 @@ if (isKnown) {
     const carouselLabel = el(
       'span',
       'rs-carousel-button__label',
-      post.type,
+      L(post.type),
     );
 
     const carouselCount = el(
@@ -4894,7 +4894,7 @@ if (isKnown) {
 
     structure.appendChild(carouselButton);
   } else {
-    structure.textContent = post.type;
+    setUiText(structure, post.type);
   }
 
   if (
@@ -4903,7 +4903,7 @@ if (isKnown) {
     !carouselState?.disabled
   ) {
     structure.classList.add('is-clickable');
-    structure.title = 'Настроить компоненты публикации';
+    setLocalizedProperty(structure, 'title', L('Настроить компоненты публикации'));
 
     structure.addEventListener('click', () => {
       const latestState = currentCarouselState(post);
@@ -4971,10 +4971,10 @@ nameCell.classList.toggle(
   isKnown,
 );
 
-nameText.textContent = cellValue(
+setText(nameText, cellValue(
   post.postId,
   'name',
-);
+));
 
 nameCell.appendChild(nameText);
 
@@ -5011,8 +5011,7 @@ if (!isKnown) {
     nameCell.appendChild(resetNameButton);
   }
 
-  nameCell.title =
-    'Двойной щелчок — редактировать';
+  setLocalizedProperty(nameCell, 'title', L('Двойной щелчок — редактировать'));
 
     nameCell.addEventListener(
     'dblclick',
@@ -5243,8 +5242,7 @@ if (!isKnown) {
       );
     }
 
-    descCell.title =
-      'Двойной щелчок — редактировать';
+    setLocalizedProperty(descCell, 'title', L('Двойной щелчок — редактировать'));
 
     descCell.addEventListener(
       'dblclick',

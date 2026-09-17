@@ -380,3 +380,46 @@ test('naming reference: two sections, stacked counters and responsive collapse',
   });
   assert.equal(await page.locator('.rs-naming').evaluate(root => root.scrollWidth <= root.clientWidth), true);
 });
+
+test('languages: switch live, retain user data and selection, restore saved locale', async t => {
+  const page = await setup(t);
+  await seed(page, { folders: false });
+  await page.evaluate(() => {
+    const input = document.querySelector('.rs-step input:not([readonly]):not([type=file])');
+    input.value = 'Описание'; input.dispatchEvent(new Event('change', { bubbles: true }));
+  });
+  const selected = await page.evaluate(() => [...window.__rs.state.selected]);
+  const removeCount = await page.locator('.rs-naming__remove').count();
+  for (const [button, code, expected] of [
+    ['EN', 'en', 'Use numbering'], ['FR', 'fr', 'Utiliser la numérotation'],
+    ['ES', 'es', 'Usar numeración'], ['中文', 'zh-CN', '使用编号'], ['РУ', 'ru', 'Использовать нумерацию'],
+  ]) {
+    await page.getByRole('button', { name: button, exact: true }).click();
+    assert.equal(await page.locator('html').getAttribute('lang'), code);
+    assert.equal(await page.locator('.rs-naming__section').first().locator('.rs-switch-row__label').textContent(), expected);
+    assert.equal(await page.locator('.rs-step input:not([readonly]):not([type=file])').first().inputValue(), 'Описание');
+    assert.deepEqual(await page.evaluate(() => [...window.__rs.state.selected]), selected);
+  }
+  assert.equal(await page.locator('.rs-naming__remove').count(), removeCount);
+  await page.getByRole('button', { name: 'EN', exact: true }).click();
+  await page.getByRole('button', { name: '+ Add another counter', exact: true }).click();
+  assert.equal(await page.locator('.rs-naming__card-title').first().evaluate(el => el.firstChild.textContent), 'First number');
+  assert.equal(await page.locator('.rs-naming__section').first().locator('.rs-naming__card-title').nth(1).evaluate(el => el.firstChild.textContent), 'Second number');
+  await page.evaluate(() => window.__rs.ui.status.set('Готов к работе', 'Найдено: 12'));
+  assert.equal(await page.locator('.rs-status__text').textContent(), 'Ready');
+  await page.reload();
+  await page.waitForSelector('#reference-sync');
+  assert.equal(await page.locator('html').getAttribute('lang'), 'en');
+  assert.equal(await page.locator('.rs-lang__item.is-active').textContent(), 'EN');
+  if (process.env.UI_SCREENSHOT) await page.screenshot({ path: process.env.UI_SCREENSHOT + '-english.png' });
+  const untranslated = await page.evaluate(() => {
+    const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT); const values = [];
+    while (walker.nextNode()) {
+      const node = walker.currentNode;
+      if (/[А-Яа-яЁё]/.test(node.textContent) && node.textContent !== 'РУ') values.push(node.textContent);
+    }
+    return values;
+  });
+  assert.deepEqual(untranslated, []);
+
+});

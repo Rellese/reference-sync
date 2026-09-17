@@ -1,3 +1,4 @@
+import { L, setText, setUiText, setLocalizedProperty, bindTextRender } from './i18n.js';
 /* ============================================================
    ReferenceSync — базовые UI-примитивы
    Каждая фабрика возвращает DOM-узел + методы управления
@@ -7,7 +8,7 @@
 export function el(tag, className, text) {
   const node = document.createElement(tag);
   if (className) node.className = className;
-  if (text !== undefined && text !== null) node.textContent = String(text);
+  if (text !== undefined && text !== null) setText(node, text);
   return node;
 }
 
@@ -511,7 +512,7 @@ export function createInfo(text, { accent = false } = {}) {
   root.appendChild(el('span', 'rs-info__glyph', 'i'));
 
   const tip = el('div', 'rs-tip' + (accent ? ' is-accent' : ''));
-  renderTipText(tip, text);
+  bindTextRender(tip, 'tooltip', L(text), renderTipText);
   document.body.appendChild(tip);
 
   const place = () => {
@@ -536,7 +537,7 @@ export function createInfo(text, { accent = false } = {}) {
   return {
     node: root,
     tip,
-    setText(next) { renderTipText(tip, next); },
+    setText(next) { bindTextRender(tip, 'tooltip', L(next), renderTipText); },
   };
 }
 
@@ -558,7 +559,7 @@ export function createLabelWithInfo(title, tipText, options = {}) {
   if (!tipText) return { node: root, info: null };
 
   root.appendChild(el('span', 'rs-field-label__gap'));
-  const info = createInfo(tipText, tipOptions);
+  const info = createInfo(L(tipText), tipOptions);
   root.appendChild(info.node);
 
   return { node: root, info };
@@ -590,7 +591,7 @@ export function createField({
   input.type = 'text';
   input.value = value;
   const splitPlaceholder = placeholderPrefix || placeholderSuffix;
-  input.placeholder = splitPlaceholder ? ' ' : placeholder;
+  setLocalizedProperty(input, 'placeholder', splitPlaceholder ? ' ' : placeholder);
   if (readOnly) input.readOnly = true;
   body.appendChild(input);
 
@@ -745,13 +746,13 @@ export function createSelect({ options = [], value, onChange } = {}) {
 
   const render = () => {
     const label = labelOf(current);
-    field.set(label);
-    field.input.title = label;
+    setLocalizedProperty(field.input, 'value', label);
+    setLocalizedProperty(field.input, 'title', label);
 
     clear(menu);
     items.forEach((option) => {
       const item = el('button', 'rs-select-menu__item', option.label);
-      item.title = option.label;
+      setLocalizedProperty(item, 'title', option.label);
 
       if (option.value === current) {
         item.classList.add('is-active');
@@ -876,7 +877,7 @@ export function createSpinner({
 
   const up = el('div', 'rs-stepper');
   up.setAttribute('role', 'button');
-  up.setAttribute('aria-label', 'Увеличить значение');
+  setLocalizedProperty(up, 'ariaLabel', L('Увеличить значение'));
   const upIcon = el(
     'div',
     'rs-stepper__icon',
@@ -908,7 +909,7 @@ export function createSpinner({
   );
 
   down.setAttribute('role', 'button');
-  down.setAttribute('aria-label', 'Уменьшить значение');
+  setLocalizedProperty(down, 'ariaLabel', L('Уменьшить значение'));
   const downIcon = el(
     'div',
     'rs-stepper__icon',
@@ -1394,8 +1395,8 @@ export function createGlassButton({
         next ?? '',
       );
 
-      text.textContent = value;
-      textOverlay.textContent = value;
+      setUiText(text, value);
+      setUiText(textOverlay, value);
     },
 
     setDisabled(state) {
@@ -1416,7 +1417,7 @@ export function createSocialButton({
   onClick,
 } = {}) {
   const root = el('div', 'rs-soc');
-  root.title = title;
+  setLocalizedProperty(root, 'title', title);
   root.setAttribute('role', 'button');
   root.setAttribute('aria-disabled', String(locked));
   root.setAttribute('tabindex', locked ? '-1' : '0');
@@ -1461,7 +1462,7 @@ export function createButton({ label, onClick, className = 'rs-btn' } = {}) {
   });
   return {
     node,
-    setLabel(next) { node.textContent = next; },
+    setLabel(next) { setUiText(node, next); },
     setDisabled(state) { node.classList.toggle('is-disabled', Boolean(state)); },
   };
 }
@@ -1476,7 +1477,7 @@ export function createGhostButton(options) {
 export function createEditButton(onClick) {
   const node = el('button', 'rs-edit');
   node.type = 'button';
-  node.title = 'Редактировать';
+  setLocalizedProperty(node, 'title', L('Редактировать'));
   node.appendChild(el('span', 'rs-edit__icon'));
   node.addEventListener('click', (event) => {
     event.stopPropagation();
@@ -1499,7 +1500,7 @@ export function createResetButton(onClick) {
   );
 
   node.type = 'button';
-  node.title = 'Сбросить изменения';
+  setLocalizedProperty(node, 'title', L('Сбросить изменения'));
 
   node.setAttribute(
     'aria-label',

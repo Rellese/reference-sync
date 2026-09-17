@@ -1,3 +1,4 @@
+import { joinText, L, setText, setUiText, setLocalizedProperty, bindTextRender, normalizeLanguage, getLanguage } from './i18n.js';
 import { createArchivePicker } from './archive-panel.js';
 import { attachThumbnail } from './thumbnail.js';
 /* ============================================================
@@ -141,11 +142,11 @@ export async function loadIcons() {
 export function buildTitlebar({ onClose }) {
   const root = el('div', 'rs-titlebar');
   const close = el('div', 'rs-titlebar__dot rs-titlebar__dot--close');
-  close.title = 'Закрыть';
+  setLocalizedProperty(close, 'title', L('Закрыть'));
   const min = el('div', 'rs-titlebar__dot rs-titlebar__dot--min');
-  min.title = 'Свернуть';
+  setLocalizedProperty(min, 'title', L('Свернуть'));
   const max = el('div', 'rs-titlebar__dot rs-titlebar__dot--max');
-  max.title = 'Полный экран';
+  setLocalizedProperty(max, 'title', L('Полный экран'));
 
   close.addEventListener('click', () => { if (onClose) onClose(); });
   root.append(close, min, max);
@@ -162,7 +163,7 @@ export function buildHeader({ version = 'Beta v.1.2', onLanguage }) {
   left.append(
     el('div', 'rs-header__title', 'ReferenceSync'),
     el('div', 'rs-header__subtitle',
-      'Сохраняйте референсы из социальных сетей в Eagle'),
+      L('Сохраняйте референсы из социальных сетей в Eagle')),
   );
 
   const right = el('div', 'rs-header__right');
@@ -171,7 +172,7 @@ export function buildHeader({ version = 'Beta v.1.2', onLanguage }) {
   const lang = el('div', 'rs-lang');
   LANGUAGES.forEach((code) => {
     const item = el('button', 'rs-lang__item', code);
-    if (code === 'РУ') item.classList.add('is-active');
+    if (normalizeLanguage(code) === getLanguage()) item.classList.add('is-active');
     item.addEventListener('click', () => {
       lang.querySelectorAll('.rs-lang__item')
         .forEach((node) => node.classList.remove('is-active'));
@@ -203,7 +204,7 @@ export function buildSocial({ onSelect }) {
       locked: !platform.ready,
       onClick: () => {
         buttons.forEach((entry, id) => entry.setActive(id === platform.id));
-        value.textContent = platform.title;
+        setText(value, platform.title);
         if (onSelect) onSelect(platform.id);
       },
     });
@@ -214,7 +215,7 @@ export function buildSocial({ onSelect }) {
   const meta = el('div', 'rs-social__meta');
   const value = el('div', 'rs-social__value',
     platforms().find((p) => p.id === state.settings.platform)?.title || 'Instagram');
-  meta.append(el('div', 'rs-social__caption', 'Выбранная соц. сеть'), value);
+  meta.append(el('div', 'rs-social__caption', L('Выбранная соц. сеть')), value);
 
   root.append(list, meta);
   return root;
@@ -268,13 +269,13 @@ export function buildSettings({ onChange, onFolderSearch, onArchive, onArchiveRe
     el(
       'div',
       'rs-step__title',
-      'Шаг 1 — выбор анализа',
+      L('Шаг 1 — выбор анализа'),
     ),
   );
 
   const sourceGroup = createRadioGroup([
-    { value: 'browser', label: 'Через авторизованный браузер' },
-    { value: 'meta', label: 'Из архива Meta' },
+    { value: 'browser', label: L('Через авторизованный браузер') },
+    { value: 'meta', label: L('Из архива Meta') },
   ], {
     value: s.source,
     onChange: (value) => {
@@ -303,10 +304,10 @@ export function buildSettings({ onChange, onFolderSearch, onArchive, onArchiveRe
 
   /* Instagram-аккаунт */
   const accountRow = el('div', 'rs-step__row');
-  const accountLabel = createLabelWithInfo('Instagram-аккаунт', TIP_ACCOUNT).node;
+  const accountLabel = createLabelWithInfo(L('Instagram-аккаунт'), L(TIP_ACCOUNT)).node;
   const accountField = createField({
     value: s.username,
-    placeholder: 'имя пользователя',
+    placeholder: L('имя пользователя'),
     at: true,
     onCommit: (value) => {
       const clean = value.trim().replace(/^@/, '');
@@ -320,9 +321,9 @@ export function buildSettings({ onChange, onFolderSearch, onArchive, onArchiveRe
   /* Браузер */
   const browserRow = el('div', 'rs-step__row');
   const browserLabel = createLabelWithInfo(
-    'Браузер с выполненным входом', TIP_BROWSER).node;
+    L('Браузер с выполненным входом'), L(TIP_BROWSER)).node;
   const browserSelect = createSelect({
-    options: discoverInstalledBrowsers(),
+    options: discoverInstalledBrowsers().map(option => ({ ...option, label: L(option.label) })),
     value: s.browser,
     onChange: (value) => {
       setSetting('browser', value);
@@ -338,8 +339,8 @@ export function buildSettings({ onChange, onFolderSearch, onArchive, onArchiveRe
   profileRow.style.display = 'none';
 
   const profileLabel = createLabelWithInfo(
-    'Профиль браузера',
-    TIP_BROWSER_PROFILE,
+    L('Профиль браузера'),
+    L(TIP_BROWSER_PROFILE),
   );
 
   const profileSelect = createSelect({
@@ -353,18 +354,18 @@ export function buildSettings({ onChange, onFolderSearch, onArchive, onArchiveRe
 
   profileRow.append(profileLabel.node, profileSelect.node);
   const browserHint = el('div', 'rs-hint',
-    'ReferenceSync использует существующий вход в браузере. ' +
-    'Пароль Instagram не запрашивается.');
+    L('ReferenceSync использует существующий вход в браузере. ' +
+    'Пароль Instagram не запрашивается.'));
 
   /* Скорость загрузки */
   const speedRow = el('div', 'rs-step__row');
-  const speedLabel = createLabelWithInfo('Скорость загрузки', TIP_SPEED).node;
+  const speedLabel = createLabelWithInfo(L('Скорость загрузки'), L(TIP_SPEED)).node;
   const speedSelect = createSelect({
     options: [
-      { value: 'safe', label: 'Безопасная — медленнее, меньше риск блокировки' },
-      { value: 'balanced', label: 'Сбалансированная — немного быстрее' },
+      { value: 'safe', label: L('Безопасная — медленнее, меньше риск блокировки') },
+      { value: 'balanced', label: L('Сбалансированная — немного быстрее') },
       /* Третий режим: без задержек между запросами */
-      { value: 'lightning', label: 'Молния — без ограничений' },
+      { value: 'lightning', label: L('Молния — без ограничений') },
     ],
     value: s.speed,
     onChange: (value) => {
@@ -388,7 +389,7 @@ export function buildSettings({ onChange, onFolderSearch, onArchive, onArchiveRe
     el(
       'div',
       'rs-step__title',
-      'Шаг 2 — тип поиска',
+      L('Шаг 2 — тип поиска'),
     ),
   );
 
@@ -402,9 +403,9 @@ export function buildSettings({ onChange, onFolderSearch, onArchive, onArchiveRe
   });
 
   const modeGroup = createRadioGroup([
-    { value: SEARCH_MODES.SMART, label: 'Найти только новые' },
-    { value: SEARCH_MODES.FULL, label: 'Проверить все сохранённые' },
-    { value: SEARCH_MODES.RECENT, label: 'Проверить только последние' },
+    { value: SEARCH_MODES.SMART, label: L('Найти только новые') },
+    { value: SEARCH_MODES.FULL, label: L('Проверить все сохранённые') },
+    { value: SEARCH_MODES.RECENT, label: L('Проверить только последние') },
   ], {
     value: s.searchMode,
     onChange: (value) => {
@@ -420,16 +421,16 @@ export function buildSettings({ onChange, onFolderSearch, onArchive, onArchiveRe
   modeSmart.append(
     modeGroup.rowOf(SEARCH_MODES.SMART),
     el('div', 'rs-hint',
-      'Основной режим. Программа идёт от новых публикаций к старым ' +
-      'и ищет границу предыдущей синхронизации.'),
+      L('Основной режим. Программа идёт от новых публикаций к старым ' +
+      'и ищет границу предыдущей синхронизации.')),
   );
 
   const modeFull = el('div', 'rs-mode');
   modeFull.append(
     modeGroup.rowOf(SEARCH_MODES.FULL),
     el('div', 'rs-hint',
-      'Полный анализ всего раздела Saved без ограничения по количеству. ' +
-      'Подходит для первого переноса.'),
+      L('Полный анализ всего раздела Saved без ограничения по количеству. ' +
+      'Подходит для первого переноса.')),
   );
 
   const modeRecent = el('div', 'rs-mode');
@@ -440,7 +441,7 @@ export function buildSettings({ onChange, onFolderSearch, onArchive, onArchiveRe
   modeRecent.append(
     recentHead,
     el('div', 'rs-hint',
-      'Дополнительный режим для быстрой проверки или тестирования.'),
+      L('Дополнительный режим для быстрой проверки или тестирования.')),
   );
   recentSpinner.setDisabled(s.searchMode !== SEARCH_MODES.RECENT);
 
@@ -450,7 +451,7 @@ export function buildSettings({ onChange, onFolderSearch, onArchive, onArchiveRe
   /* Тумблер «Искать в выбранных папках» */
   const folderSwitch = createSwitch({
     checked: s.folderSearch,
-    label: 'Искать в выбранных папках',
+    label: L('Искать в выбранных папках'),
     onChange: (value) => {
       setSetting('folderSearch', value);
 
@@ -471,7 +472,7 @@ export function buildSettings({ onChange, onFolderSearch, onArchive, onArchiveRe
     folderSwitch.node,
     folderSwitch.labelNode,
     el('span', 'rs-switch-row__gap'),
-    createInfo(TIP_FOLDERS).node,
+    createInfo(L(TIP_FOLDERS)).node,
   );
   step2.appendChild(folderRow);
 
@@ -487,14 +488,14 @@ export function buildSettings({ onChange, onFolderSearch, onArchive, onArchiveRe
     const parsed = parseStopLink(state.settings.stopLinkUrl, state.settings.platform);
     const invalid = stopLinkValidationRequested && state.settings.stopLinkEnabled && !parsed.ok;
     stopLinkBlock.classList.toggle('has-error', invalid);
-    stopLinkMessage.textContent = invalid ? parsed.message : '';
+    setUiText(stopLinkMessage, invalid ? parsed.message : '');
     stopLinkField.input.setAttribute('aria-invalid', String(invalid));
   }
 
   const stopLinkField = createField({
     value: s.stopLinkUrl,
     placeholderPrefix: stopLinkPlaceholder(s.platform),
-    placeholderSuffix: 'ID публикации',
+    placeholderSuffix: L('ID публикации'),
     onInput(value) {
       setSetting('stopLinkUrl', value, { record: false });
       validateStopLink();
@@ -506,11 +507,11 @@ export function buildSettings({ onChange, onFolderSearch, onArchive, onArchiveRe
     },
   });
   stopLinkField.input.id = 'stop-link-input';
-  stopLinkField.input.setAttribute('aria-label', 'Ссылка для остановки поиска');
+  setLocalizedProperty(stopLinkField.input, 'ariaLabel', L('Ссылка для остановки поиска'));
   stopLinkField.input.setAttribute('aria-describedby', stopLinkMessage.id);
   const stopLinkSwitch = createSwitch({
     checked: s.stopLinkEnabled,
-    label: 'Остановиться по ссылке',
+    label: L('Остановиться по ссылке'),
     onChange(value) {
       stopLinkValidationRequested = false;
       setSetting('stopLinkEnabled', value);
@@ -522,7 +523,7 @@ export function buildSettings({ onChange, onFolderSearch, onArchive, onArchiveRe
   const stopLinkSwitchRow = el('div', 'rs-switch-row');
   stopLinkSwitchRow.append(
     stopLinkSwitch.node, stopLinkSwitch.labelNode,
-    el('span', 'rs-switch-row__gap'), createInfo(TIP_STOP_LINK).node,
+    el('span', 'rs-switch-row__gap'), createInfo(L(TIP_STOP_LINK)).node,
   );
   stopLinkFieldRow.append(stopLinkField.node, stopLinkMessage);
   stopLinkBlock.append(stopLinkSwitchRow, stopLinkFieldRow);
@@ -538,7 +539,7 @@ export function buildSettings({ onChange, onFolderSearch, onArchive, onArchiveRe
 
   const filterSwitch = createSwitch({
     checked: s.extraFilters,
-    label: 'Дополнительные фильтры',
+    label: L('Дополнительные фильтры'),
     onChange: (value) => {
       setSetting('extraFilters', value);
       filtersBody.style.display = value ? '' : 'none';
@@ -550,13 +551,13 @@ export function buildSettings({ onChange, onFolderSearch, onArchive, onArchiveRe
     filterSwitch.node,
     filterSwitch.labelNode,
     el('span', 'rs-switch-row__gap'),
-    createInfo(TIP_FILTERS).node,
+    createInfo(L(TIP_FILTERS)).node,
   );
   step3.appendChild(filterRow);
 
   /* Фильтрация файлов */
   step3.appendChild(filtersBody);
-  filtersBody.appendChild(el('div', 'rs-step__title', 'Фильтрация файлов'));
+  filtersBody.appendChild(el('div', 'rs-step__title', L('Фильтрация файлов')));
 
   const typeRow = el('div', 'rs-filter-row');
   const typeCheckboxes = new Map();
@@ -567,7 +568,7 @@ export function buildSettings({ onChange, onFolderSearch, onArchive, onArchiveRe
   ].forEach(([key, label]) => {
     const box = createCheckbox({
       checked: s[key],
-      label,
+      label: L(label),
       onChange: (value) => {
         setSetting(key, value);
         if (onChange) onChange(key, value);
@@ -579,7 +580,7 @@ export function buildSettings({ onChange, onFolderSearch, onArchive, onArchiveRe
   filtersBody.appendChild(typeRow);
 
   /* Фильтрация авторов */
-  filtersBody.appendChild(el('div', 'rs-step__title', 'Фильтрация авторов'));
+  filtersBody.appendChild(el('div', 'rs-step__title', L('Фильтрация авторов')));
 
   const includeRow = el('div', 'rs-step__row');
 
@@ -587,7 +588,7 @@ export function buildSettings({ onChange, onFolderSearch, onArchive, onArchiveRe
     value: normalizeAuthorFilterValue(
       s.authorInclude,
     ),
-    placeholder: 'через запятую',
+    placeholder: L('через запятую'),
     at: true,
     onCommit: (value) => {
       const normalized =
@@ -622,7 +623,7 @@ export function buildSettings({ onChange, onFolderSearch, onArchive, onArchiveRe
     el(
       'div',
       'rs-field-label',
-      'Только эти авторы:',
+      L('Только эти авторы:'),
     ),
     includeField.node,
   );
@@ -633,7 +634,7 @@ export function buildSettings({ onChange, onFolderSearch, onArchive, onArchiveRe
     value: normalizeAuthorFilterValue(
       s.authorExclude,
     ),
-    placeholder: 'через запятую',
+    placeholder: L('через запятую'),
     at: true,
     onCommit: (value) => {
       const normalized =
@@ -668,7 +669,7 @@ export function buildSettings({ onChange, onFolderSearch, onArchive, onArchiveRe
     el(
       'div',
       'rs-field-label',
-      'Исключить авторов:',
+      L('Исключить авторов:'),
     ),
     excludeField.node,
   );
@@ -698,7 +699,7 @@ export function buildSettings({ onChange, onFolderSearch, onArchive, onArchiveRe
         nextSettings || state.settings;
 
       sourceGroup.set(next.source);
-      sourceGroup.rowOf('meta').querySelector('.rs-radio-row__label')?.replaceChildren(document.createTextNode(next.platform === 'pinterest' ? 'Из архива Pinterest' : 'Из архива Meta'));
+      setUiText(sourceGroup.rowOf('meta').querySelector('.rs-radio-row__label'), next.platform === 'pinterest' ? 'Из архива Pinterest' : 'Из архива Meta');
 
       browserBlock.style.display =
         next.source === 'browser'
@@ -766,14 +767,14 @@ export function buildSettings({ onChange, onFolderSearch, onArchive, onArchiveRe
     },
 
     setBrowsers(options, value) {
-      browserSelect.setOptions(options, value);
+      browserSelect.setOptions(options.map(option => ({ ...option, label: L(option.label) })), value);
       browserSelect.setDisabled(options.length === 0);
     },
     setProfileHint(text, platform) {
       profileLabel.info?.setText(text);
-      browserHint.textContent = text.replace(/\*\*/g, '');
+      bindTextRender(browserHint, 'profile-hint', L(text), (node, value) => { node.textContent = value.replace(/\*\*/g, ''); });
       const label = accountLabel.querySelector('.rs-field-label__text');
-      if (label) label.textContent = platform + '-аккаунт';
+      if (label) setText(label, L(platform + '-аккаунт'));
     },
     setUsername(value) {
       accountField.set(value);
@@ -823,12 +824,12 @@ export function buildStatus({ onCommand } = {}) {
   const text = el(
     'div',
     'rs-status__text',
-    'Готов к работе',
+    L('Готов к работе'),
   );
   const hint = el(
     'div',
     'rs-status__hint',
-    'Заполните шаг 1 и нажмите «Начать поиск»',
+    L('Заполните шаг 1 и нажмите «Начать поиск»'),
   );
 
   const row = el('div', 'rs-status__row');
@@ -846,13 +847,13 @@ export function buildStatus({ onCommand } = {}) {
     node: root,
 
     set(message, hintMessage, busy = false) {
-      text.textContent = message;
+      setUiText(text, message);
 
       if (
         hintMessage !== undefined &&
         hintMessage !== null
       ) {
-        hint.textContent = hintMessage;
+        setUiText(hint, hintMessage);
       }
 
       root.classList.toggle(
@@ -1482,13 +1483,13 @@ export function buildResults({ onClear, onToggleAll, onThumbnails, onRowToggle,
   const head = el('div', 'rs-results__head');
 
   const titleRow = el('div', 'rs-results__title-row');
-  const title = el('div', 'rs-results__title', 'Найденные публикации');
+  const title = el('div', 'rs-results__title', L('Найденные публикации'));
   const clearButton = createGhostButton({
-    label: 'Очистить список',
+    label: L('Очистить список'),
     onClick: () => { if (onClear) onClear(); },
   });
   const resetAllButton = createGhostButton({
-    label: 'Сбросить правки',
+    label: L('Сбросить правки'),
     onClick: () => { if (onResetAll) onResetAll(); },
   });
   resetAllButton.node.style.display = 'none';
@@ -1502,7 +1503,7 @@ export function buildResults({ onClear, onToggleAll, onThumbnails, onRowToggle,
 
   const thumbSwitch = createSwitch({
     checked: state.settings.thumbnails,
-    label: 'Миниатюры',
+    label: L('Миниатюры'),
     onChange: (value) => {
       setSetting('thumbnails', value);
       if (onThumbnails) onThumbnails(value);
@@ -1513,7 +1514,7 @@ export function buildResults({ onClear, onToggleAll, onThumbnails, onRowToggle,
 
   const selectAll = createCheckbox({
     checked: false,
-    label: 'Выбрать всё',
+    label: L('Выбрать всё'),
     onChange: (value) => { if (onToggleAll) onToggleAll(value); },
   });
 
@@ -1538,23 +1539,23 @@ export function buildResults({ onClear, onToggleAll, onThumbnails, onRowToggle,
   const columnDefinitions = [
     {
       id: 'lead',
-      label: 'Выбранные',
+      label: L('Выбранные'),
     },
     {
       id: 'author',
-      label: 'Автор',
+      label: L('Автор'),
     },
     {
       id: 'structure',
-      label: 'Структура',
+      label: L('Структура'),
     },
     {
       id: 'name',
-      label: 'Название в Eagle',
+      label: L('Название в Eagle'),
     },
     {
       id: 'description',
-      label: 'Описание в Eagle',
+      label: L('Описание в Eagle'),
     },
   ];
 
@@ -1637,7 +1638,7 @@ export function buildResults({ onClear, onToggleAll, onThumbnails, onRowToggle,
   const engineTitle = el(
     'div',
     'rs-results__engine-title',
-    'Проверяем движок загрузки…',
+    L('Проверяем движок загрузки…'),
   );
 
   const engineDescriptionRow = el(
@@ -1648,16 +1649,16 @@ export function buildResults({ onClear, onToggleAll, onThumbnails, onRowToggle,
   const engineDescription = el(
     'div',
     'rs-results__engine-description',
-    'Подождите, идёт проверка Gallery-DL.',
+    L('Подождите, идёт проверка Gallery-DL.'),
   );
 
   engineDescriptionRow.append(
     engineDescription,
-    createInfo(TIP_ENGINE).node,
+    createInfo(L(TIP_ENGINE)).node,
   );
 
   const engineButton = createGhostButton({
-    label: 'Скачать',
+    label: L('Скачать'),
     onClick: () => {
       if (onInstall) onInstall();
     },
@@ -1722,13 +1723,12 @@ export function buildResults({ onClear, onToggleAll, onThumbnails, onRowToggle,
       );
     });
 
-    engineTitle.textContent = message;
+    setUiText(engineTitle, message);
 
-    engineDescription.textContent =
-      detail ||
+    setUiText(engineDescription, L(detail ||
       (kind === 'checking'
         ? 'Подождите, идёт проверка Gallery-DL.'
-        : '');
+        : '')));
 
     engineButton.node.hidden = !button;
 
@@ -1738,7 +1738,7 @@ export function buildResults({ onClear, onToggleAll, onThumbnails, onRowToggle,
     }
 
     engineDetail.hidden = true;
-    engineDetail.textContent = '';
+    setText(engineDetail, '');
 
     engineBar.hidden = progress === null;
 
@@ -1773,9 +1773,9 @@ export function buildResults({ onClear, onToggleAll, onThumbnails, onRowToggle,
       },
     },
     setTitle(count, total) {
-      title.textContent = total
+      setText(title, L(total
         ? `Найденные публикации — ${count} из ${total}`
-        : 'Найденные публикации';
+        : 'Найденные публикации'));
     },
   };
 }
@@ -1793,14 +1793,14 @@ export function buildFooter({ onLog, onAction }) {
 
   const left = el('div', 'rs-footer__left');
   const logButton = createButton({
-    label: 'Показать технический журнал',
+    label: L('Показать технический журнал'),
     onClick: () => { if (onLog) onLog(); },
   });
   left.appendChild(logButton.node);
 
   const right = el('div', 'rs-footer__right');
   const action = createGlassButton({
-    label: 'Начать поиск',
+    label: L('Начать поиск'),
     onClick: () => { if (onAction) onAction(); },
   });
   const actionBox = el('div', 'rs-footer__action');
@@ -1825,7 +1825,7 @@ export function buildLog() {
       const time = new Date().toLocaleTimeString('ru-RU');
       const line = el('div',
         `rs-log__line${kind ? ` rs-log__line--${kind}` : ''}`,
-        `[${time}] ${message}`);
+        joinText(`[${time}] `, L(message)));
       list.appendChild(line);
       list.scrollTop = list.scrollHeight;
       /* Не даём журналу расти бесконечно */
@@ -1842,16 +1842,16 @@ export function buildLog() {
 export function buildCollectionModal({ onConfirm, onCancel }) {
   const root = el('div', 'rs-modal');
   const box = el('div', 'rs-modal__box');
-  const title = el('div', 'rs-modal__title', 'Выберите коллекции');
+  const title = el('div', 'rs-modal__title', L('Выберите коллекции'));
   const list = el('div', 'rs-modal__list rs-scroll');
   const foot = el('div', 'rs-modal__foot');
 
   const cancel = createGhostButton({
-    label: 'Отмена',
+    label: L('Отмена'),
     onClick: () => { if (onCancel) onCancel(); },
   });
   const confirm = createGhostButton({
-    label: 'Продолжить',
+    label: L('Продолжить'),
     onClick: () => { if (onConfirm) onConfirm(); },
   });
 
@@ -1882,7 +1882,7 @@ export function buildMessageModal() {
   message.style.lineHeight = '1.5';
 
   const closeButton = createGhostButton({
-    label: 'Закрыть',
+    label: L('Закрыть'),
     onClick: () => {
       root.classList.remove('is-open');
     },
@@ -1905,8 +1905,8 @@ export function buildMessageModal() {
       title: nextTitle = 'Требуется действие',
       text = '',
     } = {}) {
-      title.textContent = nextTitle;
-      message.textContent = text;
+      setUiText(title, nextTitle);
+      setUiText(message, text);
       root.classList.add('is-open');
     },
 
@@ -1934,7 +1934,7 @@ export function buildCarouselModal() {
   const title = el(
     'div',
     'rs-modal__title rs-carousel-modal__title',
-    'Выберите нужные файлы',
+    L('Выберите нужные файлы'),
   );
 
   const content = el(
@@ -2327,8 +2327,7 @@ export function buildCarouselModal() {
 
     const selected = currentSelection.size;
 
-    summary.textContent =
-    `Выбрано файлов: ${selected} из ${availableTotal}`;
+    setText(summary, L(`Выбрано файлов: ${selected} из ${availableTotal}`));
   }
 
   function updateSelection(nextSelection) {
@@ -2428,7 +2427,7 @@ function syncComponentCheckboxes() {
   }
 
   const selectAllButton = createGhostButton({
-    label: 'ВЫБРАТЬ ВСЁ',
+    label: L('ВЫБРАТЬ ВСЁ'),
     onClick: () => {
       if (!currentPost) return;
       updateSelection(
@@ -2438,14 +2437,14 @@ function syncComponentCheckboxes() {
   });
 
   const clearButton = createGhostButton({
-    label: 'СНЯТЬ ВСЁ',
+    label: L('СНЯТЬ ВСЁ'),
     onClick: () => {
       updateSelection(clearSelection());
     },
   });
 
   const imagesButton = createGhostButton({
-    label: 'ЛИШЬ ИЗОБРАЖЕНИЯ',
+    label: L('ЛИШЬ ИЗОБРАЖЕНИЯ'),
     onClick: () => {
       if (!currentPost) return;
       updateSelection(
@@ -2455,7 +2454,7 @@ function syncComponentCheckboxes() {
   });
 
   const videosButton = createGhostButton({
-    label: 'ЛИШЬ ВИДЕО',
+    label: L('ЛИШЬ ВИДЕО'),
     onClick: () => {
       if (!currentPost) return;
       updateSelection(
@@ -2482,7 +2481,7 @@ function syncComponentCheckboxes() {
   const thumbnailsLabel = el(
     'span',
     'rs-carousel-modal__thumbnails-label',
-    'Миниатюры',
+    L('Миниатюры'),
   );
 
   thumbnailsControl.append(
@@ -2504,7 +2503,7 @@ function syncComponentCheckboxes() {
   summaryRow.append(summary, thumbnailsControl);
 
   const cancel = createButton({
-    label: 'Отмена',
+    label: L('Отмена'),
     onClick: () => cancelModal(),
   });
 
@@ -2667,7 +2666,7 @@ function syncComponentCheckboxes() {
 
         if (isImported) {
          row.setAttribute('aria-disabled', 'true');
-          row.title = 'Этот файл уже импортирован в Eagle';
+          setLocalizedProperty(row, 'title', L('Этот файл уже импортирован в Eagle'));
         }
 
         const hasThumbnail = Boolean(
@@ -2854,7 +2853,7 @@ function syncComponentCheckboxes() {
             el(
               'span',
               'rs-carousel-modal__imported',
-              'Уже в Eagle',
+              L('Уже в Eagle'),
             ),
           );
         }
