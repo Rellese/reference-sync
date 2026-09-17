@@ -1,4 +1,4 @@
-import { probePinterestAccount } from '../pinterest-session.js';
+import { probePinterestAccount, pinterestCookieHeaderForHost } from '../pinterest-session.js';
 export { pinterestSessionFromHtml } from '../pinterest-session.js';
 /* ============================================================
    Pinterest — список досок и вложенных разделов
@@ -261,48 +261,16 @@ export function readPinterestCookies(cookieFile) {
     );
   }
 
-  const cookies = new Map();
-
-  nodeApi.fs
-    .readFileSync(cookieFile, 'utf8')
-    .split(/\r?\n/)
-    .forEach((sourceLine) => {
-      let line =
-        String(sourceLine || '').trim();
-
-      if (line.startsWith('#HttpOnly_')) {
-        line =
-          line.slice('#HttpOnly_'.length);
-      } else if (
-        !line ||
-        line.startsWith('#')
-      ) {
-        return;
-      }
-
-      const parts = line.split('\t');
-
-      if (parts.length < 7) {
-        return;
-      }
-
-      const domain =
-        clean(parts[0]).toLowerCase();
-
-      if (!domain.endsWith('pinterest.com')) {
-        return;
-      }
-
-      const name =
-        clean(parts[5]);
-
-      const value =
-        clean(parts.slice(6).join('\t'));
-
-      if (name && value) {
-        cookies.set(name, value);
-      }
-    });
+  // Use the same host, expiry and path checks as the account probe. A suffix
+  // like "notpinterest.com" must never contribute cookies to a Pinterest request.
+  const header = pinterestCookieHeaderForHost(
+    nodeApi.fs.readFileSync(cookieFile, 'utf8'),
+    HOST,
+  );
+  const cookies = new Map(header ? header.split('; ').map(pair => {
+    const separator = pair.indexOf('=');
+    return [pair.slice(0, separator), pair.slice(separator + 1)];
+  }) : []);
 
   if (!cookies.size) {
     throw new Error(

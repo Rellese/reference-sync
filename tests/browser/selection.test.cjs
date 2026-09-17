@@ -526,3 +526,33 @@ test('table columns: drag, persistence and double-click reset preserve rows and 
     await checked(row(page, 'b'), true);
   }
 });
+
+test('fonts: all bundled faces decode and load without falling back', async t => {
+  const page = await setup(t);
+  const fonts = await page.evaluate(async () => {
+    const faces = [...document.fonts];
+    await Promise.all(faces.map(face => face.load()));
+    return faces.map(face => ({ family: face.family, weight: face.weight, status: face.status }));
+  });
+  assert.equal(fonts.length, 8);
+  for (const font of fonts) assert.equal(font.status, 'loaded', `${font.family} ${font.weight}`);
+});
+
+test('table columns: invalid saved widths recover and valid widths survive reopening', async t => {
+  const page = await setup(t);
+  const read = () => page.locator('.rs-results').evaluate(el =>
+    ['lead', 'author', 'structure', 'name', 'description'].map(name =>
+      parseFloat(getComputedStyle(el).getPropertyValue(`--rs-table-${name}-width`))));
+  const defaults = await read();
+  for (const invalid of [[-90, 150, 150, 270, 325], [1e100, 150, 150, 270, 325], [90, 150]]) {
+    await page.evaluate(value => localStorage.setItem('reference-sync.table-columns.v2', JSON.stringify(value)), invalid);
+    await page.reload();
+    await page.waitForFunction(() => window.__rs?.ui.results?.engine);
+    assert.deepEqual(await read(), defaults);
+  }
+  const valid = [120, 120, 150, 270, 325];
+  await page.evaluate(value => localStorage.setItem('reference-sync.table-columns.v2', JSON.stringify(value)), valid);
+  await page.reload();
+  await page.waitForFunction(() => window.__rs?.ui.results?.engine);
+  assert.deepEqual(await read(), valid);
+});

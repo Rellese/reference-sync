@@ -1068,8 +1068,10 @@ function readSavedTableColumns() {
 
     if (
       parsed.some(
-        (width) =>
-          !Number.isFinite(width),
+        (width, index) =>
+          !Number.isFinite(width) ||
+          width < TABLE_COLUMN_MIN_WIDTHS[index] ||
+          width > TABLE_COLUMN_DEFAULT_WIDTHS.reduce((sum, value) => sum + value, 0),
       )
     ) {
       return null;
