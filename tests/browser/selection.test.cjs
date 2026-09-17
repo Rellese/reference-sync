@@ -490,3 +490,39 @@ test('languages: dynamic errors, progress, carousel files and user content stay 
   assert.deepEqual(await page.locator('.rs-carousel-modal__media').allTextContents(), ['Image · JPG', 'Vidéo · MP4']);
   assert.equal(await page.locator('.rs-panel-resizer--width').getAttribute('aria-label'), 'Largeur des paramètres');
 });
+
+test('table columns: drag, persistence and double-click reset preserve rows and selection', async t => {
+  const page = await setup(t);
+  page.on('crash', () => assert.fail('Column resizing crashed the renderer'));
+  await seed(page, { folders: false });
+  if (await all(page).getAttribute('aria-checked') !== 'false') await all(page).click();
+  await row(page, 'b').click();
+  await checked(row(page, 'b'), true);
+  const widths = () => page.locator('.rs-results').evaluate(el =>
+    ['lead', 'author', 'structure', 'name', 'description'].map(name =>
+      parseFloat(getComputedStyle(el).getPropertyValue(`--rs-table-${name}-width`))));
+  const defaults = await widths();
+  const dividers = page.locator('.rs-table__column-resizer');
+  assert.equal(await dividers.count(), 4);
+  for (let i = 0; i < 4; i++) {
+    const box = await dividers.nth(i).boundingBox();
+    const x = box.x + box.width / 2, y = box.y + box.height / 2;
+    await page.mouse.move(x, y);
+    await page.mouse.down();
+    // The document-wide SVG cursor crashed Eagle on pointerdown, even on an empty table.
+    assert.equal(await page.locator('html').evaluate(el => getComputedStyle(el).cursor), 'col-resize');
+    await page.mouse.move(x + 35, y, { steps: 8 });
+    await page.mouse.up();
+    const resized = await widths();
+    assert.notDeepEqual(resized, defaults);
+    assert.equal(resized.reduce((a, b) => a + b), defaults.reduce((a, b) => a + b));
+    assert.deepEqual(await page.evaluate(() => JSON.parse(localStorage.getItem('reference-sync.table-columns.v2'))), resized);
+    await checked(row(page, 'b'), true);
+    assert.equal(await page.locator('[data-table-post-id]').count(), 4);
+    await dividers.nth(i).dblclick();
+    assert.deepEqual(await widths(), defaults);
+    assert.equal(await page.evaluate(() => localStorage.getItem('reference-sync.table-columns.v2')), null);
+    assert.equal(await page.locator('html').evaluate(el => el.classList.contains('is-resizing-table-column')), false);
+    await checked(row(page, 'b'), true);
+  }
+});

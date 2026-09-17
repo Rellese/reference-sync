@@ -541,10 +541,10 @@
  */
 html.is-resizing-table-column,
 html.is-resizing-table-column * {
-  cursor:
-    url('../assets/cursors/column-resize.svg')
-    14 8,
-    col-resize !important;
+  /* Eagle on macOS crashes when this SVG cursor is applied to the whole
+   * document during pointer capture. Keep the native cursor while dragging;
+   * the custom cursor on the idle divider remains unchanged. */
+  cursor: col-resize !important;
 
   user-select: none !important;
 }
