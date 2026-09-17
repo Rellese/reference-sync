@@ -262,12 +262,12 @@ test('naming: add independent counters and descriptions, remove without leaking 
   const cards = page.locator('.rs-naming__card');
   assert.equal(await cards.count(), 3);
   const menus = await page.locator('.rs-select-menu').count();
-  await page.getByRole('button', { name: '+ Добавить счётчик', exact: true }).click();
+  await page.getByRole('button', { name: '+ Добавить ещё счётчик', exact: true }).click();
   assert.equal(await cards.count(), 4);
   await page.getByRole('button', { name: 'Удалить счётчик', exact: true }).last().click();
   assert.equal(await cards.count(), 3);
   assert.equal(await page.locator('.rs-select-menu').count(), menus);
-  await page.getByRole('button', { name: '+ Добавить описание', exact: true }).click();
+  await page.getByRole('button', { name: '+ Добавить ещё описание', exact: true }).click();
   assert.equal(await cards.count(), 4);
   const text = page.locator('.rs-naming__text').last();
   await text.fill('Custom footer');
@@ -348,4 +348,35 @@ test('panel divider double-click restores default width and automatic naming hei
   assert.equal(await page.locator('.rs-right').evaluate(el => el.style.getPropertyValue('--rs-naming-height')), '');
   const saved = await page.evaluate(() => JSON.parse(localStorage.getItem('rs-panel-sizes')));
   assert.deepEqual(saved, { width: 403, height: null });
+});
+
+test('naming reference: two sections, stacked counters and responsive collapse', async t => {
+  const page = await setup(t);
+  await page.evaluate(() => {
+    const root = document.querySelector('.rs-naming');
+    document.body.appendChild(root);
+    Object.assign(root.style, { position: 'fixed', left: '0', top: '0', width: '1132px', height: '906px', maxHeight: 'none', zIndex: '9999' });
+    Object.assign(root.querySelector('.rs-naming__body').style, { height: '100%', maxHeight: 'none' });
+  });
+  const geometry = await page.locator('.rs-naming').evaluate(root => {
+    const sections = [...root.querySelectorAll('.rs-naming__section')].map(node => node.getBoundingClientRect());
+    const counters = [...root.querySelectorAll('.rs-naming__section:first-child .rs-naming__card')].map(node => node.getBoundingClientRect());
+    const spinner = root.querySelector('.rs-spinner').getBoundingClientRect();
+    return { tops: sections.map(r => r.top), widths: sections.map(r => r.width), gap: sections[1].left - sections[0].right,
+      counterLefts: counters.map(r => r.left), stacked: counters[1].top >= counters[0].bottom,
+      spinnerWidth: spinner.width, counterWidth: counters[0].width };
+  });
+  assert.equal(geometry.tops[0], geometry.tops[1]);
+  assert.equal(geometry.widths[0], geometry.widths[1]);
+  assert.equal(geometry.gap, 30);
+  assert.equal(geometry.counterLefts[0], geometry.counterLefts[1]);
+  assert.equal(geometry.stacked, true);
+  assert.equal(geometry.spinnerWidth, geometry.counterWidth);
+  if (process.env.UI_SCREENSHOT) await page.locator('.rs-naming').screenshot({ path: `${process.env.UI_SCREENSHOT}-naming.png` });
+  await page.locator('.rs-naming').evaluate(root => { root.style.width = '650px'; });
+  await page.waitForFunction(() => {
+    const rows = [...document.querySelectorAll('.rs-naming__section')].map(node => node.getBoundingClientRect());
+    return rows[1].top >= rows[0].bottom;
+  });
+  assert.equal(await page.locator('.rs-naming').evaluate(root => root.scrollWidth <= root.clientWidth), true);
 });

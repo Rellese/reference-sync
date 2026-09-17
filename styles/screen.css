@@ -1747,17 +1747,33 @@ M1-T09J(a) — дерево коллекций в таблице результ�
 .rs-panel-resizer--width { width: 5px; cursor: url('../assets/cursor-resize.svg') 14 9, col-resize; }
 .rs-panel-resizer--height { height: 5px; cursor: url('../assets/cursor-resize-vertical.svg') 9 14, row-resize; }
 .rs-table__column-resizer { cursor: url('../assets/cursor-resize.svg') 14 9, col-resize; }
-.rs-naming__section { display: flex; flex-direction: column; gap: 20px; min-width: 0; }
-.rs-naming__cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(260px, 100%), 1fr)); gap: 20px 30px; align-items: start; }
+.rs-naming { container-type: inline-size; padding: 13px 4px 15px 19px; }
+.rs-naming__columns { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 30px; }
+.rs-naming__section { position: relative; display: flex; flex-direction: column; gap: 20px; min-width: 0; }
+.rs-naming__section + .rs-naming__section::before { content: ''; position: absolute; left: -15px; top: 0; bottom: 0; border-left: 1px dashed #212121; }
+.rs-naming__section > .rs-switch-row { padding-bottom: 20px; border-bottom: 1px dashed #212121; justify-content: flex-start; }
+.rs-naming__cards { display: flex; flex-direction: column; gap: 30px; min-width: 0; }
 .rs-naming__cards[hidden] { display: none; }
-.rs-naming__card { display: flex; flex-direction: column; gap: 15px; min-width: 0; }
-.rs-naming__card-title { display: flex; align-items: center; justify-content: space-between; font: 12px var(--font-mono); color: var(--text-muted); }
-.rs-naming__remove, .rs-naming__add { border: 1px solid var(--border-card); background: var(--bg-row); color: var(--text-muted); border-radius: 5px; cursor: pointer; padding: 8px; }
-.rs-naming__remove:hover, .rs-naming__add:hover { color: var(--accent); }
-.rs-naming__text { box-sizing: border-box; width: 100%; min-height: 72px; resize: vertical; border: 1px solid var(--border-card); border-radius: 10px; background: var(--bg-row); color: var(--text-muted); font: 12px var(--font-sans); padding: 10px; }
+.rs-naming__card { display: flex; flex-direction: column; gap: 15px; width: 100%; min-width: 0; }
+.rs-naming__card + .rs-naming__card { padding-top: 30px; border-top: 1px dashed #212121; }
+.rs-naming__card-title { position: relative; display: flex; align-items: center; justify-content: space-between; font: 14px/18px var(--font-mono); letter-spacing: .1em; text-transform: uppercase; color: #707070; }
+.rs-naming__options { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 15px; }
+.rs-naming__options .rs-filter-row { min-height: 36px; display: flex; flex-wrap: wrap; align-items: center; column-gap: 20px; row-gap: 8px; }
+.rs-naming__remove { position: absolute; right: 0; border: 0; background: transparent; color: #707070; font-size: 16px; cursor: pointer; opacity: 0; }
+.rs-naming__card:hover .rs-naming__remove, .rs-naming__remove:focus-visible { opacity: 1; }
+.rs-naming__add { box-sizing: border-box; width: 100%; min-height: 42px; border: 1px solid #313131; background: transparent; color: #707070; border-radius: 25px; cursor: pointer; padding: 10px; font: 12px/16px var(--font-mono); letter-spacing: .1em; text-transform: uppercase; }
+.rs-naming__remove:hover, .rs-naming__add:hover { color: var(--accent); border-color: var(--accent); }
+@container (max-width: 800px) {
+  .rs-naming__columns { grid-template-columns: minmax(0, 1fr); }
+  .rs-naming__section + .rs-naming__section::before { display: none; }
+}
+@container (max-width: 430px) { .rs-naming__options { grid-template-columns: minmax(0, 1fr); } }
 .rs-archive { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
 .rs-archive__drop { white-space: pre-line; padding: 24px 12px; border: 1px dashed #707070; border-radius: 10px; background: var(--bg-row); color: var(--text-muted); font: 12px/1.6 var(--font-sans); cursor: pointer; }
 .rs-archive__drop:hover, .rs-archive__drop.is-over { border-color: var(--accent); color: var(--accent); }
 .rs-archive [hidden] { display: none; }
 /* Picker depth moves the whole row; do not indent its identity a second time. */
 .rs-collection-picker__row .rs-collection__identity { margin-left: 0; }
+
+.rs-naming .rs-spinner__value { text-align: left; padding-left: 14px; }
+.rs-naming .rs-field__input::placeholder { color: #707070; opacity: 1; }
