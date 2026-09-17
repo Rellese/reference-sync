@@ -198,8 +198,7 @@ export function buildSocial({ onSelect }) {
   platforms().forEach((platform) => {
     const button = createSocialButton({
       icon: iconCache[platform.icon],
-      title: platform.ready ? platform.title
-        : joinText(platform.title, ' — ', L(platform.notReadyReason)),
+      title: platform.title,
       active: platform.id === state.settings.platform,
       locked: !platform.ready,
       onClick: () => {

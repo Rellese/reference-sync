@@ -1420,7 +1420,7 @@ export function createSocialButton({
   setLocalizedProperty(root, 'title', title);
   root.setAttribute('role', 'button');
   root.setAttribute('aria-disabled', String(locked));
-  root.setAttribute('tabindex', locked ? '-1' : '0');
+  root.setAttribute('tabindex', '0');
 
   root.appendChild(el('div', 'rs-soc__base'));
   ['halo', 'line', 'top'].forEach((kind) => {
@@ -1435,6 +1435,30 @@ export function createSocialButton({
 
   root.classList.toggle('is-on', Boolean(active));
   root.classList.toggle('is-locked', Boolean(locked));
+  if (locked) {
+    // Locked controls still receive hover and keyboard focus to explain availability.
+    root.removeAttribute('title');
+    const tip = el('div', 'rs-tip rs-soc-tip', L('Поддержка будет добавлена в будущих обновлениях'));
+    tip.id = `rs-source-tip-${String(title).replace(/[^a-z0-9]/gi, '').toLowerCase()}`;
+    tip.setAttribute('role', 'tooltip');
+    root.setAttribute('aria-label', String(title));
+    root.setAttribute('aria-describedby', tip.id);
+    document.body.appendChild(tip);
+    const hide = () => tip.classList.remove('is-visible');
+    const show = () => {
+      const box = root.getBoundingClientRect();
+      tip.classList.add('is-visible');
+      tip.style.left = `${Math.max(8, Math.min(box.left, window.innerWidth - tip.offsetWidth - 8))}px`;
+      tip.style.top = `${box.bottom + 8}px`;
+    };
+    root.addEventListener('mouseenter', show);
+    root.addEventListener('mouseleave', hide);
+    root.addEventListener('focus', show);
+    root.addEventListener('blur', hide);
+    root.addEventListener('keydown', event => { if (event.key === 'Escape') hide(); });
+    window.addEventListener('resize', hide);
+  }
+
 
   root.addEventListener('keydown', event => {
     if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); root.click(); }

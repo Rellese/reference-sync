@@ -2,6 +2,7 @@ import { diagnostics } from './diagnostics.js';
 // Columns: Russian source, English, French, Spanish, Simplified Chinese.
 export const messages = [
   ...diagnostics,
+  ["Поддержка будет добавлена в будущих обновлениях", "Support will be added in future updates", "La prise en charge sera ajoutée lors de futures mises à jour", "La compatibilidad se añadirá en futuras actualizaciones", "将在未来更新中添加支持"],
   ["Название", "Name", "Nom", "Nombre", "名称"],
   ["Описание", "Description", "Description", "Descripción", "描述"],
   ["Название и описание", "Name and description", "Nom et description", "Nombre y descripción", "名称和描述"],

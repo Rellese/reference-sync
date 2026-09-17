@@ -556,3 +556,43 @@ test('table columns: invalid saved widths recover and valid widths survive reope
   await page.waitForFunction(() => window.__rs?.ui.results?.engine);
   assert.deepEqual(await read(), valid);
 });
+
+test('unavailable sources: translated tooltip, keyboard access and no activation', async t => {
+  const page = await setup(t);
+  for (const name of ['Dribbble', 'Behance', 'Vimeo', 'X', 'Layers.to']) {
+    const button = page.getByRole('button', { name, exact: true });
+    assert.equal(await button.getAttribute('aria-disabled'), 'true');
+    await button.hover();
+    const tip = page.locator('.rs-soc-tip.is-visible');
+    assert.equal(await tip.count(), 1);
+    assert.equal(await tip.textContent(), 'Поддержка будет добавлена в будущих обновлениях');
+    // Exercise the actual guarded click despite aria-disabled.
+    await button.click({ force: true });
+    assert.equal(await page.evaluate(() => window.__rs.state.settings.platform), 'instagram');
+    await button.focus();
+    await page.keyboard.press('Enter');
+    assert.equal(await page.evaluate(() => window.__rs.state.settings.platform), 'instagram');
+    await page.keyboard.press('Escape');
+    assert.equal(await page.locator('.rs-soc-tip.is-visible').count(), 0);
+  }
+  for (const [language, expected] of [
+    ['EN', 'Support will be added in future updates'],
+    ['FR', 'La prise en charge sera ajoutée lors de futures mises à jour'],
+    ['ES', 'La compatibilidad se añadirá en futuras actualizaciones'],
+    ['中文', '将在未来更新中添加支持'],
+  ]) {
+    await page.getByRole('button', { name: language, exact: true }).click();
+    await page.getByRole('button', { name: 'Dribbble', exact: true }).hover();
+    assert.equal(await page.locator('.rs-soc-tip.is-visible').textContent(), expected);
+  }
+  await page.getByRole('button', { name: 'Pinterest', exact: true }).click();
+  assert.equal(await page.evaluate(() => window.__rs.state.settings.platform), 'pinterest');
+  await page.evaluate(() => {
+    const key = 'reference-sync.settings.v1';
+    const settings = JSON.parse(localStorage.getItem(key));
+    settings.platform = 'dribbble'; localStorage.setItem(key, JSON.stringify(settings));
+  });
+  await page.reload();
+  await page.waitForFunction(() => window.__rs?.ui.results?.engine);
+  assert.equal(await page.evaluate(() => window.__rs.state.settings.platform), 'instagram');
+});

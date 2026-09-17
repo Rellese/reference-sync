@@ -3055,7 +3055,8 @@ textarea.rs-editable {
 .rs-soc:not(.is-locked):active .rs-soc__icon { color: #FDF1E5; mix-blend-mode: overlay; filter: none; transition: none; }
 .rs-soc:not(.is-locked):active .rs-soc__plate { top: 2px; transition: none; }
 .rs-soc__plate, .rs-soc__icon { transition-duration: 150ms; }
-.rs-soc.is-locked { pointer-events: none; }
+.rs-soc.is-locked { pointer-events: auto; }
+.rs-soc-tip { position: fixed; width: max-content; max-width: min(280px, calc(100vw - 16px)); }
 
 /* The Russian reference uses fixed button widths. Longer translations wrap
    into two columns while preserving the list and all actions. */

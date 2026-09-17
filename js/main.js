@@ -79,6 +79,7 @@ import {
 
 import {
   getSource,
+  listSources,
   getSourceForPosts,
 } from './sources/index.js';
 import { stopLinkFromSettings } from './stop-link.js';
@@ -586,6 +587,9 @@ function bindCloseLifecycle() {
 async function boot() {
   bindCloseLifecycle();
   loadSettings();
+  if (!listSources().some(source => source.code === state.settings.platform && source.ready)) {
+    setSetting('platform', 'instagram');
+  }
   setLanguage(state.settings.language);
   state.importRecords = loadImportRecords();
 
