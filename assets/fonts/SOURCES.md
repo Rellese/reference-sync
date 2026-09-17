@@ -9,3 +9,5 @@ https://github.com/eigilnikolajsen/commit-mono/blob/d407cd2bf8e01ca1db70544052fb
 License: LICENSE-CommitMono.txt (SIL OFL 1.1).
 
 IBM Plex Mono files predate this repair and are unchanged.
+Upstream: https://github.com/IBM/plex
+License: LICENSE-IBMPlex.txt (SIL OFL 1.1).

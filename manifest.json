@@ -6,14 +6,21 @@
   "name": "ReferenceSync",
   "description": "Сохраняйте референсы из социальных сетей в Eagle",
   "logo": "assets/logo.png",
-  "keywords": ["instagram", "pinterest", "import", "references", "sync"],
-  "devTools": true,
+  "keywords": [
+    "instagram",
+    "pinterest",
+    "import",
+    "references",
+    "sync"
+  ],
+  "devTools": false,
   "main": {
     "url": "index.html",
     "width": 1600,
     "height": 1000,
     "minWidth": 1200,
     "minHeight": 760,
-    "multiple": false
+    "multiple": false,
+    "devTools": false
   }
 }
