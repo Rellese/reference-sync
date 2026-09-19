@@ -1481,12 +1481,13 @@ if (onLog) {
        и повторяем ту же публикацию, не сдвигая очередь */
     let error = null;
     let attempts = 0;
+    let raw = '';
     const maxAttempts = control ? RETRY_STEPS_COUNT : 1;
 
     for (;;) {
       attempts += 1;
       error = null;
-      let raw = '';
+      raw = '';
       try {
         const handleStderr = (chunk) => {
           raw += chunk;
@@ -1578,7 +1579,7 @@ if (onLog) {
         .filter((name) => !name.startsWith('.'))
         .map((name) => path.join(postDir, name))
         .filter((file) => {
-          try { return fs.statSync(file).size > 0; }
+          try { return !/\.(?:part|ytdl|tmp)$/i.test(file) && fs.statSync(file).isFile() && fs.statSync(file).size > 0; }
           catch (_) { return false; }
         })
         .sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
@@ -1609,7 +1610,7 @@ const completedEntry = {
 };
 
 if (onCompleted) {
-  onCompleted(completedEntry);
+  await onCompleted(completedEntry);
 }
 
 return completedEntry;

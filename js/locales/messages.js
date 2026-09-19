@@ -2,6 +2,7 @@ import { diagnostics } from './diagnostics.js';
 // Columns: Russian source, English, French, Spanish, Simplified Chinese.
 export const messages = [
   ...diagnostics,
+  ["Не удалось скачать публикаций: {0}. Повторите импорт оставшихся публикаций.", "Posts that could not be downloaded: {0}. Retry importing the remaining posts.", "Publications non téléchargées : {0}. Réessayez d’importer les publications restantes.", "Publicaciones no descargadas: {0}. Vuelve a importar las publicaciones restantes.", "未能下载的帖子：{0}。请重试导入剩余帖子。"],
   ["Поддержка будет добавлена в будущих обновлениях", "Support will be added in future updates", "La prise en charge sera ajoutée lors de futures mises à jour", "La compatibilidad se añadirá en futuras actualizaciones", "将在未来更新中添加支持"],
   ["Название", "Name", "Nom", "Nombre", "名称"],
   ["Описание", "Description", "Description", "Descripción", "描述"],

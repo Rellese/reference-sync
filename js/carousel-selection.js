@@ -336,12 +336,17 @@ export function selectedDownloadedFiles(entry, selection) {
         );
 
   return entry.files
-    .map((file, componentIndex) => ({
-      file,
-      componentIndex,
-    }))
+    .map((file, position) => {
+      // Downloaders name files with the original one-based component number.
+      // Missing earlier files must not shift a later carousel component.
+      const match = String(file).split(/[\\/]/).pop().match(/^(\d+)\.[^.]+$/);
+      const original = match ? Number(match[1]) - 1 : position;
+      return { file, componentIndex: original };
+    })
     .filter((item) => (
       Boolean(item.file) &&
+      !/\.(?:part|tmp|ytdl)$/i.test(item.file) &&
+      item.componentIndex >= 0 && item.componentIndex < componentCount &&
       selectedPositions.has(item.componentIndex)
     ));
 }

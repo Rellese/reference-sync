@@ -344,7 +344,7 @@ async function refreshImportRegistry() {
 }
 
 function recoveryDownloadSnapshot(downloaded) {
-  return (downloaded || []).map((entry) => ({
+  return (downloaded || []).filter(entry => !entry.error && entry.files?.length).map((entry) => ({
     postId: entry.post.postId,
     files: [...entry.files],
   }));
@@ -2140,8 +2140,9 @@ async function runImport() {
     sessionCookieFile =
       session.cookieFile;
 
+    const chosenIds = new Set(chosen.map(post => String(post.postId)));
     const restoredResults = Array.isArray(recoveredDownloaded)
-      ? recoveredDownloaded
+      ? recoveredDownloaded.filter(entry => chosenIds.has(String(entry.post?.postId)))
       : [];
 
     const restoredPostIds = new Set(
@@ -2239,7 +2240,7 @@ async function runImport() {
     });
 
     const downloaded = results.filter((entry) => entry.files.length);
-    const failedDownloads = results.filter((entry) => !entry.files.length);
+    const failedDownloads = results.filter((entry) => entry.error || !entry.files.length);
 
     failedDownloads.forEach((entry) => {
       ui.log.add(`Не скачано: ${entry.post.url} — ${entry.error}`, 'err');
@@ -2402,7 +2403,9 @@ async function runImport() {
           'Очередь остановлена; уже скачанные файлы добавлены в Eagle. ' +
           'Подождите и продолжите синхронизацию позже.'
         )
-        : eagleStopReason;
+        : eagleStopReason || (failedDownloads.length
+          ? `Не удалось скачать публикаций: ${failedDownloads.length}. Повторите импорт оставшихся публикаций.`
+          : null);
 
     const knownBeforeImport = new Set(
       state.knownPostIds,
@@ -2446,10 +2449,12 @@ async function runImport() {
     );
 
     if (created.length) {
-      resetSelectionsAfterImport(
-        state.posts,
-        state.selected,
-      );
+      if (stopReason || failed.length) {
+        // Keep failed and unattempted publications selected for a later retry.
+        for (const postId of importedPostIds) state.selected.delete(postId);
+      } else {
+        resetSelectionsAfterImport(state.posts, state.selected);
+      }
 
       checkpointRecovery('importing');
       refreshNames();
