@@ -1,3 +1,6 @@
+import { translate, joinText, L, setText, setUiText, setLocalizedProperty, bindTextRender, normalizeLanguage, getLanguage } from './i18n.js';
+import { createArchivePicker } from './archive-panel.js';
+import { attachThumbnail } from './thumbnail.js';
 /* ============================================================
    ReferenceSync — сборка панелей интерфейса
    Соответствие блокам Figma:
@@ -26,6 +29,7 @@ import {
   normalizeAuthorFilterValue,
 } from './state.js';
 import { SEARCH_MODES } from './instagram.js';
+import { discoverInstalledBrowsers } from './browser-installations.js';
 import { parseStopLink, stopLinkPlaceholder } from './stop-link.js';
 import {
   normalizeSelection,
@@ -65,14 +69,11 @@ const TIP_STOP_LINK =
   'Лимит N и граница прошлой синхронизации продолжают действовать.';
 
 const TIP_SPEED =
-  'Влияет на скорость поиска и скачивания файлов. При количестве ' +
-  '**>1000 файлов рекомендуется выбирать безопасный режим** иначе есть шанс ' +
-  'срабатывания защиты от спама. Режим «Молния» снимает все задержки и ' +
-  'подходит только для небольших партий.';
+  '**Задержки запросов к соцсети:** безопасная — 2–4 с, сбалансированная — 1–2 с, молния — 0 с. ' +
+  'Прямые ссылки на файлы загружаются последовательно. При большом объёме выбирайте безопасную скорость.';
 
 const TIP_ACCOUNT =
-  'Имя пользователя Instagram без символа @. Используется вход, уже ' +
-  'выполненный в выбранном браузере — **пароль не запрашивается и не хранится**.';
+  '**Имя владельца сохранённых публикаций**, без @. Оно должно совпадать с аккаунтом выбранной соцсети в профиле браузера.';
 
 const TIP_BROWSER =
   'ReferenceSync читает cookies выбранного браузера. **В нём должен быть ' +
@@ -141,11 +142,11 @@ export async function loadIcons() {
 export function buildTitlebar({ onClose }) {
   const root = el('div', 'rs-titlebar');
   const close = el('div', 'rs-titlebar__dot rs-titlebar__dot--close');
-  close.title = 'Закрыть';
+  setLocalizedProperty(close, 'title', L('Закрыть'));
   const min = el('div', 'rs-titlebar__dot rs-titlebar__dot--min');
-  min.title = 'Свернуть';
+  setLocalizedProperty(min, 'title', L('Свернуть'));
   const max = el('div', 'rs-titlebar__dot rs-titlebar__dot--max');
-  max.title = 'Полный экран';
+  setLocalizedProperty(max, 'title', L('Полный экран'));
 
   close.addEventListener('click', () => { if (onClose) onClose(); });
   root.append(close, min, max);
@@ -162,7 +163,7 @@ export function buildHeader({ version = 'Beta v.1.2', onLanguage }) {
   left.append(
     el('div', 'rs-header__title', 'ReferenceSync'),
     el('div', 'rs-header__subtitle',
-      'Сохраняйте референсы из социальных сетей в Eagle'),
+      L('Сохраняйте референсы из социальных сетей в Eagle')),
   );
 
   const right = el('div', 'rs-header__right');
@@ -171,7 +172,7 @@ export function buildHeader({ version = 'Beta v.1.2', onLanguage }) {
   const lang = el('div', 'rs-lang');
   LANGUAGES.forEach((code) => {
     const item = el('button', 'rs-lang__item', code);
-    if (code === 'РУ') item.classList.add('is-active');
+    if (normalizeLanguage(code) === getLanguage()) item.classList.add('is-active');
     item.addEventListener('click', () => {
       lang.querySelectorAll('.rs-lang__item')
         .forEach((node) => node.classList.remove('is-active'));
@@ -197,13 +198,12 @@ export function buildSocial({ onSelect }) {
   platforms().forEach((platform) => {
     const button = createSocialButton({
       icon: iconCache[platform.icon],
-      title: platform.ready ? platform.title
-        : `${platform.title} — ${platform.notReadyReason}`,
+      title: platform.title,
       active: platform.id === state.settings.platform,
       locked: !platform.ready,
       onClick: () => {
         buttons.forEach((entry, id) => entry.setActive(id === platform.id));
-        value.textContent = platform.title;
+        setText(value, platform.title);
         if (onSelect) onSelect(platform.id);
       },
     });
@@ -214,7 +214,7 @@ export function buildSocial({ onSelect }) {
   const meta = el('div', 'rs-social__meta');
   const value = el('div', 'rs-social__value',
     platforms().find((p) => p.id === state.settings.platform)?.title || 'Instagram');
-  meta.append(el('div', 'rs-social__caption', 'Выбранная соц. сеть'), value);
+  meta.append(el('div', 'rs-social__caption', L('Выбранная соц. сеть')), value);
 
   root.append(list, meta);
   return root;
@@ -256,7 +256,7 @@ function formatAuthorFieldInput(field, event) {
 /* ============================================================
    3 блок — настройки поиска (шаг 1 и шаг 2)
    ============================================================ */
-export function buildSettings({ onChange, onFolderSearch }) {
+export function buildSettings({ onChange, onFolderSearch, onArchive, onArchiveResolve }) {
   const root = el('div', 'rs-panel');
   const body = el('div', 'rs-panel__body rs-scroll');
 
@@ -268,13 +268,13 @@ export function buildSettings({ onChange, onFolderSearch }) {
     el(
       'div',
       'rs-step__title',
-      'Шаг 1 — выбор анализа',
+      L('Шаг 1 — выбор анализа'),
     ),
   );
 
   const sourceGroup = createRadioGroup([
-    { value: 'browser', label: 'Через авторизованный браузер' },
-    { value: 'meta', label: 'Из архива Meta' },
+    { value: 'browser', label: L('Через авторизованный браузер') },
+    { value: 'meta', label: L('Из архива Meta') },
   ], {
     value: s.source,
     onChange: (value) => {
@@ -292,8 +292,8 @@ export function buildSettings({ onChange, onFolderSearch }) {
   );
   step1.appendChild(sourceList);
 
-  const metaHint = el('div', 'rs-hint',
-    'Интерфейс готов. Разбор архива Meta подключим следующим этапом.');
+  const archivePicker = createArchivePicker(onArchive, onArchiveResolve);
+  const metaHint = archivePicker.node;
   metaHint.style.display = s.source === 'meta' ? '' : 'none';
   step1.appendChild(metaHint);
 
@@ -303,10 +303,10 @@ export function buildSettings({ onChange, onFolderSearch }) {
 
   /* Instagram-аккаунт */
   const accountRow = el('div', 'rs-step__row');
-  const accountLabel = createLabelWithInfo('Instagram-аккаунт', TIP_ACCOUNT).node;
+  const accountLabel = createLabelWithInfo(L('Instagram-аккаунт'), L(TIP_ACCOUNT)).node;
   const accountField = createField({
     value: s.username,
-    placeholder: 'имя пользователя',
+    placeholder: L('имя пользователя'),
     at: true,
     onCommit: (value) => {
       const clean = value.trim().replace(/^@/, '');
@@ -320,15 +320,9 @@ export function buildSettings({ onChange, onFolderSearch }) {
   /* Браузер */
   const browserRow = el('div', 'rs-step__row');
   const browserLabel = createLabelWithInfo(
-    'Браузер с выполненным входом', TIP_BROWSER).node;
+    L('Браузер с выполненным входом'), L(TIP_BROWSER)).node;
   const browserSelect = createSelect({
-    options: [
-      { value: 'chrome', label: 'Google Chrome' },
-      { value: 'yandex', label: 'Яндекс.Браузер' },
-      { value: 'safari', label: 'Safari' },
-      { value: 'firefox', label: 'Firefox' },
-      { value: 'edge', label: 'Microsoft Edge' },
-    ],
+    options: discoverInstalledBrowsers().map(option => ({ ...option, label: L(option.label) })),
     value: s.browser,
     onChange: (value) => {
       setSetting('browser', value);
@@ -344,8 +338,8 @@ export function buildSettings({ onChange, onFolderSearch }) {
   profileRow.style.display = 'none';
 
   const profileLabel = createLabelWithInfo(
-    'Профиль браузера',
-    TIP_BROWSER_PROFILE,
+    L('Профиль браузера'),
+    L(TIP_BROWSER_PROFILE),
   );
 
   const profileSelect = createSelect({
@@ -359,18 +353,18 @@ export function buildSettings({ onChange, onFolderSearch }) {
 
   profileRow.append(profileLabel.node, profileSelect.node);
   const browserHint = el('div', 'rs-hint',
-    'ReferenceSync использует существующий вход в браузере. ' +
-    'Пароль Instagram не запрашивается.');
+    L('ReferenceSync использует существующий вход в браузере. ' +
+    'Пароль Instagram не запрашивается.'));
 
   /* Скорость загрузки */
   const speedRow = el('div', 'rs-step__row');
-  const speedLabel = createLabelWithInfo('Скорость загрузки', TIP_SPEED).node;
+  const speedLabel = createLabelWithInfo(L('Скорость загрузки'), L(TIP_SPEED)).node;
   const speedSelect = createSelect({
     options: [
-      { value: 'safe', label: 'Безопасная — медленнее, меньше риск блокировки' },
-      { value: 'balanced', label: 'Сбалансированная — немного быстрее' },
+      { value: 'safe', label: L('Безопасная — медленнее, меньше риск блокировки') },
+      { value: 'balanced', label: L('Сбалансированная — немного быстрее') },
       /* Третий режим: без задержек между запросами */
-      { value: 'lightning', label: 'Молния — без ограничений' },
+      { value: 'lightning', label: L('Молния — без ограничений') },
     ],
     value: s.speed,
     onChange: (value) => {
@@ -394,7 +388,7 @@ export function buildSettings({ onChange, onFolderSearch }) {
     el(
       'div',
       'rs-step__title',
-      'Шаг 2 — тип поиска',
+      L('Шаг 2 — тип поиска'),
     ),
   );
 
@@ -408,9 +402,9 @@ export function buildSettings({ onChange, onFolderSearch }) {
   });
 
   const modeGroup = createRadioGroup([
-    { value: SEARCH_MODES.SMART, label: 'Найти только новые' },
-    { value: SEARCH_MODES.FULL, label: 'Проверить все сохранённые' },
-    { value: SEARCH_MODES.RECENT, label: 'Проверить только последние' },
+    { value: SEARCH_MODES.SMART, label: L('Найти только новые') },
+    { value: SEARCH_MODES.FULL, label: L('Проверить все сохранённые') },
+    { value: SEARCH_MODES.RECENT, label: L('Проверить только последние') },
   ], {
     value: s.searchMode,
     onChange: (value) => {
@@ -426,16 +420,16 @@ export function buildSettings({ onChange, onFolderSearch }) {
   modeSmart.append(
     modeGroup.rowOf(SEARCH_MODES.SMART),
     el('div', 'rs-hint',
-      'Основной режим. Программа идёт от новых публикаций к старым ' +
-      'и ищет границу предыдущей синхронизации.'),
+      L('Основной режим. Программа идёт от новых публикаций к старым ' +
+      'и ищет границу предыдущей синхронизации.')),
   );
 
   const modeFull = el('div', 'rs-mode');
   modeFull.append(
     modeGroup.rowOf(SEARCH_MODES.FULL),
     el('div', 'rs-hint',
-      'Полный анализ всего раздела Saved без ограничения по количеству. ' +
-      'Подходит для первого переноса.'),
+      L('Полный анализ всего раздела Saved без ограничения по количеству. ' +
+      'Подходит для первого переноса.')),
   );
 
   const modeRecent = el('div', 'rs-mode');
@@ -446,7 +440,7 @@ export function buildSettings({ onChange, onFolderSearch }) {
   modeRecent.append(
     recentHead,
     el('div', 'rs-hint',
-      'Дополнительный режим для быстрой проверки или тестирования.'),
+      L('Дополнительный режим для быстрой проверки или тестирования.')),
   );
   recentSpinner.setDisabled(s.searchMode !== SEARCH_MODES.RECENT);
 
@@ -456,7 +450,7 @@ export function buildSettings({ onChange, onFolderSearch }) {
   /* Тумблер «Искать в выбранных папках» */
   const folderSwitch = createSwitch({
     checked: s.folderSearch,
-    label: 'Искать в выбранных папках',
+    label: L('Искать в выбранных папках'),
     onChange: (value) => {
       setSetting('folderSearch', value);
 
@@ -477,7 +471,7 @@ export function buildSettings({ onChange, onFolderSearch }) {
     folderSwitch.node,
     folderSwitch.labelNode,
     el('span', 'rs-switch-row__gap'),
-    createInfo(TIP_FOLDERS).node,
+    createInfo(L(TIP_FOLDERS)).node,
   );
   step2.appendChild(folderRow);
 
@@ -487,18 +481,20 @@ export function buildSettings({ onChange, onFolderSearch }) {
   stopLinkMessage.id = 'stop-link-message';
   stopLinkMessage.setAttribute('aria-live', 'polite');
 
+  let stopLinkValidationRequested = false;
+
   function validateStopLink() {
     const parsed = parseStopLink(state.settings.stopLinkUrl, state.settings.platform);
-    const invalid = state.settings.stopLinkEnabled && !parsed.ok;
+    const invalid = stopLinkValidationRequested && state.settings.stopLinkEnabled && !parsed.ok;
     stopLinkBlock.classList.toggle('has-error', invalid);
-    stopLinkMessage.textContent = invalid ? parsed.message : '';
+    setUiText(stopLinkMessage, invalid ? parsed.message : '');
     stopLinkField.input.setAttribute('aria-invalid', String(invalid));
   }
 
   const stopLinkField = createField({
     value: s.stopLinkUrl,
     placeholderPrefix: stopLinkPlaceholder(s.platform),
-    placeholderSuffix: 'ID публикации',
+    placeholderSuffix: L('ID публикации'),
     onInput(value) {
       setSetting('stopLinkUrl', value, { record: false });
       validateStopLink();
@@ -510,12 +506,13 @@ export function buildSettings({ onChange, onFolderSearch }) {
     },
   });
   stopLinkField.input.id = 'stop-link-input';
-  stopLinkField.input.setAttribute('aria-label', 'Ссылка для остановки поиска');
+  setLocalizedProperty(stopLinkField.input, 'ariaLabel', L('Ссылка для остановки поиска'));
   stopLinkField.input.setAttribute('aria-describedby', stopLinkMessage.id);
   const stopLinkSwitch = createSwitch({
     checked: s.stopLinkEnabled,
-    label: 'Остановиться по ссылке',
+    label: L('Остановиться по ссылке'),
     onChange(value) {
+      stopLinkValidationRequested = false;
       setSetting('stopLinkEnabled', value);
       stopLinkBlock.classList.toggle('is-enabled', value);
       validateStopLink();
@@ -525,7 +522,7 @@ export function buildSettings({ onChange, onFolderSearch }) {
   const stopLinkSwitchRow = el('div', 'rs-switch-row');
   stopLinkSwitchRow.append(
     stopLinkSwitch.node, stopLinkSwitch.labelNode,
-    el('span', 'rs-switch-row__gap'), createInfo(TIP_STOP_LINK).node,
+    el('span', 'rs-switch-row__gap'), createInfo(L(TIP_STOP_LINK)).node,
   );
   stopLinkFieldRow.append(stopLinkField.node, stopLinkMessage);
   stopLinkBlock.append(stopLinkSwitchRow, stopLinkFieldRow);
@@ -541,7 +538,7 @@ export function buildSettings({ onChange, onFolderSearch }) {
 
   const filterSwitch = createSwitch({
     checked: s.extraFilters,
-    label: 'Дополнительные фильтры',
+    label: L('Дополнительные фильтры'),
     onChange: (value) => {
       setSetting('extraFilters', value);
       filtersBody.style.display = value ? '' : 'none';
@@ -553,13 +550,13 @@ export function buildSettings({ onChange, onFolderSearch }) {
     filterSwitch.node,
     filterSwitch.labelNode,
     el('span', 'rs-switch-row__gap'),
-    createInfo(TIP_FILTERS).node,
+    createInfo(L(TIP_FILTERS)).node,
   );
   step3.appendChild(filterRow);
 
   /* Фильтрация файлов */
   step3.appendChild(filtersBody);
-  filtersBody.appendChild(el('div', 'rs-step__title', 'Фильтрация файлов'));
+  filtersBody.appendChild(el('div', 'rs-step__title', L('Фильтрация файлов')));
 
   const typeRow = el('div', 'rs-filter-row');
   const typeCheckboxes = new Map();
@@ -570,7 +567,7 @@ export function buildSettings({ onChange, onFolderSearch }) {
   ].forEach(([key, label]) => {
     const box = createCheckbox({
       checked: s[key],
-      label,
+      label: L(label),
       onChange: (value) => {
         setSetting(key, value);
         if (onChange) onChange(key, value);
@@ -582,7 +579,7 @@ export function buildSettings({ onChange, onFolderSearch }) {
   filtersBody.appendChild(typeRow);
 
   /* Фильтрация авторов */
-  filtersBody.appendChild(el('div', 'rs-step__title', 'Фильтрация авторов'));
+  filtersBody.appendChild(el('div', 'rs-step__title', L('Фильтрация авторов')));
 
   const includeRow = el('div', 'rs-step__row');
 
@@ -590,7 +587,7 @@ export function buildSettings({ onChange, onFolderSearch }) {
     value: normalizeAuthorFilterValue(
       s.authorInclude,
     ),
-    placeholder: 'через запятую',
+    placeholder: L('через запятую'),
     at: true,
     onCommit: (value) => {
       const normalized =
@@ -625,7 +622,7 @@ export function buildSettings({ onChange, onFolderSearch }) {
     el(
       'div',
       'rs-field-label',
-      'Только эти авторы:',
+      L('Только эти авторы:'),
     ),
     includeField.node,
   );
@@ -636,7 +633,7 @@ export function buildSettings({ onChange, onFolderSearch }) {
     value: normalizeAuthorFilterValue(
       s.authorExclude,
     ),
-    placeholder: 'через запятую',
+    placeholder: L('через запятую'),
     at: true,
     onCommit: (value) => {
       const normalized =
@@ -671,7 +668,7 @@ export function buildSettings({ onChange, onFolderSearch }) {
     el(
       'div',
       'rs-field-label',
-      'Исключить авторов:',
+      L('Исключить авторов:'),
     ),
     excludeField.node,
   );
@@ -689,11 +686,19 @@ export function buildSettings({ onChange, onFolderSearch }) {
 
   return {
     node: root,
+    showStopLinkError() {
+      stopLinkValidationRequested = true;
+      validateStopLink();
+      stopLinkField.input.focus();
+      stopLinkFieldRow.scrollIntoView({ block: 'nearest' });
+    },
+    setArchiveStatus: archivePicker.setStatus,
     sync(nextSettings = state.settings) {
       const next =
         nextSettings || state.settings;
 
       sourceGroup.set(next.source);
+      setUiText(sourceGroup.rowOf('meta').querySelector('.rs-radio-row__label'), next.platform === 'pinterest' ? 'Из архива Pinterest' : 'Из архива Meta');
 
       browserBlock.style.display =
         next.source === 'browser'
@@ -760,6 +765,16 @@ export function buildSettings({ onChange, onFolderSearch }) {
       );
     },
 
+    setBrowsers(options, value) {
+      browserSelect.setOptions(options.map(option => ({ ...option, label: L(option.label) })), value);
+      browserSelect.setDisabled(options.length === 0);
+    },
+    setProfileHint(text, platform) {
+      profileLabel.info?.setText(text);
+      bindTextRender(browserHint, 'profile-hint', L(text), (node, value) => { node.textContent = value.replace(/\*\*/g, ''); });
+      const label = accountLabel.querySelector('.rs-field-label__text');
+      if (label) setText(label, L(platform + '-аккаунт'));
+    },
     setUsername(value) {
       accountField.set(value);
     },
@@ -808,12 +823,12 @@ export function buildStatus({ onCommand } = {}) {
   const text = el(
     'div',
     'rs-status__text',
-    'Готов к работе',
+    L('Готов к работе'),
   );
   const hint = el(
     'div',
     'rs-status__hint',
-    'Заполните шаг 1 и нажмите «Начать поиск»',
+    L('Заполните шаг 1 и нажмите «Начать поиск»'),
   );
 
   const row = el('div', 'rs-status__row');
@@ -831,13 +846,15 @@ export function buildStatus({ onCommand } = {}) {
     node: root,
 
     set(message, hintMessage, busy = false) {
-      text.textContent = message;
+      setUiText(text, message);
+      setLocalizedProperty(text, 'title', L(message));
 
       if (
         hintMessage !== undefined &&
         hintMessage !== null
       ) {
-        hint.textContent = hintMessage;
+        setUiText(hint, hintMessage);
+        setLocalizedProperty(hint, 'title', L(hintMessage));
       }
 
       root.classList.toggle(
@@ -1050,8 +1067,10 @@ function readSavedTableColumns() {
 
     if (
       parsed.some(
-        (width) =>
-          !Number.isFinite(width),
+        (width, index) =>
+          !Number.isFinite(width) ||
+          width < TABLE_COLUMN_MIN_WIDTHS[index] ||
+          width > TABLE_COLUMN_DEFAULT_WIDTHS.reduce((sum, value) => sum + value, 0),
       )
     ) {
       return null;
@@ -1467,13 +1486,13 @@ export function buildResults({ onClear, onToggleAll, onThumbnails, onRowToggle,
   const head = el('div', 'rs-results__head');
 
   const titleRow = el('div', 'rs-results__title-row');
-  const title = el('div', 'rs-results__title', 'Найденные публикации');
+  const title = el('div', 'rs-results__title', L('Найденные публикации'));
   const clearButton = createGhostButton({
-    label: 'Очистить список',
+    label: L('Очистить список'),
     onClick: () => { if (onClear) onClear(); },
   });
   const resetAllButton = createGhostButton({
-    label: 'Сбросить правки',
+    label: L('Сбросить правки'),
     onClick: () => { if (onResetAll) onResetAll(); },
   });
   resetAllButton.node.style.display = 'none';
@@ -1487,7 +1506,7 @@ export function buildResults({ onClear, onToggleAll, onThumbnails, onRowToggle,
 
   const thumbSwitch = createSwitch({
     checked: state.settings.thumbnails,
-    label: 'Миниатюры',
+    label: L('Миниатюры'),
     onChange: (value) => {
       setSetting('thumbnails', value);
       if (onThumbnails) onThumbnails(value);
@@ -1498,7 +1517,7 @@ export function buildResults({ onClear, onToggleAll, onThumbnails, onRowToggle,
 
   const selectAll = createCheckbox({
     checked: false,
-    label: 'Выбрать всё',
+    label: L('Выбрать всё'),
     onChange: (value) => { if (onToggleAll) onToggleAll(value); },
   });
 
@@ -1523,23 +1542,23 @@ export function buildResults({ onClear, onToggleAll, onThumbnails, onRowToggle,
   const columnDefinitions = [
     {
       id: 'lead',
-      label: 'Выбранные',
+      label: L('Выбранные'),
     },
     {
       id: 'author',
-      label: 'Автор',
+      label: L('Автор'),
     },
     {
       id: 'structure',
-      label: 'Структура',
+      label: L('Структура'),
     },
     {
       id: 'name',
-      label: 'Название в Eagle',
+      label: L('Название в Eagle'),
     },
     {
       id: 'description',
-      label: 'Описание в Eagle',
+      label: L('Описание в Eagle'),
     },
   ];
 
@@ -1575,12 +1594,9 @@ export function buildResults({ onClear, onToggleAll, onThumbnails, onRowToggle,
         resizer.dataset.resizeIndex =
           String(index);
 
-        resizer.setAttribute(
-          'aria-label',
-          `Изменить ширину колонки ${
-            column.label || 'выбора'
-          }`,
-        );
+        bindTextRender(resizer, 'column-label', L(column.label || 'выбора'), (node, label) => {
+          node.ariaLabel = translate(`Изменить ширину колонки ${label}`);
+        });
 
         cell.appendChild(resizer);
       }
@@ -1622,7 +1638,7 @@ export function buildResults({ onClear, onToggleAll, onThumbnails, onRowToggle,
   const engineTitle = el(
     'div',
     'rs-results__engine-title',
-    'Проверяем движок загрузки…',
+    L('Проверяем движок загрузки…'),
   );
 
   const engineDescriptionRow = el(
@@ -1633,16 +1649,16 @@ export function buildResults({ onClear, onToggleAll, onThumbnails, onRowToggle,
   const engineDescription = el(
     'div',
     'rs-results__engine-description',
-    'Подождите, идёт проверка Gallery-DL.',
+    L('Подождите, идёт проверка Gallery-DL.'),
   );
 
   engineDescriptionRow.append(
     engineDescription,
-    createInfo(TIP_ENGINE).node,
+    createInfo(L(TIP_ENGINE)).node,
   );
 
   const engineButton = createGhostButton({
-    label: 'Скачать',
+    label: L('Скачать'),
     onClick: () => {
       if (onInstall) onInstall();
     },
@@ -1707,13 +1723,12 @@ export function buildResults({ onClear, onToggleAll, onThumbnails, onRowToggle,
       );
     });
 
-    engineTitle.textContent = message;
+    setUiText(engineTitle, message);
 
-    engineDescription.textContent =
-      detail ||
+    setUiText(engineDescription, L(detail ||
       (kind === 'checking'
         ? 'Подождите, идёт проверка Gallery-DL.'
-        : '');
+        : '')));
 
     engineButton.node.hidden = !button;
 
@@ -1723,7 +1738,7 @@ export function buildResults({ onClear, onToggleAll, onThumbnails, onRowToggle,
     }
 
     engineDetail.hidden = true;
-    engineDetail.textContent = '';
+    setText(engineDetail, '');
 
     engineBar.hidden = progress === null;
 
@@ -1741,6 +1756,7 @@ export function buildResults({ onClear, onToggleAll, onThumbnails, onRowToggle,
   root.append(head, engineEmpty, table);
 
   return {
+    showArchive() { engineEmpty.hidden = true; head.hidden = false; table.hidden = false; },
     node: root,
     body,
     title,
@@ -1757,9 +1773,9 @@ export function buildResults({ onClear, onToggleAll, onThumbnails, onRowToggle,
       },
     },
     setTitle(count, total) {
-      title.textContent = total
+      setText(title, L(total
         ? `Найденные публикации — ${count} из ${total}`
-        : 'Найденные публикации';
+        : 'Найденные публикации'));
     },
   };
 }
@@ -1767,354 +1783,7 @@ export function buildResults({ onClear, onToggleAll, onThumbnails, onRowToggle,
 /* ============================================================
    6 блок — нумерация и описание
    ============================================================ */
-export function buildNaming({ onChange }) {
-  const root = el('div', 'rs-naming');
-  const body = el('div', 'rs-naming__body rs-scroll');
-  const s = state.settings;
-
-  body.appendChild(el('div', 'rs-naming__title', 'Нумерация и описание'));
-
-  /* ---------- Тумблер нумерации ---------- */
-  const numberingSwitch = createSwitch({
-    checked: s.numberingEnabled,
-    label: 'Использовать нумерацию',
-    onChange: (value) => {
-      setSetting('numberingEnabled', value);
-      numberingGrid.style.display = value ? '' : 'none';
-      if (onChange) onChange();
-    },
-  });
-  const numberingRow = el('div', 'rs-switch-row');
-  numberingRow.append(
-    numberingSwitch.node,
-    numberingSwitch.labelNode,
-    el('span', 'rs-switch-row__gap'),
-    createInfo(TIP_NUMBERING).node,
-  );
-  body.appendChild(numberingRow);
-
-  /* ---------- Настройки нумерации ---------- */
-  const numberingGrid = el('div', 'rs-naming__grid');
-  numberingGrid.style.display = s.numberingEnabled ? '' : 'none';
-
-  const cell = (label, control) => {
-    const box = el('div', 'rs-naming__cell');
-    box.append(el('div', 'rs-naming__label', label), control);
-    return box;
-  };
-
-  const destinationSelect = createSelect({
-    options: [
-      { value: 'name', label: 'Название' },
-      { value: 'description', label: 'Описание' },
-      { value: 'both', label: 'Название и описание' },
-    ],
-    value: s.numberingDestination,
-    onChange: (value) => {
-      setSetting('numberingDestination', value);
-      if (onChange) onChange();
-    },
-  });
-
-  const markerField = createField({
-    value: s.numberingMarker,
-    placeholder: 'instpoporder-',
-    onCommit: (value) => {
-      setSetting('numberingMarker', value);
-      if (onChange) onChange();
-    },
-  });
-
-  const counterOptions = [
-    {
-      value: 'global',
-      label: 'Общий номер публикации',
-    },
-    {
-      value: 'carousel',
-      label: 'Номер элемента карусели',
-    },
-    {
-      value: 'none',
-      label: 'Не использовать',
-    },
-    {
-      value: 'batch',
-      label: 'Номер в текущей загрузке',
-    },
-    {
-      value: 'author',
-      label: 'Номер публикации автора',
-    },
-    {
-      value: 'type',
-      label: 'Номер публикации этого типа',
-    },
-  ];
-
-  const counterOneStartSpinner =
-    createSpinner({
-      value: s.counterOneStart,
-      min: 1,
-      width: 110,
-      onChange: (value) => {
-        setSetting(
-          'counterOneStart',
-          value,
-        );
-
-        if (onChange) {
-          onChange();
-        }
-      },
-    });
-
-  const counterTwoStartSpinner =
-    createSpinner({
-      value: s.counterTwoStart,
-      min: 1,
-      width: 110,
-      onChange: (value) => {
-        setSetting(
-          'counterTwoStart',
-          value,
-        );
-
-        if (onChange) {
-          onChange();
-        }
-      },
-    });
-
-  let counterOne;
-  let counterTwo;
-
-  function syncCounterAvailability() {
-    const firstDisabled =
-      state.settings.counterOne ===
-      'none';
-
-    const secondDisabled =
-      firstDisabled;
-
-    counterOneStartSpinner.setDisabled(
-      state.settings.counterOne ===
-      'none',
-    );
-
-    counterTwo.setDisabled(
-      secondDisabled,
-    );
-
-    counterTwoStartSpinner.setDisabled(
-      secondDisabled ||
-      state.settings.counterTwo ===
-        'none',
-    );
-  }
-
-  counterOne = createSelect({
-    options: counterOptions,
-    value: s.counterOne,
-    onChange: (value) => {
-      setSetting(
-        'counterOne',
-        value,
-      );
-
-      syncCounterAvailability();
-
-      if (onChange) {
-        onChange();
-      }
-    },
-  });
-
-  counterTwo = createSelect({
-    options: counterOptions,
-    value: s.counterTwo,
-    onChange: (value) => {
-      setSetting(
-        'counterTwo',
-        value,
-      );
-
-      syncCounterAvailability();
-
-      if (onChange) {
-        onChange();
-      }
-    },
-  });
-
-  syncCounterAvailability();
-
-  numberingGrid.append(
-    cell(
-      'Добавлять в:',
-      destinationSelect.node,
-    ),
-    cell(
-      'Текст перед номером:',
-      markerField.node,
-    ),
-    cell(
-      'Первый счётчик:',
-      counterOne.node,
-    ),
-    cell(
-      'Начальное число первого счётчика:',
-      counterOneStartSpinner.node,
-    ),
-    cell(
-      'Второй счётчик:',
-      counterTwo.node,
-    ),
-    cell(
-      'Начальное число второго счётчика:',
-      counterTwoStartSpinner.node,
-    ),
-  );
-  body.appendChild(numberingGrid);
-
-  body.appendChild(el('div', 'rs-divider'));
-
-  /* ---------- Тумблер описания ---------- */
-  const descriptionSwitch = createSwitch({
-    checked: s.descriptionEnabled,
-    label: 'Добавить описание',
-    onChange: (value) => {
-      setSetting('descriptionEnabled', value);
-      descriptionGrid.style.display = value ? '' : 'none';
-      if (onChange) onChange();
-    },
-  });
-  const descriptionRow = el('div', 'rs-switch-row');
-  descriptionRow.append(
-    descriptionSwitch.node,
-    descriptionSwitch.labelNode,
-    el('span', 'rs-switch-row__gap'),
-    createInfo(TIP_DESCRIPTION).node,
-  );
-  body.appendChild(descriptionRow);
-
-  const descriptionGrid = el('div', 'rs-naming__grid');
-  descriptionGrid.style.display = s.descriptionEnabled ? '' : 'none';
-
-  const descriptionDestination = createSelect({
-    options: [
-      { value: 'description', label: 'Описание' },
-      { value: 'name', label: 'Название' },
-      { value: 'both', label: 'Название и описание' },
-    ],
-    value: s.descriptionDestination,
-    onChange: (value) => {
-      setSetting('descriptionDestination', value);
-      if (onChange) onChange();
-    },
-  });
-
-  const placementGroup = createRadioGroup([
-    { value: 'start', label: 'Начало списка' },
-    { value: 'end', label: 'Конец списка' },
-  ], {
-    value: s.descriptionPlacement,
-    onChange: (value) => {
-      setSetting('descriptionPlacement', value);
-      if (onChange) onChange();
-    },
-  });
-  const placementBox = el('div', 'rs-filter-row');
-  placementBox.append(
-    placementGroup.rowOf('start'),
-    placementGroup.rowOf('end'),
-  );
-
-  const extraField = createField({
-    value: s.extraDescription,
-    placeholder: 'Необязательный текст для выбранных публикаций',
-    onCommit: (value) => {
-      setSetting('extraDescription', value);
-      if (onChange) onChange();
-    },
-  });
-
-  descriptionGrid.append(
-    cell('Добавлять в:', descriptionDestination.node),
-    cell('Куда добавлять?', placementBox),
-    cell('Дополнительное описание:', extraField.node),
-  );
-  body.appendChild(descriptionGrid);
-
-  root.appendChild(body);
-
-  return {
-    node: root,
-
-    sync(nextSettings = state.settings) {
-      const next =
-        nextSettings || state.settings;
-
-      numberingSwitch.set(
-        next.numberingEnabled,
-        true,
-      );
-
-      numberingGrid.style.display =
-        next.numberingEnabled
-          ? ''
-          : 'none';
-
-      destinationSelect.set(
-        next.numberingDestination,
-      );
-
-      markerField.set(
-        next.numberingMarker,
-      );
-
-      counterOne.set(
-        next.counterOne,
-      );
-
-      counterOneStartSpinner.set(
-        next.counterOneStart,
-      );
-
-      counterTwo.set(
-        next.counterTwo,
-      );
-
-      counterTwoStartSpinner.set(
-        next.counterTwoStart,
-      );
-
-      descriptionSwitch.set(
-        next.descriptionEnabled,
-        true,
-      );
-
-      descriptionGrid.style.display =
-        next.descriptionEnabled
-          ? ''
-          : 'none';
-
-      descriptionDestination.set(
-        next.descriptionDestination,
-      );
-
-      placementGroup.set(
-        next.descriptionPlacement,
-      );
-
-      extraField.set(
-        next.extraDescription,
-      );
-
-      syncCounterAvailability();
-    },
-  };
-}
+export { buildNaming } from './naming-panel.js';
 
 /* ============================================================
    Нижняя полоса: журнал + кнопка действия
@@ -2124,14 +1793,14 @@ export function buildFooter({ onLog, onAction }) {
 
   const left = el('div', 'rs-footer__left');
   const logButton = createButton({
-    label: 'Показать технический журнал',
+    label: L('Показать технический журнал'),
     onClick: () => { if (onLog) onLog(); },
   });
   left.appendChild(logButton.node);
 
   const right = el('div', 'rs-footer__right');
   const action = createGlassButton({
-    label: 'Начать поиск',
+    label: L('Начать поиск'),
     onClick: () => { if (onAction) onAction(); },
   });
   const actionBox = el('div', 'rs-footer__action');
@@ -2156,7 +1825,7 @@ export function buildLog() {
       const time = new Date().toLocaleTimeString('ru-RU');
       const line = el('div',
         `rs-log__line${kind ? ` rs-log__line--${kind}` : ''}`,
-        `[${time}] ${message}`);
+        joinText(`[${time}] `, L(message)));
       list.appendChild(line);
       list.scrollTop = list.scrollHeight;
       /* Не даём журналу расти бесконечно */
@@ -2173,16 +1842,16 @@ export function buildLog() {
 export function buildCollectionModal({ onConfirm, onCancel }) {
   const root = el('div', 'rs-modal');
   const box = el('div', 'rs-modal__box');
-  const title = el('div', 'rs-modal__title', 'Выберите коллекции');
+  const title = el('div', 'rs-modal__title', L('Выберите коллекции'));
   const list = el('div', 'rs-modal__list rs-scroll');
   const foot = el('div', 'rs-modal__foot');
 
   const cancel = createGhostButton({
-    label: 'Отмена',
+    label: L('Отмена'),
     onClick: () => { if (onCancel) onCancel(); },
   });
   const confirm = createGhostButton({
-    label: 'Продолжить',
+    label: L('Продолжить'),
     onClick: () => { if (onConfirm) onConfirm(); },
   });
 
@@ -2213,7 +1882,7 @@ export function buildMessageModal() {
   message.style.lineHeight = '1.5';
 
   const closeButton = createGhostButton({
-    label: 'Закрыть',
+    label: L('Закрыть'),
     onClick: () => {
       root.classList.remove('is-open');
     },
@@ -2236,8 +1905,8 @@ export function buildMessageModal() {
       title: nextTitle = 'Требуется действие',
       text = '',
     } = {}) {
-      title.textContent = nextTitle;
-      message.textContent = text;
+      setUiText(title, nextTitle);
+      setUiText(message, text);
       root.classList.add('is-open');
     },
 
@@ -2265,7 +1934,7 @@ export function buildCarouselModal() {
   const title = el(
     'div',
     'rs-modal__title rs-carousel-modal__title',
-    'Выберите нужные файлы',
+    L('Выберите нужные файлы'),
   );
 
   const content = el(
@@ -2658,8 +2327,7 @@ export function buildCarouselModal() {
 
     const selected = currentSelection.size;
 
-    summary.textContent =
-    `Выбрано файлов: ${selected} из ${availableTotal}`;
+    setText(summary, L(`Выбрано файлов: ${selected} из ${availableTotal}`));
   }
 
   function updateSelection(nextSelection) {
@@ -2759,7 +2427,7 @@ function syncComponentCheckboxes() {
   }
 
   const selectAllButton = createGhostButton({
-    label: 'ВЫБРАТЬ ВСЁ',
+    label: L('ВЫБРАТЬ ВСЁ'),
     onClick: () => {
       if (!currentPost) return;
       updateSelection(
@@ -2769,14 +2437,14 @@ function syncComponentCheckboxes() {
   });
 
   const clearButton = createGhostButton({
-    label: 'СНЯТЬ ВСЁ',
+    label: L('СНЯТЬ ВСЁ'),
     onClick: () => {
       updateSelection(clearSelection());
     },
   });
 
   const imagesButton = createGhostButton({
-    label: 'ЛИШЬ ИЗОБРАЖЕНИЯ',
+    label: L('ЛИШЬ ИЗОБРАЖЕНИЯ'),
     onClick: () => {
       if (!currentPost) return;
       updateSelection(
@@ -2786,7 +2454,7 @@ function syncComponentCheckboxes() {
   });
 
   const videosButton = createGhostButton({
-    label: 'ЛИШЬ ВИДЕО',
+    label: L('ЛИШЬ ВИДЕО'),
     onClick: () => {
       if (!currentPost) return;
       updateSelection(
@@ -2813,7 +2481,7 @@ function syncComponentCheckboxes() {
   const thumbnailsLabel = el(
     'span',
     'rs-carousel-modal__thumbnails-label',
-    'Миниатюры',
+    L('Миниатюры'),
   );
 
   thumbnailsControl.append(
@@ -2835,7 +2503,7 @@ function syncComponentCheckboxes() {
   summaryRow.append(summary, thumbnailsControl);
 
   const cancel = createButton({
-    label: 'Отмена',
+    label: L('Отмена'),
     onClick: () => cancelModal(),
   });
 
@@ -2998,7 +2666,7 @@ function syncComponentCheckboxes() {
 
         if (isImported) {
          row.setAttribute('aria-disabled', 'true');
-          row.title = 'Этот файл уже импортирован в Eagle';
+          setLocalizedProperty(row, 'title', L('Этот файл уже импортирован в Eagle'));
         }
 
         const hasThumbnail = Boolean(
@@ -3152,17 +2820,7 @@ function syncComponentCheckboxes() {
             'rs-carousel-modal__thumbnail',
           );
 
-          const image = document.createElement('img');
-          image.loading = 'lazy';
-          image.src = component.previewUrl;
-          image.alt = '';
-
-          image.addEventListener('error', () => {
-            thumbnail.classList.add('is-empty');
-            image.remove();
-          });
-
-          thumbnail.appendChild(image);
+          attachThumbnail(thumbnail, component.previewUrl);
           row.appendChild(thumbnail);
         }
 
@@ -3180,7 +2838,7 @@ function syncComponentCheckboxes() {
         const media = el(
           'span',
           'rs-carousel-modal__media',
-          display.label,
+          L(display.label),
         );
 
         const label = el(
@@ -3195,7 +2853,7 @@ function syncComponentCheckboxes() {
             el(
               'span',
               'rs-carousel-modal__imported',
-              'Уже в Eagle',
+              L('Уже в Eagle'),
             ),
           );
         }

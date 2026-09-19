@@ -84,7 +84,7 @@
 }
 
 /* --- State=Off, Status=Hovered: ручка немного смещена --- */
-.rs-switch:not(.is-on):hover .rs-switch__knob { left: 13.89%; }
+.rs-switch:not(.is-on):not(.is-hover-suppressed):hover .rs-switch__knob { animation: rs-switch-nudge 300ms ease; }
 
 /* --- State=On --- */
 .rs-switch.is-on {
@@ -95,7 +95,7 @@
 .rs-switch.is-on .rs-switch__knob { left: 30.56%; }
 
 /* State=On, Status=Hovered: ручка отходит назад */
-.rs-switch.is-on:hover .rs-switch__knob { left: 22.22%; }
+.rs-switch.is-on:not(.is-hover-suppressed):hover .rs-switch__knob { animation: rs-switch-nudge-back 300ms ease; }
 
 .rs-switch.is-disabled { opacity: 0.4; pointer-events: none; }
 
@@ -1331,12 +1331,12 @@
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
-  color: rgba(112, 112, 112, 0.2);
+  color: #707070;
 }
 .rs-field__placeholder-suffix {
   flex: none;
   margin-left: 2px;
-  color: rgba(112, 112, 112, 0.55);
+  color: #707070;
 }
 .rs-field__input:not(:placeholder-shown) + .rs-field__split-placeholder,
 .rs-field.is-focus .rs-field__split-placeholder { display: none; }
@@ -1354,10 +1354,11 @@
   font-family: var(--font-sans);
   font-size: 11px;
   line-height: 16px;
-  color: #FF4A3D;
+  color: #D3522D;
 }
 .rs-stop-link.has-error .rs-stop-link__message { display: block; }
-.rs-stop-link.has-error .rs-field { border-color: rgba(255, 74, 61, 0.65); }
+.rs-stop-link.has-error .rs-field { border-color: #D3522D; }
+.rs-stop-link.has-error .rs-field::before { opacity: 0; }
 
 /* Vector 2 — единый SVG-контур 10×5 из Input field */
 .rs-field__chevron {
@@ -3038,4 +3039,37 @@ textarea.rs-editable {
 .rs-cell--desc:hover > .rs-edit {
   opacity: 1;
   pointer-events: auto;
+}
+
+@keyframes rs-switch-nudge { 50% { transform: translateX(3px); } }
+@keyframes rs-switch-nudge-back { 50% { transform: translateX(-3px); } }
+.rs-switch.is-hover-suppressed,
+.rs-switch.is-hover-suppressed::after,
+.rs-switch.is-hover-suppressed .rs-switch__knob { transition: none; animation: none; }
+@media (prefers-reduced-motion: reduce) {
+  .rs-switch .rs-switch__knob { animation: none !important; transition: none; }
+}
+
+.rs-field__at { font-size: 0; background: url('../assets/field-at.svg') center / 14px 14px no-repeat; }
+/* Full_design/Social media button: pressed icon layers use overlay. */
+.rs-soc:not(.is-locked):active .rs-soc__icon { color: #FDF1E5; mix-blend-mode: overlay; filter: none; transition: none; }
+.rs-soc:not(.is-locked):active .rs-soc__plate { top: 2px; transition: none; }
+.rs-soc__plate, .rs-soc__icon { transition-duration: 150ms; }
+.rs-soc.is-locked { pointer-events: auto; }
+.rs-soc-tip { position: fixed; width: max-content; max-width: min(280px, calc(100vw - 16px)); }
+
+/* The Russian reference uses fixed button widths. Longer translations wrap
+   into two columns while preserving the list and all actions. */
+html:not([lang='ru']) .rs-carousel-modal__box { height: auto; max-height: calc(100vh - 40px); }
+html:not([lang='ru']) .rs-carousel-modal__content { height: auto; }
+html:not([lang='ru']) .rs-carousel-modal__controls {
+  display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); height: auto;
+}
+html:not([lang='ru']) .rs-carousel-modal__controls > * {
+  width: 100%; height: auto; min-height: 30px; white-space: normal; overflow-wrap: anywhere;
+}
+html:not([lang='ru']) .rs-carousel-modal__summary-row,
+html:not([lang='ru']) .rs-carousel-modal__summary { height: auto; min-height: 16px; }
+html:not([lang='ru']) .rs-carousel-modal .rs-carousel-modal__controls > * {
+  width: 100% !important; height: auto !important; white-space: normal !important;
 }

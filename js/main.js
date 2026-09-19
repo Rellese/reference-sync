@@ -1,3 +1,9 @@
+import { joinText, L, setText, setUiText, setLocalizedProperty, setLanguage } from './i18n.js';
+import { startPickerDrag } from './picker-drag.js';
+import { readArchive } from './archive-reader.js';
+import { resolveArchiveLinks, downloadArchivePosts } from './archive-transfer.js';
+import { installPanelResizers } from './panel-resize.js';
+import { attachThumbnail } from './thumbnail.js';
 /* ============================================================
    ReferenceSync — точка входа плагина Eagle
 
@@ -73,9 +79,12 @@ import {
 
 import {
   getSource,
+  listSources,
   getSourceForPosts,
 } from './sources/index.js';
 import { stopLinkFromSettings } from './stop-link.js';
+import { discoverInstalledBrowsers } from './browser-installations.js';
+import { createProfileSessionController } from './profile-session.js';
 
 import {
   checkEagle,
@@ -140,6 +149,7 @@ import {
 
 /* Текущая фаза: idle | searching | ready | importing */
 let phase = 'idle';
+let archiveData = null;
 
 let ui = {};
 
@@ -172,6 +182,8 @@ let counterHistoryRecords = new Map();
  * Это состояние интерфейса, поэтому в настройки не записывается.
  */
 const collapsedCollectionIds = new Set();
+const collectionHeaderCheckboxes = new Map();
+const tablePostCopies = new Map();
 
 /*
  * Свёрнутые доски на первом этапе,
@@ -457,6 +469,12 @@ async function restoreInterruptedJob() {
   }
 
   recoveryState = stored;
+  if (stored.settings?.source === 'meta') {
+    archiveData = { source: stored.settings.platform, posts: stored.posts || [], collections: stored.archiveCollections || [], links: stored.archiveLinks || [], stagingRoot: stored.stagingRoot };
+    state.collections = archiveData.collections;
+    ui.settings.setArchiveStatus(`Восстановлено публикаций: ${archiveData.posts.length}. Ссылок: ${archiveData.links.length}.`, archiveData.links.length);
+    ui.results.showArchive();
+  }
 
   if (
     stored.settings &&
@@ -569,6 +587,10 @@ function bindCloseLifecycle() {
 async function boot() {
   bindCloseLifecycle();
   loadSettings();
+  if (!listSources().some(source => source.code === state.settings.platform && source.ready)) {
+    setSetting('platform', 'instagram');
+  }
+  setLanguage(state.settings.language);
   state.importRecords = loadImportRecords();
 
   counterHistoryRecords =
@@ -580,8 +602,7 @@ async function boot() {
 
   ui.header = buildHeader({
     onLanguage: (code) => {
-      setSetting('language', code);
-      ui.log.add(`Язык интерфейса: ${code}. Перевод строк подключим позже.`, 'warn');
+      setSetting('language', setLanguage(code));
     },
   });
 
@@ -589,15 +610,17 @@ async function boot() {
     onSelect: (platform) => {
       setSetting('platform', platform);
       ui.settings?.sync();
+      refreshProfileSession();
       ui.log.add(`Выбрана платформа: ${platform}`);
     },
   });
 
   ui.settings = buildSettings({
+    onArchive: readSelectedArchive,
+    onArchiveResolve: resolveSelectedArchive,
     onChange: (key) => {
-      if (key === 'browser') {
-        refreshBrowserProfiles();
-      }
+      if (key === 'browser') refreshBrowserProfiles();
+      else if (key === 'browserProfile') refreshProfileSession();
 
       if (key === 'extraFilters' || key.startsWith('filter') ||
           key.startsWith('author')) {
@@ -673,6 +696,7 @@ async function boot() {
   );
 
   document.body.appendChild(app);
+  installPanelResizers({ app, work, right, settings: ui.settings.node, results: ui.results.node, naming: ui.naming.node });
 
   renderTable();
   bindShortcuts();
@@ -690,6 +714,11 @@ async function boot() {
    Профили выбранного браузера
    ------------------------------------------------------------ */
 function refreshBrowserProfiles() {
+  const installed = discoverInstalledBrowsers();
+  if (!installed.some(entry => entry.value === state.settings.browser)) {
+    setSetting('browser', installed[0]?.value || '');
+  }
+  ui.settings.setBrowsers(installed, state.settings.browser);
   const browser = state.settings.browser;
   const profiles = discoverBrowserProfiles(browser);
 
@@ -701,6 +730,7 @@ function refreshBrowserProfiles() {
 
   setSetting('browserProfile', selectedId);
   ui.settings.setBrowserProfiles(profiles, selectedId);
+  refreshProfileSession();
 
   if (!profiles.length) {
     ui.log?.add(
@@ -772,6 +802,7 @@ async function checkToolchain() {
   });
 
   if (toolchain.ready) {
+    refreshProfileSession();
     ui.results.engine.setState('ready',
       `Движок загрузки готов · gallery-dl ${versionString(toolchain.version)}`,
       { button: 'Обновить' });
@@ -813,6 +844,7 @@ async function prepareToolchain() {
       },
     });
 
+    refreshProfileSession();
     ui.results.engine.setState('ready',
       `Движок загрузки готов · gallery-dl ${versionString(toolchain.version)}`,
       { button: 'Обновить', progress: 100 });
@@ -967,6 +999,36 @@ function publicationInfo() {
   };
 }
 
+const profileSession = createProfileSessionController({
+  async probe(settings, signal) {
+    if (!nodeApi.available || !toolchain.ready) return { status: 'unavailable' };
+    const probe = getSource(settings.platform).probe;
+    if (probe) return probe({ ...settings, signal });
+    return { status: 'unavailable' };
+  },
+  onState(result) {
+    const settings = result.settings;
+    const source = getSource(settings.platform).title;
+    const profiles = discoverBrowserProfiles(settings.browser);
+    const profile = profiles.find(p => p.id === settings.browserProfile);
+    const name = profile ? `${profile.name} (${profile.id})` : L('Стандартный профиль');
+    const status = result.status === 'authenticated' ? `В ${source} авторизован **@${result.username}**.`
+      : result.status === 'checking' ? 'Проверяем аккаунт…'
+      : result.status === 'signed-out' ? `Вход в ${source} не выполнен.`
+      : result.status === 'unavailable' ? 'Аккаунт будет проверен после подготовки движка.'
+      : result.status === 'network-error' ? `Не удалось связаться с ${source}. Проверьте соединение и VPN.`
+      : result.status === 'browser-error' ? 'Не удалось прочитать выбранный профиль браузера. Проверьте доступ к нему.'
+      : result.status === 'access-denied' ? `${source} отклонил проверку. Откройте сайт в выбранном профиле браузера.`
+      : result.status === 'rate-limited' ? `${source} временно ограничил запросы. Повторите проверку позже.`
+      : 'Сайт ответил, но не передал данные аккаунта. Проверьте вход в выбранном профиле.';
+    ui.settings?.setProfileHint(joinText(name, '. ', L(status)), source);
+  },
+});
+
+function refreshProfileSession() {
+  if (state.settings.source === 'browser') profileSession.refresh(state.settings);
+}
+
 async function requireMatchingInstagramSession(settings, signal) {
   const browserName = browserDisplayName(settings.browser);
 
@@ -1007,10 +1069,11 @@ async function requireMatchingInstagramSession(settings, signal) {
   try{
     throwIfAborted(signal);
 
-    ui.settings.setInstagramProfileHint(
-      session.username,
-      browserName,
-    );
+    if (settings.browser === state.settings.browser &&
+        settings.browserProfile === state.settings.browserProfile &&
+        state.settings.platform === 'instagram') {
+      ui.settings.setInstagramProfileHint(session.username, browserName);
+    }
 
     if (!session.authenticated) {
       const error = new Error(
@@ -1228,6 +1291,65 @@ function resolveSelectedCollections(
     }));
 }
 
+function presentArchive() {
+  state.posts = [...new Map(archiveData.posts.map(post => [post.postId, post])).values()];
+  state.collections = archiveData.collections || [];
+  state.selected = new Set(state.posts.filter(post => !state.knownPostIds.has(post.postId)).map(post => post.postId));
+  resetAllEdits(); refreshNames(); renderTable();
+  phase = state.posts.length ? 'ready' : 'idle';
+  ui.results.showArchive();
+  ui.footer.action.setLabel(state.posts.length ? 'Скачать и добавить в Eagle' : 'Начать поиск');
+  ui.settings.setArchiveStatus(`Публикаций с медиа: ${state.posts.length}. Ссылок без медиа: ${archiveData.links.length}.`, archiveData.links.length);
+  ui.status.set('Архив прочитан', archiveData.links.length ? 'Для ссылок нажмите «Загрузить публикации по ссылкам»' : 'Выберите публикации для импорта');
+  checkpointRecovery('ready', { stagingRoot: archiveData.stagingRoot, archiveLinks: archiveData.links, archiveCollections: archiveData.collections });
+}
+async function readSelectedArchive(file) {
+  if (phase === 'searching' || phase === 'importing') return;
+  const source = state.settings.platform;
+  if (!['instagram', 'pinterest'].includes(source)) { ui.status.set('Архив недоступен', 'Выберите Instagram или Pinterest'); return; }
+  let filePath = file?.path;
+  try { if (!filePath) filePath = window.require?.('electron')?.webUtils?.getPathForFile(file); } catch {}
+  if (!filePath) { ui.status.set('Не удалось открыть файл', 'Чтение архивов доступно внутри Eagle'); return; }
+  phase = 'searching'; manualStopRequested = false;
+  state.abortController = new AbortController();
+  ui.footer.action.setLabel('Остановить');
+  ui.status.set('Чтение архива…', file.name || '', true);
+  try {
+    const result = await readArchive(filePath, { source, signal: state.abortController.signal,
+      onProgress: ({ current, total }) => ui.status.set('Распаковка архива…', `${current} из ${total}`, true) });
+    discardRecovery();
+    archiveData = result;
+    await refreshImportRegistry();
+    presentArchive();
+  } catch (error) {
+    phase = state.posts.length ? 'ready' : 'idle';
+    ui.status.set('Архив не прочитан', error.message);
+    ui.footer.action.setLabel(state.posts.length ? 'Скачать и добавить в Eagle' : 'Начать поиск');
+  } finally { state.abortController = null; }
+}
+async function resolveSelectedArchive() {
+  if (phase === 'searching' || phase === 'importing' || !archiveData?.links.length) return;
+  if (archiveData.source !== state.settings.platform) { ui.status.set('Выберите соцсеть архива', archiveData.source); return; }
+  if (!await ensureToolchain()) return;
+  phase = 'searching'; manualStopRequested = false;
+  state.abortController = new AbortController(); ui.footer.action.setLabel('Остановить');
+  try {
+    const result = await resolveArchiveLinks(archiveData.links, { settings: { ...state.settings }, signal: state.abortController.signal,
+      onProgress: (current, total) => ui.status.set('Получение публикаций из архива…', `${current} из ${total}`, true),
+      onResolved: (link, posts) => {
+        archiveData.posts.push(...posts);
+        archiveData.links = archiveData.links.filter(item => item.publicationId !== link.publicationId);
+        state.posts = archiveData.posts;
+        checkpointRecovery('searching', { stagingRoot: archiveData.stagingRoot, archiveLinks: archiveData.links, archiveCollections: archiveData.collections });
+      },
+    });
+    archiveData.links = result.failed;
+    presentArchive();
+  } catch (error) {
+    presentArchive(); ui.status.set('Обработка ссылок прервана', error.message);
+  } finally { state.abortController = null; }
+}
+
 /* ---------- Поиск ---------- */
 async function runSearch() {
   /* Настройки фиксируются на момент нажатия «Поиск».
@@ -1270,14 +1392,8 @@ async function runSearch() {
   }
 
   if (s.source === 'meta') {
-    ui.log.add('Разбор архива Meta пока не реализован.', 'warn');
-    ui.status.set('Источник недоступен', 'Выберите «Через авторизованный браузер»');
-    return;
-  }
-
-  if (!s.username.trim()) {
-    ui.status.set('Не указан аккаунт', 'Введите Instagram-никнейм в шаге 1');
-    ui.log.add('Поиск невозможен: не заполнено имя аккаунта.', 'err');
+    if (archiveData?.links.length) await resolveSelectedArchive();
+    else ui.status.set('Выберите архив', 'Перетащите ZIP, JSON или HTML в область выбора файла');
     return;
   }
 
@@ -1285,9 +1401,15 @@ async function runSearch() {
   try {
     stopLink = stopLinkFromSettings(s);
   } catch (error) {
-    ui.settings.sync();
+    ui.settings.showStopLinkError();
     ui.status.set('Проверьте ссылку остановки', error.message);
     ui.log.add(error.message, 'err');
+    return;
+  }
+
+  if (!s.username.trim()) {
+    ui.status.set('Не указан аккаунт', 'Введите Instagram-никнейм в шаге 1');
+    ui.log.add('Поиск невозможен: не заполнено имя аккаунта.', 'err');
     return;
   }
 
@@ -1657,6 +1779,7 @@ async function runSearch() {
                 true,
               );
 
+              ui.results.setTitle(0, discoveryFound);
               ui.status.progress.update({
                 mode: 'search',
                 lead: collectionName
@@ -1948,7 +2071,9 @@ async function runImport() {
     return;
   }
 
-  if (!await ensureToolchain()) return;
+  const isArchiveImport = chosen.some(post => post.archiveLocal || post.archiveLink);
+  const onlyLocalArchive = chosen.every(post => post.archiveLocal);
+  if (!onlyLocalArchive && !await ensureToolchain()) return;
 
   phase = 'importing';
   manualStopRequested = false;
@@ -1979,11 +2104,11 @@ async function runImport() {
   try {
     const isInstagramImport =
       activeImportSource.code ===
-      'instagram';
+      'instagram' && !isArchiveImport;
 
     const isPinterestImport =
       activeImportSource.code ===
-      'pinterest';
+      'pinterest' && !isArchiveImport;
 
     const session =
       isInstagramImport
@@ -2039,7 +2164,7 @@ async function runImport() {
     const {
       results: newResults,
       stopReason: downloadStopReason,
-    } = await runDownload({
+    } = await (isArchiveImport ? options => downloadArchivePosts(options, runDownload) : runDownload)({
       posts: postsToDownload,
       stagingRoot: recoveryState?.stagingRoot || '',
       browser: s.browser,
@@ -2541,6 +2666,46 @@ let collectionModalResolve = null;
 let collectionPickerResolve = null;
 let collectionPickerActive = false;
 const collectionPickerChecked = new Set();
+const collectionPickerCheckboxes = new Map();
+const collectionPickerGesture = createCheckboxGestureState();
+let collectionPickerItems = [];
+
+function syncSelectionCheckbox(checkbox, selected, total) {
+  checkbox.set(total > 0 && selected === total, true);
+  checkbox.setMixed(selected > 0 && selected < total);
+  checkbox.setDisabled(total === 0);
+}
+
+function syncCollectionPickerSelection() {
+  for (const [id, entry] of collectionPickerCheckboxes) {
+    const checked = collectionPickerChecked.has(id);
+    entry.checkbox.set(checked, true);
+    entry.row.classList.toggle('is-selected', checked);
+  }
+  ui.footer.action.setDisabled(collectionPickerChecked.size === 0);
+  updateCollectionPickerTitle();
+}
+
+function selectPickerRow(id, checked, event) {
+  const ids = event?.shiftKey
+    ? applyShiftSelection({
+      orderedIds: [...collectionPickerCheckboxes.keys()],
+      selectedIds: collectionPickerChecked,
+      anchorId: collectionPickerGesture.getAnchor(),
+      targetId: id,
+      checked,
+    }).affectedIds
+    : [id];
+
+  if (!event?.shiftKey || !collectionPickerCheckboxes.has(collectionPickerGesture.getAnchor())) {
+    collectionPickerGesture.setAnchor(id);
+  }
+  for (const targetId of ids) {
+    if (checked) collectionPickerChecked.add(targetId);
+    else collectionPickerChecked.delete(targetId);
+  }
+  syncCollectionPickerSelection();
+}
 
 let collectionPickerTotal = 0;
 let collectionPickerFoundCount = 0;
@@ -2548,9 +2713,10 @@ let collectionPickerFoundCount = 0;
 function updateCollectionPickerTitle() {
   const count = collectionPickerChecked.size;
   const total = collectionPickerTotal;
-  ui.results.title.textContent = total
+  syncSelectionCheckbox(ui.results.selectAll, count, total);
+  setText(ui.results.title, L(total
     ? `Найденные коллекции — ${count} из ${total}`
-    : 'Найденные коллекции';
+    : 'Найденные коллекции'));
 
   ui.status.progress.update({
     lead: `Найдено: ${collectionPickerFoundCount} коллекций`,
@@ -2582,6 +2748,12 @@ function selectCollectionsInTable(
   collections,
 ) {
   collectionPickerActive = true;
+  stopTableSelectionSync();
+  stopTableSelectionTitleUpdate();
+  stopTableAutoScroll();
+  tableSelectionGesture.reset();
+  collectionPickerItems = collections;
+  collectionPickerGesture.reset();
   collectionPickerChecked.clear();
   collapsedCollectionPickerIds.clear();
 
@@ -2616,6 +2788,7 @@ function selectCollectionsInTable(
 function renderCollectionPickerTree(
   collections,
 ) {
+  collectionPickerCheckboxes.clear();
   const body =
     ui.results.body;
 
@@ -2629,13 +2802,13 @@ function renderCollectionPickerTree(
       el(
         'div',
         'rs-empty__title',
-        'Коллекции не найдены',
+        L('Коллекции не найдены'),
       ),
 
       el(
         'div',
         'rs-empty__text',
-        'В этом аккаунте нет доступных коллекций.',
+        L('В этом аккаунте нет доступных коллекций.'),
       ),
     );
 
@@ -2843,23 +3016,22 @@ function createCollectionPickerRow(
       checked:
         collectionPickerChecked.has(id),
 
-      onChange(value) {
-        if (value) {
-          collectionPickerChecked.add(id);
-        } else {
-          collectionPickerChecked.delete(id);
-        }
-
-        root.classList.toggle(
-          'is-selected',
-          value,
-        );
-
-        ui.footer.action.setDisabled(
-          collectionPickerChecked.size === 0,
-        );
-
-        updateCollectionPickerTitle();
+      onPointerDown(event) {
+        const checked = !collectionPickerChecked.has(id);
+        if (event.shiftKey) { selectPickerRow(id, checked, event); return true; }
+        collectionPickerGesture.beginDrag(id, checked);
+        selectPickerRow(id, checked);
+        startPickerDrag({ event, body: ui.results.body, gesture: collectionPickerGesture,
+          active: () => collectionPickerActive,
+          apply: (targetId, value) => {
+            if (value) collectionPickerChecked.add(targetId); else collectionPickerChecked.delete(targetId);
+            syncCollectionPickerSelection();
+          },
+        });
+        return true;
+      },
+      onChange(value, event) {
+        selectPickerRow(id, value, event);
       },
     });
 
@@ -2931,31 +3103,19 @@ function createCollectionPickerRow(
       );
   }
 
-  const toggleCheckbox = () => {
-    checkbox.set(
-      !checkbox.value,
-    );
+  collectionPickerCheckboxes.set(id, { checkbox, row: root });
+  root.dataset.collectionPickerId = id;
+
+  const toggleCheckbox = (event) => {
+    selectPickerRow(id, !collectionPickerChecked.has(id), event);
   };
 
-  root.addEventListener(
-    'click',
-    toggleCheckbox,
-  );
-
-  root.addEventListener(
-    'keydown',
-    (event) => {
-      if (
-        event.key !== 'Enter' &&
-        event.key !== ' '
-      ) {
-        return;
-      }
-
-      event.preventDefault();
-      toggleCheckbox();
-    },
-  );
+  root.addEventListener('click', toggleCheckbox);
+  root.addEventListener('keydown', (event) => {
+    if (event.key !== 'Enter' && event.key !== ' ') return;
+    event.preventDefault();
+    toggleCheckbox(event);
+  });
 
   root.classList.toggle(
     'is-selected',
@@ -2977,8 +3137,7 @@ function openCollectionModal(
   const list = ui.modal.list;
   clear(list);
 
-  ui.modal.title.textContent =
-    'Выберите коллекции';
+  setText(ui.modal.title, L('Выберите коллекции'));
 
   const boxes = new Map();
 
@@ -3027,7 +3186,7 @@ function openCollectionModal(
       el(
         'div',
         'rs-hint',
-        'Доступные коллекции не найдены.',
+        L('Доступные коллекции не найдены.'),
       ),
     );
   }
@@ -3170,6 +3329,7 @@ function refreshNames() {
     descriptionPlacement:
       s.descriptionPlacement,
 
+    descriptions: s.descriptions,
     extraDescription:
       s.extraDescription,
   });
@@ -3629,27 +3789,13 @@ function setTablePostChecked(post, checked) {
 }
 
 function syncTablePostCheckbox(post) {
-  const entry =
-    tableCheckboxes.get(post.postId);
-
-  if (!entry) return;
-
-  const visual =
-    tablePostVisualState(post);
-
-  entry.checkbox.set(
-    visual.checked,
-    true,
-  );
-
-  entry.checkbox.setMixed(
-    visual.mixed,
-  );
-
-  entry.row.classList.toggle(
-    'is-selected',
-    visual.selected,
-  );
+  const visual = tablePostVisualState(post);
+  for (const entry of tablePostCopies.get(post.postId) || []) {
+    entry.checkbox.set(visual.checked, true);
+    entry.checkbox.setMixed(visual.mixed);
+    entry.row.classList.toggle('is-selected', visual.selected);
+    entry.row.closest('.rs-collection__post')?.classList.toggle('is-selected', visual.selected);
+  }
 }
 
 function pressTableRange(
@@ -3699,6 +3845,16 @@ function clearTableRangePreview() {
   tableRangePreviewIds.clear();
 }
 
+function tablePostsInDisplayOrder() {
+  const posts = new Map();
+  for (const row of ui.results.body.querySelectorAll('[data-table-post-id]')) {
+    if (row.closest('.is-collapsed')) continue;
+    const id = row.dataset.tablePostId;
+    if (!posts.has(id)) posts.set(id, tableCheckboxes.get(id).post);
+  }
+  return [...posts.values()];
+}
+
 function previewTableRange(targetPostId) {
   const anchorPostId =
     tableSelectionGesture.getAnchor();
@@ -3711,9 +3867,7 @@ function previewTableRange(targetPostId) {
     return;
   }
 
-  const orderedPostIds = [
-    ...tableCheckboxes.keys(),
-  ];
+  const orderedPostIds = tablePostsInDisplayOrder().map(post => post.postId);
 
   const range = checkboxRange(
     orderedPostIds,
@@ -3794,6 +3948,18 @@ function updateTableSelectionTitle(
     posts.length,
   );
 
+  const selectable = posts.filter(collectionPostSelectable);
+  syncSelectionCheckbox(
+    ui.results.selectAll,
+    selectedVisiblePostCount(selectable),
+    selectable.length,
+  );
+  for (const { posts: groupPosts, checkbox, row } of collectionHeaderCheckboxes.values()) {
+    const selection = collectionSelectionState(groupPosts, state.selected, collectionPostSelectable);
+    checkbox.set(selection.checked, true);
+    checkbox.setMixed(selection.mixed);
+    row.classList.toggle('is-selected', selection.selectedCount > 0);
+  }
   syncFooterActionAvailability();
 }
 
@@ -3911,7 +4077,7 @@ function applyTableShiftSelection(
   targetPost,
   checked,
 ) {
-  const posts = visiblePosts();
+  const posts = tablePostsInDisplayOrder();
 
   const result = applyShiftSelection({
     orderedIds: posts.map(
@@ -4044,41 +4210,14 @@ function collectionPostSelectable(post) {
 function applyCollectionSelectionChanges(changes) {
   if (!Array.isArray(changes)) return;
 
-  const effectiveChanges = [];
-
+  beginTableSelectionHistory();
+  const postsById = new Map(state.posts.map(post => [post.postId, post]));
   for (const change of changes) {
-    const post = state.posts.find(
-      (item) => item.postId === change.postId,
-    );
-
+    const post = postsById.get(change.postId);
     if (!post || !collectionPostSelectable(post)) continue;
-
-    const beforeSelected = state.selected.has(change.postId);
-    if (beforeSelected === change.after.selected) continue;
-
-    if (change.after.selected) {
-      state.selected.add(change.postId);
-    } else {
-      state.selected.delete(change.postId);
-    }
-
-    const components = Array.isArray(post.selectedComponents)
-      ? [...post.selectedComponents]
-      : undefined;
-
-    effectiveChanges.push({
-      postId: change.postId,
-      before: { selected: beforeSelected, components },
-      after: { selected: state.selected.has(change.postId), components },
-    });
+    setTablePostChecked(post, change.after.selected);
   }
-
-  if (!effectiveChanges.length) {
-    renderTable();
-    return;
-  }
-
-  recordSelectionChange(effectiveChanges);
+  finishTableSelectionHistory();
   refreshNames();
   renderTable();
 }
@@ -4226,6 +4365,8 @@ function createCollectionHeader(
         );
       },
     });
+
+  collectionHeaderCheckboxes.set(group.id, { posts: groupPosts, checkbox, row: root });
 
   /*
    * Нажатие checkbox не должно одновременно сворачивать папку.
@@ -4479,6 +4620,8 @@ function renderTable() {
   const body = ui.results.body;
   clear(body);
   tableCheckboxes.clear();
+  tablePostCopies.clear();
+  collectionHeaderCheckboxes.clear();
 
   const posts = visiblePosts();
 
@@ -4493,20 +4636,14 @@ function renderTable() {
   }
   ui.results.resetAllButton.node.style.display = hasEdits() ? '' : 'none';
 
-  const selectedVisible = posts.filter((post) => state.selected.has(post.postId));
-  if (!posts.length) ui.results.selectAll.set(false, true);
-  else if (selectedVisible.length === posts.length) ui.results.selectAll.set(true, true);
-  else if (selectedVisible.length) ui.results.selectAll.setMixed(true);
-  else ui.results.selectAll.set(false, true);
-
   if (!posts.length) {
     const empty = el('div', 'rs-empty');
     empty.append(
-      el('div', 'rs-empty__title', 'Список пуст'),
+      el('div', 'rs-empty__title', L('Список пуст')),
       el('div', 'rs-empty__text',
-        state.posts.length
+        L(state.posts.length
           ? 'Все публикации скрыты фильтрами. Измените условия в шаге 2.'
-          : 'Заполните шаг 1, выберите режим поиска и нажмите «Начать поиск».'),
+          : 'Заполните шаг 1, выберите режим поиска и нажмите «Начать поиск».')),
     );
     body.appendChild(empty);
     return;
@@ -4539,7 +4676,7 @@ function renderRow(post) {
   row.classList.toggle('is-imported', isKnown);
 
   if (isKnown) {
-    row.title = 'Эта публикация уже добавлена в Eagle';
+    setLocalizedProperty(row, 'title', L('Эта публикация уже добавлена в Eagle'));
   }
 const grid = el('div', 'rs-table__grid');
 const carouselState = currentCarouselState(post);
@@ -4572,7 +4709,7 @@ const checkbox = createCheckbox({
 
   onChange: (value, event) => {
     beginTableSelectionHistory();
-    const checked = parentMixed
+    const checked = tablePostVisualState(post).mixed
       ? nextTablePostState(post)
       : value;
 
@@ -4663,14 +4800,11 @@ const checkbox = createCheckbox({
 row.dataset.tablePostId =
   post.postId;
 
-tableCheckboxes.set(
-  post.postId,
-  {
-    checkbox,
-    row,
-    post,
-  },
-);
+const entry = { checkbox, row, post };
+if (!tableCheckboxes.has(post.postId)) tableCheckboxes.set(post.postId, entry);
+const copies = tablePostCopies.get(post.postId) || [];
+copies.push(entry);
+tablePostCopies.set(post.postId, copies);
 
 row.addEventListener(
   'pointerenter',
@@ -4707,15 +4841,7 @@ if (isKnown) {
 
   const thumb = el('div', 'rs-thumb');
   if (state.settings.thumbnails && post.previewUrl) {
-    const image = document.createElement('img');
-    image.loading = 'lazy';
-    image.src = post.previewUrl;
-    image.alt = '';
-    image.addEventListener('error', () => {
-      thumb.classList.add('is-empty');
-      thumb.removeChild(image);
-    });
-    thumb.appendChild(image);
+    attachThumbnail(thumb, post.previewUrl);
   } else {
     thumb.classList.add('is-empty');
   }
@@ -4756,7 +4882,7 @@ if (isKnown) {
     const carouselLabel = el(
       'span',
       'rs-carousel-button__label',
-      post.type,
+      L(post.type),
     );
 
     const carouselCount = el(
@@ -4772,7 +4898,7 @@ if (isKnown) {
 
     structure.appendChild(carouselButton);
   } else {
-    structure.textContent = post.type;
+    setUiText(structure, post.type);
   }
 
   if (
@@ -4781,7 +4907,7 @@ if (isKnown) {
     !carouselState?.disabled
   ) {
     structure.classList.add('is-clickable');
-    structure.title = 'Настроить компоненты публикации';
+    setLocalizedProperty(structure, 'title', L('Настроить компоненты публикации'));
 
     structure.addEventListener('click', () => {
       const latestState = currentCarouselState(post);
@@ -4849,10 +4975,10 @@ nameCell.classList.toggle(
   isKnown,
 );
 
-nameText.textContent = cellValue(
+setText(nameText, cellValue(
   post.postId,
   'name',
-);
+));
 
 nameCell.appendChild(nameText);
 
@@ -4889,8 +5015,7 @@ if (!isKnown) {
     nameCell.appendChild(resetNameButton);
   }
 
-  nameCell.title =
-    'Двойной щелчок — редактировать';
+  setLocalizedProperty(nameCell, 'title', L('Двойной щелчок — редактировать'));
 
     nameCell.addEventListener(
     'dblclick',
@@ -5121,8 +5246,7 @@ if (!isKnown) {
       );
     }
 
-    descCell.title =
-      'Двойной щелчок — редактировать';
+    setLocalizedProperty(descCell, 'title', L('Двойной щелчок — редактировать'));
 
     descCell.addEventListener(
       'dblclick',
@@ -5303,6 +5427,18 @@ function startEdit(node, postId, field, multiline = false) {
 }
 
 function toggleAll(value) {
+  if (collectionPickerActive) {
+    collectionPickerGesture.reset();
+    collectionPickerChecked.clear();
+    if (value) {
+      for (const collection of collectionPickerItems) {
+        collectionPickerChecked.add(String(collection.id));
+      }
+    }
+    syncCollectionPickerSelection();
+    return;
+  }
+
   tableSelectionGesture.reset();
   beginTableSelectionHistory();
   stopTableAutoScroll();
@@ -5348,6 +5484,7 @@ function clearResults() {
     state.collections = [];
   }
 
+  archiveData = null;
   state.posts = [];
   state.selected.clear();
   state.generated.clear();

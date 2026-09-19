@@ -1,3 +1,4 @@
+import { composeNaming } from './naming-compose.js';
 /* ============================================================
    ReferenceSync — импорт в Eagle
 
@@ -422,6 +423,7 @@ export function normalizeNumberingCounters(
       !VALID_NUMBERING_COUNTER_MODES.has(mode) ||
       mode === NUMBERING_COUNTER_MODES.NONE
     ) {
+      if (counter.independent) continue;
       break;
     }
 
@@ -430,6 +432,7 @@ export function normalizeNumberingCounters(
         counter.id || `counter-${index + 1}`,
       ),
       mode,
+      ...(counter.independent ? { independent: true, destination: counter.destination || 'name', marker: String(counter.marker ?? ''), direction: counter.direction === 'start' ? 'start' : 'end' } : {}),
       start: normalizeCounterStart(
         counter.start,
       ),
@@ -511,6 +514,7 @@ function buildPublicationCounterValues(
 
   counters.forEach((counter) => {
     const counterValues = new Map();
+    const orderedPosts = counter.direction === 'start' ? [...selectedPosts].reverse() : selectedPosts;
 
     if (
       counter.mode ===
@@ -522,7 +526,7 @@ function buildPublicationCounterValues(
           counter,
         );
 
-      selectedPosts.forEach(
+      orderedPosts.forEach(
         (post, index) => {
           counterValues.set(
             post.postId,
@@ -534,7 +538,7 @@ function buildPublicationCounterValues(
       counter.mode ===
       NUMBERING_COUNTER_MODES.BATCH
     ) {
-      selectedPosts.forEach(
+      orderedPosts.forEach(
         (post, index) => {
           counterValues.set(
             post.postId,
@@ -552,7 +556,7 @@ function buildPublicationCounterValues(
           counter,
         );
 
-      selectedPosts.forEach((post) => {
+      orderedPosts.forEach((post) => {
         const author =
           normalizeAuthorKey(post);
 
@@ -576,7 +580,7 @@ function buildPublicationCounterValues(
     ) {
       const nextByType = new Map();
 
-      selectedPosts.forEach((post) => {
+      orderedPosts.forEach((post) => {
         const type =
           normalizePublicationType(post);
 
@@ -621,8 +625,7 @@ function counterValueForComponent({
 
     return (
       counter.start +
-      componentNumber -
-      1
+      (counter.direction === 'end' && counter.independent ? post.componentCount - componentNumber : componentNumber - 1)
     );
   }
 
@@ -669,6 +672,7 @@ export function buildNames({
   descriptionDestination = 'description',
   counters,
   counterSeeds = {},
+  descriptions,
 } = {}) {
   const result = new Map();
   const safePosts = Array.isArray(posts)
@@ -678,7 +682,7 @@ export function buildNames({
   const safeSelected =
     selected instanceof Set
       ? selected
-      : new Set();
+      : new Set(Array.isArray(selected) ? selected : []);
 
   /*
    * Входной список хранится от новых публикаций
@@ -803,7 +807,7 @@ export function buildNames({
       ).trim();
 
     const additionalDescription =
-      descriptionEnabled
+      descriptionEnabled && !Array.isArray(descriptions)
         ? String(
           extraDescription || '',
         ).trim()
@@ -930,6 +934,20 @@ export function buildNames({
               : baseDescription;
         },
       );
+    }
+
+    if (activeCounters.some(counter => counter.independent) || Array.isArray(descriptions)) {
+      const independent = activeCounters.some(counter => counter.independent);
+      const rules = descriptionEnabled ? (descriptions ?? [{ text: extraDescription, destination: descriptionDestination, placement: descriptionPlacement }]) : [];
+      const numbers = post.componentCount <= 1 ? [1] : componentNumbers;
+      for (const number of numbers) {
+        const composed = composeNaming({ name: independent ? originalName : componentNames[number - 1], description: independent ? originalDescription : componentDescriptions[number - 1],
+          counters: independent ? activeCounters : [], values: counterValuesByComponent[number - 1], descriptions: rules });
+        componentNames[number - 1] = composed.name;
+        componentDescriptions[number - 1] = composed.description;
+      }
+      name = numbers.map(number => componentNames[number - 1]).join('\n');
+      description = [...new Set(numbers.map(number => componentDescriptions[number - 1]))].join('\n\n');
     }
 
     /*

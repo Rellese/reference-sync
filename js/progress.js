@@ -1,3 +1,4 @@
+import { setUiText, L, setText, setLocalizedProperty, bindTextRender } from './i18n.js';
 /* ============================================================
    ReferenceSync — прогресс-бар (блок 4)
 
@@ -329,13 +330,13 @@ export function createProgressBar({ onCommand } = {}) {
     }
 
     shown = cursor / CELL_COUNT;
-    interest.textContent = `${Math.round(clamp01(shown) * 100)}%`;
+    setText(interest, `${Math.round(clamp01(shown) * 100)}%`);
 
     if (t >= 1) {
       animating = false;
       shown = target;
       paintStatic(target, { fade: useFade });
-      interest.textContent = `${Math.round(clamp01(target) * 100)}%`;
+      setText(interest, `${Math.round(clamp01(target) * 100)}%`);
       return;
     }
     rafId = requestAnimationFrame(frame);
@@ -348,7 +349,7 @@ export function createProgressBar({ onCommand } = {}) {
       target = value;
       shown = value;
       paintStatic(value, { fade: mode === 'downloading' });
-      interest.textContent = `${Math.round(value * 100)}%`;
+      setText(interest, `${Math.round(value * 100)}%`);
       return;
     }
     cancelAnimationFrame(rafId);
@@ -472,7 +473,7 @@ export function createProgressBar({ onCommand } = {}) {
       shown = 1;
       target = 1;
       paintStatic(1, { fade: false });
-      interest.textContent = '100%';
+      setText(interest, '100%');
     } else if (kind === 'search') {
       startBand(1);
     } else if (kind === 'reviewing') {
@@ -489,18 +490,22 @@ export function createProgressBar({ onCommand } = {}) {
   paintStatic(0);
 
   function paintSplitLabel(node, text) {
-    node.textContent = '';
-    const idx = text.indexOf(':');
+    bindTextRender(node, 'progress-label', L(text), renderSplitLabel);
+  }
+
+  function renderSplitLabel(node, text) {
+    setText(node, '');
+    const idx = text.search(/[:：]/);
     if (idx === -1) {
       const only = el('span', 'rs-progress__label-value');
-      only.textContent = text;
+      setText(only, text);
       node.appendChild(only);
       return;
     }
     const before = el('span', 'rs-progress__label-key');
-    before.textContent = text.slice(0, idx + 1);
+    setText(before, text.slice(0, idx + 1));
     const after = el('span', 'rs-progress__label-value');
-    after.textContent = text.slice(idx + 1);
+    setText(after, text.slice(idx + 1));
     node.append(before, after);
   }
 
@@ -539,7 +544,7 @@ export function createProgressBar({ onCommand } = {}) {
         );
       }
       if (typeof progress === 'number') animateTo(progress);
-      if (interestText !== undefined) interest.textContent = interestText;
+      if (interestText !== undefined) setUiText(interest, interestText);
       return this;
     },
 
@@ -553,7 +558,7 @@ export function createProgressBar({ onCommand } = {}) {
       shown = clamp01(progress);
       target = shown;
       paintStatic(shown, { fade: mode === 'downloading' });
-      interest.textContent = `${Math.round(shown * 100)}%`;
+      setText(interest, `${Math.round(shown * 100)}%`);
     },
 
     get progress() { return target; },
@@ -589,7 +594,7 @@ function makePlayerButton(kind, onClick) {
   const root = el('div', `rs-player rs-player--${kind}`);
   root.setAttribute('role', 'button');
   root.setAttribute('tabindex', '0');
-  root.setAttribute('aria-label', PLAYER_LABEL[kind] || kind);
+  setLocalizedProperty(root, 'ariaLabel', L(PLAYER_LABEL[kind] || kind));
 
   const button = el('div', 'rs-player__button');
 

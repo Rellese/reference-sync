@@ -51,7 +51,7 @@
   font-family: 'CommitMono';
   font-weight: 400;
   font-display: block;
-  src: url('../assets/fonts/CommitMono-400-Regular.woff2') format('woff2');
+  src: url('../assets/fonts/CommitMono-400-Regular.otf') format('opentype');
 }
 
 :root {

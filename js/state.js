@@ -27,6 +27,8 @@ export const defaultSettings = {
   authorExclude: '',
   thumbnails: true,
   numberingEnabled: true,
+  counters: null,
+  descriptions: null,
   numberingDestination: 'name',
   numberingMarker: 'instpoporder-',
 
@@ -207,6 +209,7 @@ function positiveInteger(value, fallback = 1) {
 export function numberingCounters(
   settings = state.settings,
 ) {
+  if (Array.isArray(settings.counters)) return settings.counters.map(counter => ({ ...counter, independent: true }));
   return [
     {
       id: 'counter-1',

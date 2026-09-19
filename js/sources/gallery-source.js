@@ -873,6 +873,8 @@ export function createGallerySource(spec) {
 
       const result = await runDiscoveryWithStop(runGallery, args, {
         stopLink,
+        knownPostIds,
+        stopAtKnown: searchMode === 'smart' || searchMode === 'recent',
         recordToPost: (record) => normalize(record, { target, accountUsername: cleanUser }),
         signal,
         onStdout: (chunk) => {
@@ -888,13 +890,15 @@ export function createGallerySource(spec) {
         },
       });
 
+      if (result.knownPostReached) stoppedEarly = true;
+
       if (result.stopLinkReached) {
         stoppedEarly = true;
         stopLinkTargets.push(String(target.id));
         onLog?.(`Stop Link: достигнута граница в «${target.name}».`);
       }
 
-      if (result.code !== 0 && !buffer.trim() && !result.stopLinkReached) {
+      if (result.code !== 0 && !buffer.trim() && !result.stopLinkReached && !result.knownPostReached) {
         throw new Error(describeFailure(result, browser, title));
       }
 

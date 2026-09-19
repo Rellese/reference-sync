@@ -254,3 +254,53 @@ for (const [source, idField, url] of [
     assert.equal(calls[0].killed, true);
   });
 }
+
+for (const source of ['instagram', 'pinterest']) {
+  for (const searchMode of ['smart', 'recent']) {
+    for (const boundary of ['known-first', 'link-first', 'no-link']) {
+      test(`${source}: ${searchMode} terminates streaming at ${boundary}`, async (t) => {
+        const known = boundary === 'link-first' ? 3 : 2;
+        const calls = fakeEngine(t, [{ chunks: jsonl([
+          ...messages(source, 1, 3), ...messages(source, 2), ...messages(source, 3),
+        ]) }]);
+        const result = await discover(source, {
+          searchMode,
+          knownPostIds: new Set([source === 'instagram' ? String(known) : `pinterest:${known}`]),
+          stopLink: boundary === 'no-link' ? null : stopFor(source, boundary === 'link-first' ? 2 : 3),
+        });
+        assert.equal(result.posts.length, 1);
+        assert.equal(result.posts[0].componentCount, 3);
+        assert.equal(result.stopLinkReached, boundary === 'link-first');
+        assert.equal(result.stoppedEarly, true);
+        assert.equal(calls[0].killed, true);
+        assert.equal(calls[0].emitted, 5);
+      });
+    }
+  }
+  test(`${source}: full search passes known posts until the explicit link`, async (t) => {
+    const calls = fakeEngine(t, [{ chunks: jsonl([
+      ...messages(source, 1), ...messages(source, 2), ...messages(source, 3),
+    ]) }]);
+    const result = await discover(source, {
+      searchMode: 'full', stopLink: stopFor(source, 3),
+      knownPostIds: new Set([source === 'instagram' ? '2' : 'pinterest:2']),
+    });
+    assert.equal(result.stopLinkReached, true);
+    assert.equal(calls[0].emitted, 5);
+  });
+  test(`${source}: known boundary terminates only its own folder`, async (t) => {
+    const calls = fakeEngine(t, [
+      { chunks: jsonl([...messages(source, 1), ...messages(source, 2), ...messages(source, 4)]) },
+      { chunks: jsonl([...messages(source, 4), ...messages(source, 3), ...messages(source, 5)]) },
+    ]);
+    const result = await discover(source, {
+      searchMode: 'recent', stopLink: stopFor(source, 3),
+      knownPostIds: new Set([source === 'instagram' ? '2' : 'pinterest:2']),
+      collections: ['a', 'b'].map(id => ({ id, name: id, type: 'BOARD', url: `https://pinterest.com/fixture/${id}/` })),
+    });
+    assert.equal(result.posts.length, 2);
+    assert.deepEqual(result.stopLinkTargets, ['b']);
+    assert.deepEqual(calls.map(call => call.emitted), [3, 3]);
+    assert.deepEqual(calls.map(call => call.killed), [true, true]);
+  });
+}

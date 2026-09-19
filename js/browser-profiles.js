@@ -10,6 +10,7 @@
    ============================================================ */
 
 import { nodeApi, readJson } from './node-bridge.js';
+import { parseFirefoxProfiles } from './browser-installations.js';
 
 const BROWSER_ALIASES = {
   'google chrome': 'chrome',
@@ -162,6 +163,18 @@ export function discoverBrowserProfiles(browser) {
 
   const normalized = normalizeBrowserName(browser);
 
+  if (normalized === 'firefox') {
+    const { path, fs, os } = nodeApi;
+    const root = process.platform === 'darwin'
+      ? path.join(os.homedir(), 'Library', 'Application Support', 'Firefox')
+      : process.platform === 'win32'
+        ? path.join(process.env.APPDATA || '', 'Mozilla', 'Firefox')
+        : path.join(os.homedir(), '.mozilla', 'firefox');
+    try {
+      return parseFirefoxProfiles(fs.readFileSync(path.join(root, 'profiles.ini'), 'utf8'), root, path)
+        .filter(profile => fs.existsSync(path.join(profile.id, 'cookies.sqlite')));
+    } catch { return []; }
+  }
   if (!['chrome', 'yandex', 'edge'].includes(normalized)) {
     return [];
   }
@@ -205,16 +218,20 @@ export function buildCookieSpec({
   profileRoot = '',
 } = {}) {
   const normalized = normalizeBrowserName(browser);
+  if (normalized === 'firefox' && /^(?:[A-Za-z]:[\\/]|\/)/.test(String(profileId || ''))) {
+    if (String(profileId).split(/[\\/]/).includes('..') || /[\0\r\n]/.test(profileId)) return 'firefox';
+    return `firefox:${profileId}`;
+  }
   const safeId = safeProfileId(profileId);
 
-  if (!safeId) return normalized;
+  if (!safeId && normalized !== 'yandex') return normalized;
 
   if (normalized === 'yandex') {
     const root = String(profileRoot || '').replace(/[\\/]+$/, '');
-    if (!root) return 'chrome';
+    if (!root) throw new Error('Профиль Яндекс.Браузера не найден');
 
     const separator = root.includes('\\') ? '\\' : '/';
-    return `chrome:${root}${separator}${safeId}`;
+    return `chrome:${root}${safeId ? separator + safeId : ''}`;
   }
 
   return `${normalized}:${safeId}`;
