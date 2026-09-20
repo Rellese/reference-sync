@@ -29,6 +29,9 @@ import {
   groupPostsByCollection,
   collectionSelectionState,
   collectionSelectionChanges,
+  ensureDefaultOccurrences,
+  occurrenceIdOf,
+  occurrenceSelected,
 } from './collection-table.js';
 
 import {
@@ -96,7 +99,13 @@ import {
   orderImportItemsOldestFirst,
   orderPostsOldestFirst,
   resolveComponentName,
+  ensureEagleFolderRoute,
 } from './eagle-import.js';
+
+import {
+  buildPostFolderRoute,
+  platformFolderName,
+} from './folder-routing.js';
 
 import {
   applyDiscoveryBoundary,
@@ -406,6 +415,9 @@ function checkpointRecovery(phaseName, extra = {}) {
     settings: { ...state.settings },
     posts: state.posts,
     selectedPostIds: [...state.selected],
+    selectedOccurrences: [
+      ...state.selectedOccurrences.entries(),
+    ],
     completedPostIds: [...state.knownPostIds],
     stagingRoot:
       extra.stagingRoot ??
@@ -494,6 +506,27 @@ async function restoreInterruptedJob() {
     stored.selectedPostIds || [],
   );
 
+  const recoveredOccurrences =
+    new Map(
+      Array.isArray(
+        stored.selectedOccurrences,
+      )
+        ? stored.selectedOccurrences.filter(
+            (entry) =>
+              Array.isArray(entry) &&
+              entry.length >= 2 &&
+              state.selected.has(entry[0]) &&
+              entry[1],
+          )
+        : [],
+    );
+
+  state.selectedOccurrences =
+    ensureDefaultOccurrences(
+      state.posts,
+      state.selected,
+      recoveredOccurrences,
+    );
 
   if (state.posts.length) {
     resetAllEdits();
@@ -1295,6 +1328,12 @@ function presentArchive() {
   state.posts = [...new Map(archiveData.posts.map(post => [post.postId, post])).values()];
   state.collections = archiveData.collections || [];
   state.selected = new Set(state.posts.filter(post => !state.knownPostIds.has(post.postId)).map(post => post.postId));
+  state.selectedOccurrences =
+    ensureDefaultOccurrences(
+      state.posts,
+      state.selected,
+      state.selectedOccurrences,
+    );
   resetAllEdits(); refreshNames(); renderTable();
   phase = state.posts.length ? 'ready' : 'idle';
   ui.results.showArchive();
@@ -1872,6 +1911,13 @@ async function runSearch() {
       posts.map((post) => post.postId),
     );
 
+    state.selectedOccurrences =
+      ensureDefaultOccurrences(
+        state.posts,
+        state.selected,
+        state.selectedOccurrences,
+      );
+
     checkpointRecovery('ready');
     resetAllEdits();
     refreshNames();
@@ -2333,6 +2379,104 @@ async function runImport() {
       throw new Error(
         'В выбранных публикациях нет компонентов для импорта',
       );
+    }
+
+    if (s.folderSearch) {
+      ui.status.set(
+        'Подготовка папок Eagle…',
+        `Источник: ${activeImportSource.title}`,
+        true,
+      );
+
+      const postsById =
+        new Map(
+          downloaded.map(
+            (entry) => [
+              String(
+                entry?.post?.postId || '',
+              ),
+              entry.post,
+            ],
+          ),
+        );
+
+      const folderIdsByPostId =
+        new Map();
+
+      for (const item of items) {
+        const postId =
+          String(
+            item?.postId || '',
+          );
+
+        if (
+          !postId ||
+          folderIdsByPostId.has(postId)
+        ) {
+          continue;
+        }
+
+        const post =
+          postsById.get(postId);
+
+        if (!post) {
+          continue;
+        }
+
+        const selectedOccurrenceId =
+          state.selectedOccurrences
+            instanceof Map
+            ? (
+                state.selectedOccurrences.get(
+                  postId,
+                ) || ''
+              )
+            : '';
+
+        const route =
+          buildPostFolderRoute({
+            post,
+            platform:
+              activeImportSource.code ||
+              s.platform,
+
+            folderSearch:
+              s.folderSearch === true,
+
+            selectedOccurrenceId,
+          });
+
+        const eagleFolders =
+          await ensureEagleFolderRoute({
+            platformFolderName:
+              platformFolderName(
+                activeImportSource.code ||
+                s.platform,
+              ),
+
+            route,
+
+            onLog:
+              (line) =>
+                ui.log.add(line),
+          });
+
+        folderIdsByPostId.set(
+          postId,
+          eagleFolders.folderIds,
+        );
+      }
+
+      for (const item of items) {
+        const postId =
+          String(
+            item?.postId || '',
+          );
+
+        item.folderIds =
+          folderIdsByPostId.get(postId) ||
+          [];
+      }
     }
 
     ui.status.set('Импорт в Eagle…', `0 из ${items.length}`, true);
@@ -3397,6 +3541,11 @@ function tablePostSelectionSnapshot(post) {
     selected:
       state.selected.has(post.postId),
 
+    occurrenceId:
+      state.selectedOccurrences.get(
+        post.postId,
+      ),
+
     components:
       Array.isArray(post.selectedComponents)
         ? [...post.selectedComponents]
@@ -3410,6 +3559,13 @@ function sameSelectionSnapshot(
 ) {
   if (
     first.selected !== second.selected
+  ) {
+    return false;
+  }
+
+  if (
+    first.occurrenceId !==
+    second.occurrenceId
   ) {
     return false;
   }
@@ -3737,13 +3893,27 @@ function nextTablePostState(post) {
   return !current.checked;
 }
 
-function setTablePostChecked(post, checked) {
+function setTablePostChecked(
+  post,
+  checked,
+  occurrenceId = '',
+) {
   if (
     !post ||
     state.knownPostIds.has(post.postId)
   ) {
     return;
   }
+
+  const postId =
+    String(
+      post.postId || '',
+    );
+
+  const cleanOccurrenceId =
+    String(
+      occurrenceId || '',
+    ).trim();
 
   const before =
     tablePostSelectionSnapshot(post);
@@ -3763,9 +3933,31 @@ function setTablePostChecked(post, checked) {
       checked &&
       carouselState.availableCount > 0
     ) {
-      state.selected.add(post.postId);
+      state.selected.add(postId);
+
+      if (cleanOccurrenceId) {
+        state.selectedOccurrences.set(
+          postId,
+          cleanOccurrenceId,
+        );
+      }
     } else {
-      state.selected.delete(post.postId);
+      const activeOccurrenceId =
+        state.selectedOccurrences.get(
+          postId,
+        );
+
+      if (
+        !cleanOccurrenceId ||
+        !activeOccurrenceId ||
+        activeOccurrenceId ===
+          cleanOccurrenceId
+      ) {
+        state.selected.delete(postId);
+        state.selectedOccurrences.delete(
+          postId,
+        );
+      }
     }
 
     captureTableSelectionHistory(
@@ -3777,9 +3969,31 @@ function setTablePostChecked(post, checked) {
   }
 
   if (checked) {
-    state.selected.add(post.postId);
+    state.selected.add(postId);
+
+    if (cleanOccurrenceId) {
+      state.selectedOccurrences.set(
+        postId,
+        cleanOccurrenceId,
+      );
+    }
   } else {
-    state.selected.delete(post.postId);
+    const activeOccurrenceId =
+      state.selectedOccurrences.get(
+        postId,
+      );
+
+    if (
+      !cleanOccurrenceId ||
+      !activeOccurrenceId ||
+      activeOccurrenceId ===
+        cleanOccurrenceId
+    ) {
+      state.selected.delete(postId);
+      state.selectedOccurrences.delete(
+        postId,
+      );
+    }
   }
 
   captureTableSelectionHistory(
@@ -3789,12 +4003,78 @@ function setTablePostChecked(post, checked) {
 }
 
 function syncTablePostCheckbox(post) {
-  const visual = tablePostVisualState(post);
-  for (const entry of tablePostCopies.get(post.postId) || []) {
-    entry.checkbox.set(visual.checked, true);
-    entry.checkbox.setMixed(visual.mixed);
-    entry.row.classList.toggle('is-selected', visual.selected);
-    entry.row.closest('.rs-collection__post')?.classList.toggle('is-selected', visual.selected);
+  for (
+    const entry
+    of tablePostCopies.get(
+      post.postId,
+    ) || []
+  ) {
+    const carouselState =
+      currentCarouselState(post);
+
+    const occurrenceIsSelected =
+      entry.occurrenceId
+        ? occurrenceSelected(
+            {
+              ...post,
+              occurrenceId:
+                entry.occurrenceId,
+            },
+
+            state.selected,
+            state.selectedOccurrences,
+          )
+        : state.selected.has(
+            post.postId,
+          );
+
+    const selected =
+      !state.knownPostIds.has(
+        post.postId,
+      ) &&
+      occurrenceIsSelected &&
+      (
+        !carouselState ||
+        carouselState.selectedCount > 0
+      );
+
+    const checked =
+      carouselState
+        ? (
+            selected &&
+            carouselState.checked
+          )
+        : selected;
+
+    const mixed =
+      Boolean(
+        carouselState &&
+        selected &&
+        carouselState.mixed,
+      );
+
+    entry.checkbox.set(
+      checked,
+      true,
+    );
+
+    entry.checkbox.setMixed(
+      mixed,
+    );
+
+    entry.row.classList.toggle(
+      'is-selected',
+      selected,
+    );
+
+    entry.row
+      .closest(
+        '.rs-collection__post',
+      )
+      ?.classList.toggle(
+        'is-selected',
+        selected,
+      );
   }
 }
 
@@ -4208,15 +4488,42 @@ function collectionPostSelectable(post) {
 }
 
 function applyCollectionSelectionChanges(changes) {
-  if (!Array.isArray(changes)) return;
+  if (!Array.isArray(changes)) {
+    return;
+  }
 
   beginTableSelectionHistory();
-  const postsById = new Map(state.posts.map(post => [post.postId, post]));
+
+  const postsById =
+    new Map(
+      state.posts.map(
+        (post) => [
+          post.postId,
+          post,
+        ],
+      ),
+    );
+
   for (const change of changes) {
-    const post = postsById.get(change.postId);
-    if (!post || !collectionPostSelectable(post)) continue;
-    setTablePostChecked(post, change.after.selected);
+    const post =
+      postsById.get(
+        change.postId,
+      );
+
+    if (
+      !post ||
+      !collectionPostSelectable(post)
+    ) {
+      continue;
+    }
+
+    setTablePostChecked(
+      post,
+      change.after.selected,
+      change.after.occurrenceId || '',
+    );
   }
+
   finishTableSelectionHistory();
   refreshNames();
   renderTable();
@@ -4281,7 +4588,41 @@ function collectionGroupPosts(
       }
 
       seen.add(postId);
-      result.push(post);
+
+      result.push({
+        ...post,
+
+        occurrenceId:
+          occurrenceIdOf(
+            postId,
+            current?.id,
+          ),
+
+        collectionId:
+          String(
+            current?.id || '',
+          ),
+
+        collectionName:
+          String(
+            current?.name || '',
+          ),
+
+        collectionType:
+          String(
+            current?.type || '',
+          ),
+
+        collectionParentId:
+          String(
+            current?.parentId || '',
+          ),
+
+        collectionParentName:
+          String(
+            current?.parentName || '',
+          ),
+      });
     }
 
     for (
@@ -4312,6 +4653,7 @@ function createCollectionHeader(
     collectionSelectionState(
       groupPosts,
       state.selected,
+      state.selectedOccurrences,
       collectionPostSelectable,
     );
 
@@ -4357,6 +4699,7 @@ function createCollectionHeader(
           collectionSelectionChanges(
             groupPosts,
             state.selected,
+            state.selectedOccurrences,
             collectionPostSelectable,
           );
 
@@ -4560,12 +4903,58 @@ function renderCollectionGroups({
         'true',
       );
 
+      const occurrence = {
+        occurrenceId:
+          occurrenceIdOf(
+            postId,
+            group.id,
+          ),
+
+        collectionId:
+          String(
+            group.id || '',
+          ),
+
+        collectionName:
+          String(
+            group.name || '',
+          ),
+
+        collectionType:
+          String(
+            group.type || '',
+          ),
+
+        parentId:
+          String(
+            group.parentId || '',
+          ),
+
+        parentName:
+          String(
+            group.parentName || '',
+          ),
+      };
+
       const row =
-        createPostRow(post);
+        createPostRow(
+          post,
+          occurrence,
+        );
 
       wrapper.classList.toggle(
         'is-selected',
-        collectionRowSelected(post),
+
+        occurrenceSelected(
+          {
+            ...post,
+            occurrenceId:
+              occurrence.occurrenceId,
+          },
+
+          state.selected,
+          state.selectedOccurrences,
+        ),
       );
 
       wrapper.append(
@@ -4659,7 +5048,12 @@ function renderTable() {
     renderCollectionGroups({
       container: body,
       groups: collectionGroups,
-      createPostRow: (post) => renderRow(post),
+      createPostRow:
+        (post, occurrence) =>
+          renderRow(
+            post,
+            occurrence,
+          ),
     });
     return;
   }
@@ -4669,9 +5063,23 @@ function renderTable() {
   body.appendChild(fragment);
 }
 
-function renderRow(post) {
+function renderRow(
+  post,
+  occurrence = null,
+) {
   const row = el('div', 'rs-row');
   const isKnown = state.knownPostIds.has(post.postId);
+
+  const rowOccurrenceId =
+    String(
+      occurrence?.occurrenceId || '',
+    );
+
+  const rowSelectionModel = {
+    ...post,
+    occurrenceId:
+      rowOccurrenceId,
+  };
 
   row.classList.toggle('is-imported', isKnown);
 
@@ -4679,23 +5087,45 @@ function renderRow(post) {
     setLocalizedProperty(row, 'title', L('Эта публикация уже добавлена в Eagle'));
   }
 const grid = el('div', 'rs-table__grid');
-const carouselState = currentCarouselState(post);
-const isCarousel = carouselState !== null;
+const carouselState =
+  currentCarouselState(post);
+
+const isCarousel =
+  carouselState !== null;
+
+const occurrenceIsSelected =
+  rowOccurrenceId
+    ? occurrenceSelected(
+        rowSelectionModel,
+        state.selected,
+        state.selectedOccurrences,
+      )
+    : state.selected.has(
+        post.postId,
+      );
 
 const isSelected =
   !isKnown &&
-  state.selected.has(post.postId) &&
-  (!isCarousel || carouselState.selectedCount > 0);
+  occurrenceIsSelected &&
+  (
+    !isCarousel ||
+    carouselState.selectedCount > 0
+  );
 
-const parentChecked = isCarousel
-  ? isSelected && carouselState.checked
-  : isSelected;
+const parentChecked =
+  isCarousel
+    ? (
+        isSelected &&
+        carouselState.checked
+      )
+    : isSelected;
 
-const parentMixed = Boolean(
-  isCarousel &&
-  isSelected &&
-  carouselState.mixed,
-);
+const parentMixed =
+  Boolean(
+    isCarousel &&
+    isSelected &&
+    carouselState.mixed,
+  );
 
 row.classList.toggle('is-selected', isSelected);
 
@@ -4723,6 +5153,7 @@ const checkbox = createCheckbox({
       setTablePostChecked(
         post,
         checked,
+        rowOccurrenceId,
       );
 
       tableSelectionGesture.setAnchor(
@@ -4774,6 +5205,7 @@ const checkbox = createCheckbox({
     setTablePostChecked(
       post,
       checked,
+      rowOccurrenceId,
     );
 
     syncTablePostCheckbox(post);
@@ -4800,7 +5232,13 @@ const checkbox = createCheckbox({
 row.dataset.tablePostId =
   post.postId;
 
-const entry = { checkbox, row, post };
+const entry = {
+  checkbox,
+  row,
+  post,
+  occurrenceId:
+    rowOccurrenceId,
+};
 if (!tableCheckboxes.has(post.postId)) tableCheckboxes.set(post.postId, entry);
 const copies = tablePostCopies.get(post.postId) || [];
 copies.push(entry);
@@ -5487,6 +5925,7 @@ function clearResults() {
   archiveData = null;
   state.posts = [];
   state.selected.clear();
+  state.selectedOccurrences.clear();
   state.generated.clear();
 
   resetAllEdits();

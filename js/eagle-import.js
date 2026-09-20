@@ -139,27 +139,410 @@ export async function findEagleItemsByIds(itemIds) {
 /* ------------------------------------------------------------
    Список папок библиотеки
    ------------------------------------------------------------ */
+function cleanFolderValue(value) {
+  return String(value ?? '').trim();
+}
+
+function normalizeFolderName(value) {
+  return (
+    cleanFolderValue(value)
+      .replace(/[\\/]/g, '／')
+      .replace(/\s+/g, ' ')
+      .slice(0, 200) ||
+    'Без названия'
+  );
+}
+
+function folderParentId(folder, fallback = '') {
+  const parent =
+    folder?.parent ??
+    folder?.parentId ??
+    fallback;
+
+  if (
+    parent &&
+    typeof parent === 'object'
+  ) {
+    return cleanFolderValue(
+      parent.id,
+    );
+  }
+
+  return cleanFolderValue(parent);
+}
+
+function flattenFolders(
+  nodes,
+  output = [],
+  inheritedParentId = '',
+  seen = new Set(),
+) {
+  for (
+    const node
+    of Array.isArray(nodes) ? nodes : []
+  ) {
+    const id =
+      cleanFolderValue(node?.id);
+
+    if (!id) {
+      continue;
+    }
+
+    const parentId =
+      folderParentId(
+        node,
+        inheritedParentId,
+      );
+
+    if (!seen.has(id)) {
+      seen.add(id);
+
+      output.push({
+        id,
+
+        name:
+          cleanFolderValue(node?.name),
+
+        parentId,
+      });
+    }
+
+    if (
+      Array.isArray(node?.children) &&
+      node.children.length
+    ) {
+      flattenFolders(
+        node.children,
+        output,
+        id,
+        seen,
+      );
+    }
+  }
+
+  return output;
+}
+
+/* ------------------------------------------------------------
+   Список папок библиотеки
+   ------------------------------------------------------------ */
 export async function listFolders() {
   if (eagleApi?.folder?.getAll) {
     try {
-      const folders = await eagleApi.folder.getAll();
-      return folders.map((folder) => ({ id: folder.id, name: folder.name }));
-    } catch (_) { /* пробуем HTTP */ }
+      const folders =
+        await eagleApi.folder.getAll();
+
+      return flattenFolders(
+        folders,
+      );
+    } catch (_) {
+      /* Пробуем HTTP API. */
+    }
   }
+
   try {
-    const response = await fetch(`${API_URL}/api/v2/folder/list`);
-    const payload = await response.json();
-    const flatten = (nodes, output = []) => {
-      (nodes || []).forEach((node) => {
-        output.push({ id: node.id, name: node.name });
-        if (node.children) flatten(node.children, output);
-      });
-      return output;
-    };
-    return flatten(payload?.data);
+    const response =
+      await fetch(
+        `${API_URL}/api/v2/folder/list`,
+      );
+
+    if (!response.ok) {
+      throw new Error(
+        `Eagle ответил кодом ${response.status}`,
+      );
+    }
+
+    const payload =
+      await response.json();
+
+    return flattenFolders(
+      payload?.data,
+    );
   } catch (_) {
     return [];
   }
+}
+
+async function createEagleFolder({
+  name,
+  parentId = '',
+} = {}) {
+  const folderName =
+    normalizeFolderName(name);
+
+  const cleanParentId =
+    cleanFolderValue(parentId);
+
+  if (eagleApi?.folder?.create) {
+    const options = {
+      name: folderName,
+    };
+
+    if (cleanParentId) {
+      options.parent =
+        cleanParentId;
+    }
+
+    const folder =
+      await eagleApi.folder.create(
+        options,
+      );
+
+    const id =
+      cleanFolderValue(
+        typeof folder === 'string'
+          ? folder
+          : folder?.id,
+      );
+
+    if (!id) {
+      throw new Error(
+        `Eagle не вернул ID папки «${folderName}»`,
+      );
+    }
+
+    return {
+      id,
+      name: folderName,
+      parentId: cleanParentId,
+    };
+  }
+
+  const response =
+    await fetch(
+      `${API_URL}/api/folder/create`,
+      {
+        method: 'POST',
+
+        headers: {
+          'Content-Type':
+            'application/json',
+        },
+
+        body: JSON.stringify({
+          folderName,
+
+          ...(cleanParentId
+            ? {
+                parent:
+                  cleanParentId,
+              }
+            : {}),
+        }),
+      },
+    );
+
+  if (!response.ok) {
+    throw new Error(
+      `Eagle не создал папку «${folderName}»: ` +
+      `код ${response.status}`,
+    );
+  }
+
+  const payload =
+    await response.json();
+
+  if (payload?.status !== 'success') {
+    throw new Error(
+      `Eagle отклонил создание папки ` +
+      `«${folderName}»`,
+    );
+  }
+
+  const id =
+    cleanFolderValue(
+      payload?.data?.id,
+    );
+
+  if (!id) {
+    throw new Error(
+      `Eagle создал папку «${folderName}», ` +
+      'но не вернул её ID',
+    );
+  }
+
+  return {
+    id,
+    name: folderName,
+    parentId: cleanParentId,
+  };
+}
+
+function folderLookupKey(
+  parentId,
+  name,
+) {
+  return `${
+    cleanFolderValue(parentId)
+  }\u0000${
+    normalizeFolderName(name)
+      .toLocaleLowerCase()
+  }`;
+}
+
+function createFolderLookup(folders) {
+  const lookup =
+    new Map();
+
+  for (
+    const folder
+    of Array.isArray(folders)
+      ? folders
+      : []
+  ) {
+    const id =
+      cleanFolderValue(folder?.id);
+
+    const name =
+      cleanFolderValue(folder?.name);
+
+    if (!id || !name) {
+      continue;
+    }
+
+    lookup.set(
+      folderLookupKey(
+        folderParentId(folder),
+        name,
+      ),
+
+      {
+        id,
+        name,
+        parentId:
+          folderParentId(folder),
+      },
+    );
+  }
+
+  return lookup;
+}
+
+async function ensureFolder({
+  name,
+  parentId = '',
+  lookup,
+  onLog,
+} = {}) {
+  const folderName =
+    normalizeFolderName(name);
+
+  const cleanParentId =
+    cleanFolderValue(parentId);
+
+  const key =
+    folderLookupKey(
+      cleanParentId,
+      folderName,
+    );
+
+  const existing =
+    lookup.get(key);
+
+  if (existing) {
+    return existing;
+  }
+
+  const created =
+    await createEagleFolder({
+      name: folderName,
+      parentId: cleanParentId,
+    });
+
+  lookup.set(
+    key,
+    created,
+  );
+
+  if (onLog) {
+    onLog(
+      cleanParentId
+        ? `Создана вложенная папка Eagle: ${folderName}`
+        : `Создана папка Eagle: ${folderName}`,
+    );
+  }
+
+  return created;
+}
+
+export async function ensureEagleFolderRoute({
+  platformFolderName,
+  route = [],
+  onLog,
+} = {}) {
+  const folders =
+    await listFolders();
+
+  const lookup =
+    createFolderLookup(folders);
+
+  const platformFolder =
+    await ensureFolder({
+      name:
+        platformFolderName ||
+        'ReferenceSync',
+
+      parentId: '',
+
+      lookup,
+      onLog,
+    });
+
+  let parentId =
+    platformFolder.id;
+
+  let destinationFolder =
+    platformFolder;
+
+  for (
+    const routePart
+    of Array.isArray(route)
+      ? route
+      : []
+  ) {
+    const name =
+      cleanFolderValue(
+        routePart?.name,
+      );
+
+    if (!name) {
+      continue;
+    }
+
+    destinationFolder =
+      await ensureFolder({
+        name,
+        parentId,
+        lookup,
+        onLog,
+      });
+
+    parentId =
+      destinationFolder.id;
+  }
+
+  return {
+    platformFolderId:
+      platformFolder.id,
+
+    destinationFolderId:
+      destinationFolder.id,
+
+    folderIds:
+      [
+        platformFolder.id,
+
+        destinationFolder.id,
+      ]
+        .map((id) =>
+          cleanFolderValue(id))
+        .filter(
+          (id, index, values) =>
+            id &&
+            values.indexOf(id) ===
+              index,
+        ),
+  };
 }
 
 /* ------------------------------------------------------------
@@ -281,6 +664,30 @@ export async function importToEagle({
 
     const item = items[index];
 
+    const itemFolderIds =
+      Array.isArray(item?.folderIds)
+        ? item.folderIds
+        : [];
+
+    const folders =
+      [
+        ...(
+          Array.isArray(folderIds)
+            ? folderIds
+            : []
+        ),
+
+        ...itemFolderIds,
+      ]
+        .map((id) =>
+          String(id ?? '').trim())
+        .filter(Boolean)
+        .filter(
+          (id, position, values) =>
+            values.indexOf(id) ===
+              position,
+        );
+
     if (onProgress) {
       onProgress({
         stage: 'import',
@@ -303,7 +710,7 @@ export async function importToEagle({
         website: item.website,
         annotation: item.annotation,
         tags: item.tags,
-        folders: folderIds,
+        folders,
       });
       const createdEntry = { item, id };
       created.push(createdEntry);
