@@ -1224,9 +1224,8 @@ function installTableColumnResizing({
 
     requestAnimationFrame(
       () => {
-        if (resizer) {
-          showResizeLine(resizer);
-        }
+        if (resizer?.matches(':hover')) showResizeLine(resizer);
+        else hideResizeLine();
       },
     );
   }

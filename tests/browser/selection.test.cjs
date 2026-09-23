@@ -525,6 +525,8 @@ test('table columns: drag, persistence and double-click reset preserve rows and 
     await checked(row(page, 'b'), true);
     assert.equal(await page.locator('[data-table-post-id]').count(), 4);
     await dividers.nth(i).dblclick();
+    await page.mouse.move(5, 5);
+    await page.waitForFunction(() => !document.querySelector('.rs-table').classList.contains('is-column-resize-hovered'));
     assert.deepEqual(await widths(), defaults);
     assert.equal(await page.evaluate(() => localStorage.getItem('reference-sync.table-columns.v2')), null);
     assert.equal(await page.locator('html').evaluate(el => el.classList.contains('is-resizing-table-column')), false);
