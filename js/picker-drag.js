@@ -9,7 +9,10 @@ export function startPickerDrag({ event, body, gesture, apply, active }) {
     const bounds = body.getBoundingClientRect();
     if (x < bounds.left || x > bounds.right) return;
     const rows = [...body.querySelectorAll('[data-collection-picker-id]')].filter(row => row.getClientRects().length);
-    const row = rows.find(row => { const box = row.getBoundingClientRect(); return y >= box.top && y <= box.bottom; });
+    // Pointer may be outside the viewport while edge scrolling. Paint the
+    // boundary row too, otherwise newly scrolled folders remain untouched.
+    const hitY = Math.max(bounds.top + 1, Math.min(bounds.bottom - 1, y));
+    const row = rows.find(row => { const box = row.getBoundingClientRect(); return hitY >= box.top && hitY <= box.bottom; });
     if (row) {
       const current = rows.indexOf(row), previous = rows.findIndex(item => item.dataset.collectionPickerId === lastId);
       const range = previous < 0 ? [row] : rows.slice(Math.min(previous, current), Math.max(previous, current) + 1);

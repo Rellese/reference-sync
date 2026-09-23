@@ -625,3 +625,26 @@ test('numbering: confirmed imports update the visible next number and persist ac
   await page.reload(); await page.waitForFunction(() => window.__rs?.ui.results?.engine);
   assert.equal(await field.inputValue(), '12');
 });
+
+
+test('picker: dragging below the viewport paints newly auto-scrolled folders', async t => {
+  const page = await setup(t);
+  await page.evaluate(() => { window.__testPicker(Array.from({ length: 80 }, (_, i) => ({ id: `folder-${i}`, name: `Folder ${i}` }))); });
+  const start = await picker(page, 'folder-0').boundingBox();
+  const body = page.locator('.rs-table__body');
+  const bounds = await body.boundingBox();
+  await page.mouse.move(start.x + 6, start.y + 6);
+  await page.mouse.down();
+  await page.mouse.move(start.x + 6, bounds.y + bounds.height + 12, { steps: 8 });
+  await page.waitForFunction(() => document.querySelector('.rs-table__body').scrollTop > 400);
+  await page.mouse.up();
+  const selection = await page.locator('[data-collection-picker-id]').evaluateAll(rows => rows.map(row => ({
+    id: row.dataset.collectionPickerId, checked: row.querySelector('[role=checkbox]').getAttribute('aria-checked'),
+    top: row.getBoundingClientRect().top,
+  })));
+  const visibleBottom = selection.filter(row => row.top < bounds.y + bounds.height).at(-1);
+  assert.equal(visibleBottom.checked, 'true');
+  const checkedRows = selection.filter(row => row.checked === 'true');
+  assert.ok(checkedRows.length > 10);
+  for (const entry of selection.slice(0, checkedRows.length)) assert.equal(entry.checked, 'true');
+});
