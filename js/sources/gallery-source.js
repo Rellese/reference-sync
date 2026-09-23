@@ -637,10 +637,19 @@ export function createGallerySource(spec) {
      * некоторые источники не используют формат
      * сообщений [type, url, metadata].
      */
-    const usableParts =
-      urlParts.length
-        ? urlParts
-        : untypedParts;
+    const seenMedia = new Set();
+    const usableParts = (urlParts.length ? urlParts : untypedParts).filter(entry => {
+      const raw = entry.raw || {};
+      const url = String(raw._galleryUrl || raw.url || '');
+      const extension = String(raw.extension || raw.ext || url.split(/[?#]/)[0].match(/\.([a-z0-9]+)$/i)?.[1] || '').toLowerCase();
+      // Pinterest stories also emit text: paragraphs and audio blocks. They
+      // are not visual references and must not masquerade as image components.
+      if (url.startsWith('text:') || (extension && !IMAGE_EXTENSIONS.has(extension) && !VIDEO_EXTENSIONS.has(extension) && extension !== 'm3u8')) return false;
+      const key = raw.num != null ? `num:${raw.num}` : url || `position:${seenMedia.size}`;
+      if (seenMedia.has(key)) return false;
+      seenMedia.add(key);
+      return true;
+    });
 
     if (!usableParts.length) {
       return null;
@@ -648,7 +657,7 @@ export function createGallerySource(spec) {
 
     const components = usableParts.map(
       (entry, index) => ({
-        index: index + 1,
+        index: Number(entry.raw?.num) > 0 ? Number(entry.raw.num) : index + 1,
         mediaType: entry.mediaType,
         previewUrl: entry.previewUrl,
         /*
@@ -892,6 +901,7 @@ export function createGallerySource(spec) {
 
       if (result.knownPostReached) stoppedEarly = true;
 
+      if (result.knownPostReached) stoppedEarly = true;
       if (result.stopLinkReached) {
         stoppedEarly = true;
         stopLinkTargets.push(String(target.id));
@@ -1204,16 +1214,20 @@ export function createGallerySource(spec) {
       let files = [];
       try {
         files = fs.readdirSync(postDir)
-          .filter((name) => !name.startsWith('.'))
+          .filter((name) => !name.startsWith('.') && /\.(?:jpe?g|png|webp|gif|avif|heic|bmp|tiff|mp4|mov|webm|mkv|m4v|avi)$/i.test(name))
           .map((name) => path.join(postDir, name))
           .filter((file) => {
-            try { return fs.statSync(file).size > 0; } catch (_) { return false; }
+            try { const stat = fs.statSync(file); return stat.isFile() && stat.size > 0; } catch (_) { return false; }
           })
           .sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
       } catch (_) { /* пусто */ }
 
-      if (!files.length && !error) {
-        error = `${title}: файлы не получены для этой публикации`;
+      const expectedNumbers = Array.isArray(post.selectedComponents) && post.selectedComponents.length
+        ? post.selectedComponents
+        : post.components?.map(component => component.index) || [1];
+      const actualNumbers = new Set(files.map(file => Number(path.basename(file).match(/^(\d+)\./)?.[1])));
+      if (!error && (!files.length || expectedNumbers.some(number => !actualNumbers.has(Number(number))))) {
+        error = `${title}: не все выбранные фото и видео получены для этой публикации`;
       }
 
       const completedEntry = {

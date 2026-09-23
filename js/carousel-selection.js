@@ -340,7 +340,12 @@ export function selectedDownloadedFiles(entry, selection) {
       // Downloaders name files with the original one-based component number.
       // Missing earlier files must not shift a later carousel component.
       const match = String(file).split(/[\\/]/).pop().match(/^(\d+)\.[^.]+$/);
-      const original = match ? Number(match[1]) - 1 : position;
+      const number = match ? Number(match[1]) : null;
+      // Source numbers can have gaps after excluding text/audio story blocks.
+      // Registry keys are zero-based positions in the visual component list.
+      const original = number !== null && entry.post?.components?.length
+        ? entry.post.components.findIndex((component, index) => componentNumber(component, index) === number)
+        : number !== null ? number - 1 : position;
       return { file, componentIndex: original };
     })
     .filter((item) => (
