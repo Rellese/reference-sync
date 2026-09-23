@@ -274,7 +274,7 @@ export function buildSettings({ onChange, onFolderSearch, onArchive, onArchiveRe
 
   const sourceGroup = createRadioGroup([
     { value: 'browser', label: L('Через авторизованный браузер') },
-    { value: 'meta', label: L('Из архива Meta') },
+    { value: 'meta', label: L('Из архива') },
   ], {
     value: s.source,
     onChange: (value) => {
@@ -698,7 +698,7 @@ export function buildSettings({ onChange, onFolderSearch, onArchive, onArchiveRe
         nextSettings || state.settings;
 
       sourceGroup.set(next.source);
-      setUiText(sourceGroup.rowOf('meta').querySelector('.rs-radio-row__label'), next.platform === 'pinterest' ? 'Из архива Pinterest' : 'Из архива Meta');
+      setUiText(sourceGroup.rowOf('meta').querySelector('.rs-radio-row__label'), 'Из архива');
 
       browserBlock.style.display =
         next.source === 'browser'

@@ -47,7 +47,7 @@ export const messages = [
   ["Выбранная соц. сеть", "Selected social network", "Réseau social sélectionné", "Red social seleccionada", "已选社交平台"],
   ["Шаг 1 — выбор анализа", "Step 1 — choose a source", "Étape 1 — choisir une source", "Paso 1 — elegir una fuente", "第 1 步 — 选择来源"],
   ["Через авторизованный браузер", "From a signed-in browser", "Depuis un navigateur connecté", "Desde un navegador con sesión iniciada", "通过已登录的浏览器"],
-  ["Из архива Meta", "From a Meta archive", "Depuis une archive Meta", "Desde un archivo de Meta", "从 Meta 归档导入"],
+  ["Из архива", "From an archive", "Depuis une archive", "Desde un archivo", "从归档导入"],
   ["Из архива Pinterest", "From a Pinterest archive", "Depuis une archive Pinterest", "Desde un archivo de Pinterest", "从 Pinterest 归档导入"],
   ["{0}-аккаунт", "{0} account", "Compte {0}", "Cuenta de {0}", "{0} 账号"],
   ["имя пользователя", "username", "nom d’utilisateur", "nombre de usuario", "用户名"],

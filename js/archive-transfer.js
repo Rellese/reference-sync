@@ -4,29 +4,59 @@ import { runGallery } from './toolchain.js';
 import { browserCookieSpec, parseJsonStream, collectPostRecords, buildPostRecords, normalizePost } from './instagram.js';
 import { parseDumpJson } from './sources/gallery-source.js';
 import pinterest from './sources/pinterest.js';
+import { parseStopLink } from './stop-link.js';
 
 export async function resolveArchiveLinks(links, { settings, signal, onProgress, onResolved, run = runGallery }) {
   const posts = [], failed = [];
-  const pause = settings.speed === 'lightning' ? '0' : settings.speed === 'balanced' ? '1-2' : '2-4';
-  for (const [index, link] of links.entries()) {
+  const unique = [...new Map(links.map(link => [link.publicationId, link])).values()];
+  const pause = settings.speed === 'lightning' ? '0' : settings.speed === 'balanced' ? '1-2' : '3-5';
+  // Reuse one process/browser session for up to 20 publications. Requests stay
+  // sequential and retain the selected pacing; successful batches are checkpointed.
+  for (let index = 0; index < unique.length; index += 20) {
     throwIfAborted(signal);
-    onProgress?.(index, links.length);
-    const result = await run(['--simulate', '--dump-json', '--sleep-request', pause,
-      '--cookies-from-browser', browserCookieSpec(settings.browser, settings.browserProfile), link.url], { signal });
-    throwIfAborted(signal);
-    if (looksInstagramRateLimited(result.stderr)) throw makeInstagramRateLimitError(result.stderr);
-    if (result.code !== 0) { failed.push(link); continue; }
+    const batch = unique.slice(index, index + 20);
+    onProgress?.(index, unique.length);
+    const controller = new AbortController();
+    const abort = () => controller.abort();
+    signal?.addEventListener('abort', abort, { once: true });
+    let rateLimit = '', result;
+    try {
+      throwIfAborted(signal);
+      result = await run(['--simulate', '--dump-json', '--sleep-request', pause,
+      '--cookies-from-browser', browserCookieSpec(settings.browser, settings.browserProfile),
+      ...batch.map(link => link.url)], { signal: controller.signal,
+        onStderr(chunk) {
+          rateLimit = (rateLimit + chunk).slice(-8192);
+          if (looksInstagramRateLimited(rateLimit)) controller.abort();
+        },
+      });
+    } finally { signal?.removeEventListener('abort', abort); }
+    const documents = parseJsonStream(result.stdout || '');
     const found = settings.platform === 'instagram'
-      ? buildPostRecords(collectPostRecords(parseJsonStream(result.stdout))).map(record => normalizePost(record, { collectionId: 'archive-links', collectionName: 'Ссылки из архива' })).filter(Boolean)
-      : pinterest.assemble(parseDumpJson(result.stdout), { target: { id: 'archive-links', name: 'Ссылки из архива' }, accountUsername: settings.username });
-    if (!found.length) failed.push(link);
-    const resolved = found.map(post => ({ ...post, source: settings.platform, archiveLink: true }));
-    posts.push(...resolved);
-    if (resolved.length) await onResolved?.(link, resolved);
+      ? buildPostRecords(collectPostRecords(documents)).map(record => normalizePost(record, { collectionId: 'archive-links', collectionName: 'Ссылки из архива' })).filter(Boolean)
+      : pinterest.assemble(documents.flatMap(doc => parseDumpJson(JSON.stringify(doc))), { target: { id: 'archive-links', name: 'Ссылки из архива' }, accountUsername: settings.username });
+    const byId = new Map();
+    for (const post of found) {
+      const parsed = parseStopLink(post.url, settings.platform);
+      const id = parsed.ok ? parsed.publicationId : post.shortcode || String(post.postId).replace(/^pinterest:/, '');
+      if (!byId.has(id)) byId.set(id, []);
+      byId.get(id).push({ ...post, source: settings.platform, archiveLink: true });
+    }
+    // A failed URL must not discard successful neighbours in the same process.
+    // On manual cancellation leave the current batch pending (a carousel may
+    // still be incomplete); previously checkpointed batches remain available.
+    throwIfAborted(signal);
+    for (const link of batch) {
+      const resolved = byId.get(link.publicationId) || [];
+      if (!resolved.length) failed.push(link);
+      else { posts.push(...resolved); await onResolved?.(link, resolved); }
+    }
+    if (looksInstagramRateLimited(rateLimit || result.stderr)) throw makeInstagramRateLimitError(rateLimit || result.stderr);
   }
-  onProgress?.(links.length, links.length);
+  onProgress?.(unique.length, unique.length);
   return { posts, failed };
 }
+
 export async function downloadArchivePosts(options, remoteDownload) {
   const { posts, stagingRoot, signal, control, onProgress, onCompleted } = options;
   const { fs, path, stream } = nodeApi;

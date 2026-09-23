@@ -307,7 +307,7 @@ test('folder design: checkboxes stay aligned at every depth and thumbnails inden
 
 test('archive mode replaces browser fields with a file drop zone', async t => {
   const page = await setup(t);
-  await page.getByText('Из архива Meta', { exact: true }).click();
+  await page.getByText('Из архива', { exact: true }).click();
   assert.equal(await page.locator('.rs-archive__drop').isVisible(), true);
   assert.equal(await page.getByText('Браузер с выполненным входом', { exact: true }).isVisible(), false);
   await page.locator('.rs-archive input[type=file]').setInputFiles({ name: 'test.json', mimeType: 'application/json', buffer: Buffer.from('[]') });

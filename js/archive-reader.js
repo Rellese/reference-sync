@@ -10,7 +10,7 @@ const fileUrl = file => nodeApi.url.pathToFileURL(file).href;
 export function parseArchiveMetadata(text, extension, source) {
   const groups = [], links = new Map();
   function link(value) {
-    if (typeof value !== 'string') return;
+    if (typeof value !== 'string' || !/^(?:https?:\/\/)?(?:[\w-]+\.)*(?:instagram|pinterest)\.com\//i.test(value.trim())) return;
     const parsed = parseStopLink(value, source);
     if (parsed.ok) links.set(parsed.publicationId, parsed);
   }
@@ -25,10 +25,11 @@ export function parseArchiveMetadata(text, extension, source) {
   } else {
     const data = JSON.parse(text);
     const queue = [{ value: data, depth: 0 }];
-    let visited = 0;
     while (queue.length) {
       const { value, depth } = queue.pop();
-      if (++visited > 250000 || depth > 100) throw new Error('Слишком сложная структура JSON');
+      // Breadth is bounded by the metadata file size; ordinary large exports
+      // must not fail just because they contain many scalar values.
+      if (depth > 512) throw new Error('Слишком сложная структура JSON');
       if (typeof value === 'string') { link(value); continue; }
       if (!value || typeof value !== 'object') continue;
       if (Array.isArray(value.media)) {
@@ -40,7 +41,8 @@ export function parseArchiveMetadata(text, extension, source) {
       for (const [key, child] of Object.entries(value)) {
         // Session/password exports and private message transcripts are not publications.
         if (/password|cookie|token|messages|inbox/i.test(key)) continue;
-        queue.push({ value: child, depth: depth + 1 });
+        if (typeof child === 'string') link(child);
+        else if (child && typeof child === 'object') queue.push({ value: child, depth: depth + 1 });
       }
     }
   }

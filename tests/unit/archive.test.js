@@ -95,3 +95,59 @@ test('archive links resolve through the normal Instagram normalizer and keep par
   assert.equal(saved.length, 1);
   assert.equal(result.failed.length, 1);
 });
+
+
+test('large ordinary JSON and ZIP are not rejected by scalar count', async t => {
+  const root = setup(t);
+  const text = JSON.stringify({ saved: Array.from({ length: 30000 }, (_, i) => ({
+    title: 'Saved post', timestamp: i, labels: ['a', 'b', 'c', 'd', 'e'],
+    url: `https://www.instagram.com/p/POST${i}/`,
+  })) });
+  const parsed = parseArchiveMetadata(text, '.json', 'instagram');
+  assert.equal(parsed.links.length, 30000);
+  const file = path.join(root, 'large.zip');
+  fs.writeFileSync(file, zip('saved.json', text));
+  assert.equal((await readArchive(file)).links.length, 30000);
+  assert.throws(() => parseArchiveMetadata('['.repeat(514) + '0' + ']'.repeat(514), '.json', 'instagram'), /сложная/);
+});
+
+test('archive resolution batches URLs and keeps successes even when a neighbour fails', async () => {
+  const { resolveArchiveLinks } = await import('../../js/archive-transfer.js');
+  const links = Array.from({ length: 45 }, (_, i) => ({ publicationId: `POST${i}`, url: `https://www.instagram.com/p/POST${i}/` }));
+  let calls = 0;
+  const saved = [];
+  const result = await resolveArchiveLinks([...links, links[0]], {
+    settings: { platform: 'instagram', browser: 'chrome', speed: 'safe' },
+    onResolved: link => saved.push(link.publicationId),
+    run: async args => {
+      calls++;
+      assert.equal(args[args.indexOf('--sleep-request') + 1], '3-5');
+      const urls = args.filter(arg => arg.startsWith('https://'));
+      assert.ok(urls.length <= 20);
+      return { code: 1, stderr: 'One private publication', stdout: urls.filter(url => !url.endsWith('/POST7/')).map(url => {
+        const id = url.split('/').at(-2);
+        return JSON.stringify([[3, 'https://cdn.example/image.jpg', { post_id: id, post_shortcode: id, username: 'fixture', media_id: id, extension: 'jpg', num: 1 }]]);
+      }).join('\n') };
+    },
+  });
+  assert.equal(calls, 3);
+  assert.equal(result.posts.length, 44);
+  assert.deepEqual(result.failed, [links[7]]);
+  assert.equal(new Set(saved).size, 44);
+});
+
+test('archive rate limit stops the running batch and never starts the next batch', async () => {
+  const { resolveArchiveLinks } = await import('../../js/archive-transfer.js');
+  let calls = 0;
+  const links = Array.from({ length: 21 }, (_, i) => ({ publicationId: String(i), url: `https://www.pinterest.com/pin/${i}/` }));
+  await assert.rejects(resolveArchiveLinks(links, {
+    settings: { platform: 'pinterest', speed: 'safe' },
+    run: async (args, options) => {
+      calls++;
+      options.onStderr('HTTP 429 Too Many Requests');
+      assert.equal(options.signal.aborted, true);
+      return { code: 1, stdout: '', stderr: 'HTTP 429 Too Many Requests' };
+    },
+  }), /429|огранич/i);
+  assert.equal(calls, 1);
+});
