@@ -307,7 +307,28 @@ function rememberImportedCounterHistory(
   );
 }
 
-async function refreshImportRegistry() {
+function recordConfirmedImport(createdEntry) {
+  state.importRecords = recordCreatedEagleItems(state.importRecords, [createdEntry]);
+  saveImportRecords(state.importRecords);
+  const postId = String(createdEntry.item.postId);
+  const record = state.importRecords.get(postId);
+  if (!record) return;
+  const confirmed = reconcileImportRecords(new Map([[postId, record]]),
+    [...record.components.values()].map(id => ({ id })));
+  if (confirmed.knownPostIds.has(postId)) {
+    state.knownPostIds.add(postId);
+    state.missingComponents.delete(postId);
+    state.selected.delete(postId);
+    state.selectedOccurrences.delete(postId);
+  } else {
+    state.missingComponents.set(postId, confirmed.missingComponents.get(postId));
+  }
+  const post = state.posts.find(post => post.postId === postId);
+  if (post) syncTablePostCheckbox(post);
+  scheduleTableSelectionTitleUpdate();
+}
+
+async function refreshImportRegistry(confirmed = []) {
   const eagleIds = [];
 
   for (const record of state.importRecords.values()) {
@@ -323,7 +344,17 @@ async function refreshImportRegistry() {
     return;
   }
 
-  const eagleItems = await findEagleItemsByIds(eagleIds);
+  let eagleItems;
+  try {
+    const confirmedIds = new Set(confirmed.map(entry => String(entry.id)));
+    eagleItems = [...await findEagleItemsByIds(eagleIds.filter(id => !confirmedIds.has(String(id)))),
+      ...confirmed.map(entry => ({ id: entry.id }))];
+  } catch (error) {
+    // Retain durable acknowledgements if Eagle is unavailable. A subsequent
+    // successful read can still detect files genuinely removed by the user.
+    ui.log?.add(error.message, 'warn');
+    eagleItems = eagleIds.map(id => ({ id }));
+  }
 
   const reconciled = reconcileImportRecords(
     state.importRecords,
@@ -2484,6 +2515,7 @@ async function runImport() {
 
     ui.status.set('Импорт в Eagle…', `0 из ${items.length}`, true);
 
+    const knownBeforeImport = new Set(state.knownPostIds);
     const {
       created, 
       failed, 
@@ -2515,12 +2547,7 @@ async function runImport() {
         const numberPatch = advanceNumbering(state.settings, createdEntry.item.postId);
         for (const [key, value] of Object.entries(numberPatch)) setSetting(key, value);
         if (Object.keys(numberPatch).length) ui.naming.sync(state.settings);
-        state.importRecords = recordCreatedEagleItems(
-          state.importRecords,
-          [createdEntry],
-        );
-
-        saveImportRecords(state.importRecords);
+        recordConfirmedImport(createdEntry);
 
         checkpointRecovery('importing', {
           createdEagleItems: [
@@ -2556,16 +2583,12 @@ async function runImport() {
           ? `Не удалось скачать публикаций: ${failedDownloads.length}. Повторите импорт оставшихся публикаций.`
           : null);
 
-    const knownBeforeImport = new Set(
-      state.knownPostIds,
-    );
-
     state.importRecords = recordCreatedEagleItems(
       state.importRecords,
       created,
     );
 
-    await refreshImportRegistry();
+    await refreshImportRegistry(created);
 
     const importedPostIds = new Set(
       [...state.knownPostIds].filter(
@@ -4063,6 +4086,10 @@ function syncTablePostCheckbox(post) {
         carouselState.mixed,
       );
 
+    const isKnown = state.knownPostIds.has(post.postId);
+    entry.checkbox.setDisabled(isKnown);
+    entry.row.classList.toggle('is-imported', isKnown);
+    if (isKnown) setLocalizedProperty(entry.row, 'title', L('Эта публикация уже добавлена в Eagle'));
     entry.checkbox.set(
       checked,
       true,

@@ -110,30 +110,20 @@ export async function findEagleItemsByIds(itemIds) {
     }
   }
 
-  const results = await Promise.all(
-    ids.map(async (id) => {
-      try {
-        const response = await fetch(
-          `${API_URL}/api/item/info?id=${encodeURIComponent(id)}`,
-        );
-
-        if (!response.ok) return null;
-
-        const payload = await response.json();
-        const item = payload?.data;
-
-        if (payload?.status !== 'success') {
-          return null;
-        }
-
-        return compactEagleItem(item);
-      } catch (_) {
-        return null;
-      }
-    }),
-  );
-
-  return results.filter(Boolean);
+  const results = [];
+  // Bound fallback traffic; an unavailable API is not evidence of deletion.
+  for (let offset = 0; offset < ids.length; offset += 16) {
+    const batch = await Promise.all(ids.slice(offset, offset + 16).map(async id => {
+      const response = await fetch(`${API_URL}/api/item/info?id=${encodeURIComponent(id)}`);
+      if (response.status === 404) return null;
+      if (!response.ok) throw new Error(`Eagle: проверка библиотеки не выполнена (${response.status})`);
+      const payload = await response.json();
+      if (payload?.status !== 'success') throw new Error('Eagle: проверка библиотеки не выполнена');
+      return compactEagleItem(payload.data);
+    }));
+    results.push(...batch.filter(Boolean));
+  }
+  return results;
 }
 
 /* ------------------------------------------------------------

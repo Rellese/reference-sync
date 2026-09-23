@@ -260,3 +260,16 @@ test('full discovery keeps known posts visible', () => {
     posts,
   );
 });
+
+
+test('Eagle read failure is not an empty library; a confirmed 404 is missing', async t => {
+  const { findEagleItemsByIds } = await import('../../js/eagle-import.js');
+  const original = globalThis.fetch;
+  t.after(() => { globalThis.fetch = original; });
+  globalThis.fetch = async () => { throw new Error('network down'); };
+  await assert.rejects(findEagleItemsByIds(['existing']), /network down/);
+  globalThis.fetch = async () => ({ ok: false, status: 503 });
+  await assert.rejects(findEagleItemsByIds(['existing']), /503/);
+  globalThis.fetch = async () => ({ ok: false, status: 404 });
+  assert.deepEqual(await findEagleItemsByIds(['removed']), []);
+});

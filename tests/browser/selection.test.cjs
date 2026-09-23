@@ -17,7 +17,7 @@ test.before(async () => {
       if (!file.startsWith(root + path.sep)) throw new Error('Invalid path');
       let body = await fs.readFile(file);
       // Expose the actual picker only in the test response, never in shipped code.
-      if (pathname === '/js/main.js') body += '\nwindow.__testPicker = selectCollectionsInTable;';
+      if (pathname === '/js/main.js') body += '\nwindow.__testPicker = selectCollectionsInTable; window.__testConfirmedImport = recordConfirmedImport;';
       res.writeHead(200, { 'Content-Type': types[path.extname(file)] || 'application/octet-stream' });
       res.end(body);
     } catch { res.writeHead(404); res.end(); }
@@ -686,4 +686,22 @@ test('folders: hiding previews removes the same 78px gap as the flat table', asy
   await page.locator('.rs-results').evaluate(el => el.classList.add('is-thumbnails-hidden'));
   assert.equal(shown - await measure(), 78);
   assert.match(await page.locator('.rs-collection__chevron').first().evaluate(el => getComputedStyle(el).maskImage), /folder-chevron.svg/);
+});
+
+
+test('confirmed imports immediately disable every source and leave unimported posts selectable', async t => {
+  const page = await setup(t);
+  for (const source of ['instagram', 'pinterest', 'dribbble', 'behance', 'vimeo', 'x', 'layers']) {
+    await seed(page, { folders: true, duplicate: true });
+    await page.evaluate(source => {
+      window.__rs.state.settings.platform = source;
+      window.__testConfirmedImport({ id: `eagle-${source}`, item: { postId: 'a', component: '0', componentCount: 1 } });
+    }, source);
+    for (const copy of await row(page, 'a').all()) {
+      assert.equal(await copy.getAttribute('aria-disabled'), 'true');
+      await checked(copy, false);
+    }
+    assert.equal(await row(page, 'b').getAttribute('aria-disabled'), 'false');
+    assert.equal(await page.evaluate(() => window.__rs.state.knownPostIds.has('a')), true);
+  }
 });
