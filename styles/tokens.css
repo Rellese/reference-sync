@@ -239,20 +239,28 @@ input {
 /* ---------- Полосы прокрутки в стиле Figma ---------- */
 .rs-scroll { overflow-y: auto; scrollbar-gutter: stable; }
 
-.rs-scroll::-webkit-scrollbar { width: 8px; height: 8px; }
+.rs-scroll::-webkit-scrollbar { width: 6px; height: 6px; }
 
 .rs-scroll::-webkit-scrollbar-track {
   background: var(--scroll-track);
   border-radius: var(--r-pill);
-  border: 2px solid transparent;
+  border: 1px solid transparent;
   background-clip: content-box;
 }
 
 .rs-scroll::-webkit-scrollbar-thumb {
-  background: var(--scroll-thumb);
+  background: linear-gradient(#313131, #313131) center / 4px 100% no-repeat;
   border-radius: var(--r-pill);
-  border: 2px solid transparent;
-  background-clip: content-box;
 }
 
 .rs-scroll::-webkit-scrollbar-corner { background: transparent; }
+
+/* Fixed gutter; only the painted thumb grows from 4px to 5px. */
+.rs-scroll::-webkit-scrollbar-thumb:hover {
+  background-image: linear-gradient(#5C5C5C, #5C5C5C);
+  background-size: 5px 100%;
+}
+
+.rs-scroll::-webkit-scrollbar-thumb:horizontal { background-size: 100% 4px; }
+
+.rs-scroll::-webkit-scrollbar-thumb:horizontal:hover { background-size: 100% 5px; }
