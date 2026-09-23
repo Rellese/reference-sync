@@ -107,7 +107,7 @@ export const appHistory = createHistory({
       state.settings[action.key] = value;
       saveSettings();
     }
-    if (action.type === 'selection') {
+        if (action.type === 'selection') {
       for (const change of action.changes) {
         const next =
           direction === 'undo'
@@ -116,8 +116,22 @@ export const appHistory = createHistory({
 
         if (next.selected) {
           state.selected.add(change.postId);
+
+          if (next.occurrenceId) {
+            state.selectedOccurrences.set(
+              change.postId,
+              next.occurrenceId,
+            );
+          } else {
+            state.selectedOccurrences.delete(
+              change.postId,
+            );
+          }
         } else {
           state.selected.delete(change.postId);
+          state.selectedOccurrences.delete(
+            change.postId,
+          );
         }
 
         const post = state.posts.find(
@@ -126,7 +140,7 @@ export const appHistory = createHistory({
         );
 
         if (!post) {
-      continue;
+          continue;
         }
 
         if (next.components === undefined) {
@@ -449,9 +463,14 @@ export function recordSelectionChange(
                 afterComponents[index],
             );
 
+      const sameOccurrence =
+        change.before.occurrenceId ===
+        change.after.occurrenceId;
+
       return (
         change.before.selected !==
           change.after.selected ||
+        !sameOccurrence ||
         !sameComponents
       );
     })
@@ -461,6 +480,10 @@ export function recordSelectionChange(
       before: {
         selected:
           Boolean(change.before.selected),
+
+        occurrenceId:
+          change.before.occurrenceId ||
+          undefined,
 
         components:
           Array.isArray(
@@ -473,6 +496,10 @@ export function recordSelectionChange(
       after: {
         selected:
           Boolean(change.after.selected),
+
+        occurrenceId:
+          change.after.occurrenceId ||
+          undefined,
 
         components:
           Array.isArray(
