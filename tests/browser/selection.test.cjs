@@ -650,3 +650,27 @@ test('picker: dragging below the viewport paints newly auto-scrolled folders', a
   assert.ok(checkedRows.length > 10);
   for (const entry of selection.slice(0, checkedRows.length)) assert.equal(entry.checked, 'true');
 });
+
+
+test('folders: collapse and expand retain thousands of row nodes and selection', async t => {
+  const page = await setup(t);
+  await page.evaluate(() => {
+    const { state, setPosts } = window.__rs;
+    state.settings.folderSearch = true;
+    state.settings.thumbnails = false;
+    state.collections = [{ id: 'large', name: 'Large folder' }];
+    setPosts(Array.from({ length: 2000 }, (_, i) => ({ postId: `large-${i}`, username: 'Fixture',
+      description: '', components: [{ index: 1, type: 'image' }], componentCount: 1,
+      collectionId: 'large', collectionName: 'Large folder', type: 'Фото' })));
+    window.__retainedRow = document.querySelector('[data-table-post-id]');
+  });
+  const head = page.locator('[data-collection-id="large"] > .rs-collection__head');
+  const selected = await page.evaluate(() => [...window.__rs.state.selected]);
+  await head.click();
+  assert.equal(await head.getAttribute('aria-expanded'), 'false');
+  assert.equal(await page.evaluate(() => window.__retainedRow.isConnected), true);
+  await head.click();
+  assert.equal(await head.getAttribute('aria-expanded'), 'true');
+  assert.equal(await page.evaluate(() => window.__retainedRow === document.querySelector('[data-table-post-id]')), true);
+  assert.deepEqual(await page.evaluate(() => [...window.__rs.state.selected]), selected);
+});

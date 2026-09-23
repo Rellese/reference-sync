@@ -4770,21 +4770,14 @@ function createCollectionHeader(
     );
 
   const toggle = () => {
-    if (
-      collapsedCollectionIds.has(
-        group.id,
-      )
-    ) {
-      collapsedCollectionIds.delete(
-        group.id,
-      );
-    } else {
-      collapsedCollectionIds.add(
-        group.id,
-      );
-    }
-
-    renderTable();
+    const collapsed = !collapsedCollectionIds.has(group.id);
+    if (collapsed) collapsedCollectionIds.add(group.id);
+    else collapsedCollectionIds.delete(group.id);
+    // Keep row nodes, selection, editors and scroll position intact. Toggling
+    // one folder must not rebuild every publication in the library.
+    root.closest('.rs-collection').classList.toggle('is-collapsed', collapsed);
+    root.setAttribute('aria-expanded', String(!collapsed));
+    chevron.classList.toggle('is-expanded', !collapsed);
   };
 
   root.addEventListener(
