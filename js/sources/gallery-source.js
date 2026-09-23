@@ -107,13 +107,13 @@ const VIDEO_EXTENSIONS = new Set(['mp4', 'mov', 'webm', 'mkv', 'm4v', 'avi']);
 
 /* Профили скорости — те же три режима, что в блоке 1 */
 const SPEED_PROFILES = {
-  safe: { sleepRequest: '2.0-4.0', retries: 3 },
+  safe: { sleepRequest: '3-5', retries: 3 },
   balanced: { sleepRequest: '1.0-2.0', retries: 2 },
   lightning: { sleepRequest: null, retries: 1 },
 };
 
 function paceArgs(profile) {
-  return profile.sleepRequest ? ['--sleep-request', profile.sleepRequest] : [];
+  return profile.sleepRequest ? ['--sleep-request', profile.sleepRequest, '--sleep', profile.sleepRequest] : [];
 }
 
 export function chooseGalleryStagingRoot(

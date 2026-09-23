@@ -102,7 +102,7 @@ export function buildDiscoveryModeArgs({
 
 /* Профили скорости — app/instagram_download_staging.py */
 const SPEED_PROFILES = {
-  safe: { sleepRequest: '2.0-4.0', retries: 3 },
+  safe: { sleepRequest: '3-5', retries: 3 },
   balanced: { sleepRequest: '1.0-2.0', retries: 2 },
   /* «Молния» — без задержек между запросами. Instagram может
      ответить блокировкой, поэтому режим выбирается вручную. */
@@ -112,7 +112,7 @@ const SPEED_PROFILES = {
 /* Задержка добавляется только если профиль её задаёт */
 function paceArgs(profile) {
   return profile.sleepRequest
-    ? ['--sleep-request', profile.sleepRequest]
+    ? ['--sleep-request', profile.sleepRequest, '--sleep', profile.sleepRequest]
     : [];
 }
 

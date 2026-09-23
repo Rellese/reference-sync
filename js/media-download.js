@@ -1,3 +1,4 @@
+import { pacingMilliseconds, waitForPacing } from './request-pacing.js';
 import { nodeApi } from './node-bridge.js';
 import { throwIfAborted } from './job-control.js';
 
@@ -65,7 +66,7 @@ export async function downloadMedia(url, destination, { signal, agent, redirects
   }
 }
 
-export async function downloadMediaPlan({ plan, postDir, signal, control }) {
+export async function downloadMediaPlan({ plan, postDir, signal, control, profile }) {
   const agent = new nodeApi.https.Agent({ keepAlive: true, maxSockets: 2 });
   try {
     for (const component of plan) {
@@ -73,6 +74,8 @@ export async function downloadMediaPlan({ plan, postDir, signal, control }) {
       if (control) await control.checkpoint();
       const destination = nodeApi.path.join(postDir, `${component.componentIndex}.${component.extension}`);
       if (nodeApi.fs.existsSync(destination) && nodeApi.fs.statSync(destination).size > 0) continue;
+      await waitForPacing(pacingMilliseconds(profile?.sleepRequest), signal);
+      if (control) await control.checkpoint();
       await downloadMedia(component.url, destination, { signal, agent });
     }
     return { code: 0, stdout: '', stderr: '' };
