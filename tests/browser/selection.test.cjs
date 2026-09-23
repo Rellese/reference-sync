@@ -150,13 +150,17 @@ test('flat results: select all and Shift work; imported rows stay disabled; Undo
   for (const id of ['a', 'c', 'd']) await checked(row(page, id), true);
 });
 
-test('same publication in multiple folders updates every visible copy', async t => {
+test('same publication in multiple folders keeps independently selected destinations', async t => {
   const page = await setup(t); await seed(page, { duplicate: true });
   assert.equal(await row(page, 'a').count(), 2);
   await all(page).click();
   for (const check of await row(page, 'a').all()) await checked(check, false);
   await row(page, 'a').first().click();
+  await checked(row(page, 'a').first(), true);
+  await checked(row(page, 'a').nth(1), false);
+  await row(page, 'a').nth(1).click();
   for (const check of await row(page, 'a').all()) await checked(check, true);
+  assert.equal(await page.evaluate(() => [...window.__rs.state.selected].filter(id => id === 'a').length), 1);
 });
 
 test('Stop Link: neutral until search; exact error and placeholder colors; correction and reset', async t => {
@@ -595,4 +599,28 @@ test('unavailable sources: translated tooltip, keyboard access and no activation
   await page.reload();
   await page.waitForFunction(() => window.__rs?.ui.results?.engine);
   assert.equal(await page.evaluate(() => window.__rs.state.settings.platform), 'instagram');
+});
+
+test('numbering: confirmed imports update the visible next number and persist across toggle and reload', async t => {
+  const page = await setup(t);
+  await page.evaluate(async () => {
+    const { createNumberingProgress } = await import('/js/numbering-progress.js');
+    const { setSetting } = await import('/js/state.js');
+    const { state, ui } = window.__rs;
+    setSetting('numberingEnabled', true);
+    setSetting('counters', [{ id: 'counter-1', mode: 'global', start: 2, destination: 'name', independent: true }]);
+    const generated = new Map(Array.from({ length: 10 }, (_, i) => [String(i), { counterValues: { 'counter-1': i + 2 } }]));
+    const advance = createNumberingProgress(state.settings, generated);
+    for (let i = 0; i < 10; i++) {
+      for (const [key, value] of Object.entries(advance(state.settings, String(i)))) setSetting(key, value);
+    }
+    ui.naming.sync(state.settings);
+  });
+  const field = page.locator('.rs-naming .rs-spinner input').first();
+  assert.equal(await field.inputValue(), '12');
+  const toggle = page.locator('.rs-naming [role=switch]').first();
+  await toggle.click(); await toggle.click();
+  assert.equal(await field.inputValue(), '12');
+  await page.reload(); await page.waitForFunction(() => window.__rs?.ui.results?.engine);
+  assert.equal(await field.inputValue(), '12');
 });

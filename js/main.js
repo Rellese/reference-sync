@@ -1,3 +1,4 @@
+import { createNumberingProgress } from './numbering-progress.js';
 import { joinText, L, setText, setUiText, setLocalizedProperty, setLanguage } from './i18n.js';
 import { startPickerDrag } from './picker-drag.js';
 import { readArchive } from './archive-reader.js';
@@ -2071,6 +2072,7 @@ function startProgressMessageRotation({
 /* ---------- Скачивание и импорт ---------- */
 async function runImport() {
   const s = { ...state.settings };
+  const advanceNumbering = createNumberingProgress(s, state.generated);
 
   const {
     counters: importCounters,
@@ -2510,6 +2512,9 @@ async function runImport() {
       },
       onLog: (line) => ui.log.add(line),
       onCreated: async (createdEntry) => {
+        const numberPatch = advanceNumbering(state.settings, createdEntry.item.postId);
+        for (const [key, value] of Object.entries(numberPatch)) setSetting(key, value);
+        if (Object.keys(numberPatch).length) ui.naming.sync(state.settings);
         state.importRecords = recordCreatedEagleItems(
           state.importRecords,
           [createdEntry],
