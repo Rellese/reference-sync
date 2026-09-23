@@ -150,7 +150,7 @@ test('flat results: select all and Shift work; imported rows stay disabled; Undo
   for (const id of ['a', 'c', 'd']) await checked(row(page, id), true);
 });
 
-test('same publication in multiple folders keeps independently selected destinations', async t => {
+test('same publication in multiple folders can switch its selected destination', async t => {
   const page = await setup(t); await seed(page, { duplicate: true });
   assert.equal(await row(page, 'a').count(), 2);
   await all(page).click();
@@ -159,7 +159,8 @@ test('same publication in multiple folders keeps independently selected destinat
   await checked(row(page, 'a').first(), true);
   await checked(row(page, 'a').nth(1), false);
   await row(page, 'a').nth(1).click();
-  for (const check of await row(page, 'a').all()) await checked(check, true);
+  await checked(row(page, 'a').first(), false);
+  await checked(row(page, 'a').nth(1), true);
   assert.equal(await page.evaluate(() => [...window.__rs.state.selected].filter(id => id === 'a').length), 1);
 });
 

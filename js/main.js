@@ -5184,8 +5184,9 @@ const checkbox = createCheckbox({
 
     beginTableSelectionHistory();
 
-    const checked =
-      nextTablePostState(post);
+    const checked = rowOccurrenceId
+      ? !occurrenceSelected(rowSelectionModel, state.selected, state.selectedOccurrences)
+      : nextTablePostState(post);
 
     if (event.shiftKey) {
       clearTableRangePreview();
