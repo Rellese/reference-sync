@@ -674,3 +674,16 @@ test('folders: collapse and expand retain thousands of row nodes and selection',
   assert.equal(await page.evaluate(() => window.__retainedRow === document.querySelector('[data-table-post-id]')), true);
   assert.deepEqual(await page.evaluate(() => [...window.__rs.state.selected]), selected);
 });
+
+
+test('folders: hiding previews removes the same 78px gap as the flat table', async t => {
+  const page = await setup(t);
+  await seed(page);
+  const measure = () => page.locator('[data-table-post-id="b"] .rs-table__grid').evaluate(el => parseFloat(getComputedStyle(el).gridTemplateColumns.split(' ')[0]));
+  // The class is owned by the results panel, independently of folder depth.
+  await page.locator('.rs-results').evaluate(el => el.classList.remove('is-thumbnails-hidden'));
+  const shown = await measure();
+  await page.locator('.rs-results').evaluate(el => el.classList.add('is-thumbnails-hidden'));
+  assert.equal(shown - await measure(), 78);
+  assert.match(await page.locator('.rs-collection__chevron').first().evaluate(el => getComputedStyle(el).maskImage), /folder-chevron.svg/);
+});

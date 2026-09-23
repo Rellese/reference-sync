@@ -1509,11 +1509,11 @@ M1-T09J(a) — дерево коллекций в таблице результ�
   background: #333333;
 
   -webkit-mask:
-    var(--rs-chevron-icon)
+    url('../assets/folder-chevron.svg')
     center / contain no-repeat;
 
   mask:
-    var(--rs-chevron-icon)
+    url('../assets/folder-chevron.svg')
     center / contain no-repeat;
 
   cursor: pointer;
@@ -1800,3 +1800,7 @@ textarea.rs-editable::-webkit-scrollbar-thumb:horizontal { background-size: 100%
 
 .rs-cell__text::-webkit-scrollbar-thumb:horizontal:hover,
 textarea.rs-editable::-webkit-scrollbar-thumb:horizontal:hover { background-size: 100% 5px; }
+
+.rs-results.is-thumbnails-hidden .rs-collection__post .rs-table__grid {
+  --rs-table-lead-width: calc(27px + var(--rs-tree-depth, 0) * 33px);
+}
