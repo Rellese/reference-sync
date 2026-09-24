@@ -69,3 +69,28 @@ test('Pinterest new-only discovery stops at a previously acknowledged pin in eve
   assert.deepEqual(result.posts.map(post => post.postId), ['pinterest:999']);
   assert.equal(result.posts[0].collectionOccurrences.length, 2);
 });
+
+test('Pinterest downloads discovered MP4 directly when the HLS downloader is unavailable', async t => {
+  const root = setup(t, () => { throw new Error('Cannot import yt-dlp or youtube-dl'); });
+  const stream = await import('node:stream');
+  Object.assign(nodeApi, { stream, https: {
+    Agent: class { destroy() {} },
+    get(url, options, callback) {
+      assert.equal(url.href, 'https://cdn.example/video.mp4');
+      const request = new EventEmitter(); request.setTimeout = () => {}; request.destroy = () => {};
+      queueMicrotask(() => {
+        const response = new PassThrough(); response.statusCode = 200;
+        response.headers = { 'content-type': 'video/mp4', 'content-length': '4' };
+        callback(response); response.end('data');
+      });
+      return request;
+    },
+  } });
+  const { parseDumpJson } = await import('../../js/sources/gallery-source.js');
+  const posts = pinterest.assemble(parseDumpJson(JSON.stringify([3, 'ytdl:https://cdn.example/video.m3u8', {
+    id: '123', num: 1, extension: 'mp4', _fallback: ['https://cdn.example/video.mp4'],
+  }])), { target: { id: 'board', name: 'Board' } });
+  const result = await pinterest.download({ posts, cookieFile: '/fixture/not-read', stagingRoot: root, speedProfile: 'lightning' });
+  assert.equal(result.results[0].error, null);
+  assert.equal(fs.readFileSync(result.results[0].files[0], 'utf8'), 'data');
+});

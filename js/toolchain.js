@@ -491,6 +491,7 @@ export async function installToolchain({ onLog, onProgress, signal } = {}) {
     '--no-warn-script-location',
     '--target', runtime,
     'gallery-dl',
+    'yt-dlp',
   ];
 
   let output = '';
@@ -637,4 +638,13 @@ export function describeToolchainError(error) {
         action: 'retry',
       };
   }
+}
+
+// Check in the exact Python environment used by gallery-dl, without installing anything.
+export async function hasVideoDownloader() {
+  if (toolchain.kind !== 'module') return true; // Standalone bundles manage their own modules.
+  const result = await runCommand(toolchain.command, ['-c', 'import yt_dlp'], {
+    env: toolchainEnv(), timeout: 15000,
+  }).catch(() => null);
+  return result?.code === 0;
 }

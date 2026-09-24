@@ -1,3 +1,4 @@
+import { guardedEagleWrite } from './eagle-write-guard.js';
 import { composeNaming } from './naming-compose.js';
 /* ============================================================
    ReferenceSync — импорт в Eagle
@@ -640,7 +641,9 @@ export async function importToEagle({
   onProgress,
   onLog,
   onCreated,
+  onLateCreated = onCreated,
   signal,
+  writeTimeoutMs = 120000,
 } = {}) {
   const created = [];
   const failed = [];
@@ -682,6 +685,7 @@ export async function importToEagle({
       onProgress({
         stage: 'import',
         current: index + 1,
+        completed: created.length,
         total: items.length,
         item,
       });
@@ -694,20 +698,22 @@ export async function importToEagle({
     }
 
     try {
-      const id = await addItem({
+      onLog?.(`Eagle: начало добавления ${index + 1}/${items.length}; публикация ${item.postId}; компонент ${item.component}; файл ${nodeApi.available ? nodeApi.path.basename(item.path) : item.path}`);
+      const id = await guardedEagleWrite(() => addItem({
         path: item.path,
         name: item.name,
         website: item.website,
         annotation: item.annotation,
         tags: item.tags,
         folders,
+      }), { item, signal, timeoutMs: writeTimeoutMs, onLateCreated, onLog,
+        onConfirmed: async entry => {
+          created.push(entry);
+          await onCreated?.(entry, created.length);
+        },
       });
-      const createdEntry = { item, id };
-      created.push(createdEntry);
-
-      if (onCreated) {
-        await onCreated(createdEntry, created.length);
-      }
+      onLog?.(`Eagle: получен ID ${id}; публикация ${item.postId}; компонент ${item.component}`);
+      onProgress?.({ stage: 'import', current: index + 1, completed: created.length, total: items.length, item });
       if (onLog) onLog(`Добавлено в Eagle: ${item.name}`);
     } catch (error) {
       /* Неоднозначная ошибка записи: останавливаемся, чтобы не

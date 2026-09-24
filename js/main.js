@@ -1,3 +1,5 @@
+import { pinterestDownloadPlan } from './pinterest-media.js';
+import { pendingEagleWrite, recoverAcknowledgedEagleWrite } from './eagle-write-guard.js';
 import { createNumberingProgress } from './numbering-progress.js';
 import { joinText, L, setText, setUiText, setLocalizedProperty, setLanguage } from './i18n.js';
 import { startPickerDrag } from './picker-drag.js';
@@ -137,7 +139,7 @@ import {
 } from './browser-profiles.js';
 
 import {
-  toolchain, detectToolchain, installToolchain, updateToolchain,
+  toolchain, detectToolchain, installToolchain, updateToolchain, hasVideoDownloader,
   versionString, describeToolchainError,
 } from './toolchain.js';
 
@@ -2102,8 +2104,18 @@ function startProgressMessageRotation({
 
 /* ---------- Скачивание и импорт ---------- */
 async function runImport() {
+  recoverAcknowledgedEagleWrite(recordConfirmedImport);
+  if (pendingEagleWrite()) {
+    ui.status.set('Ожидание подтверждения Eagle', 'Предыдущий файл ещё не подтверждён. Повторный импорт заблокирован, чтобы не создать дубль.');
+    return;
+  }
   const s = { ...state.settings };
   const advanceNumbering = createNumberingProgress(s, state.generated);
+  const confirmNumbering = entry => {
+    const patch = advanceNumbering(state.settings, entry.item.postId);
+    for (const [key, value] of Object.entries(patch)) setSetting(key, value);
+    if (Object.keys(patch).length) ui.naming.sync(state.settings);
+  };
 
   const {
     counters: importCounters,
@@ -2153,6 +2165,13 @@ async function runImport() {
   const isArchiveImport = chosen.some(post => post.archiveLocal || post.archiveLink);
   const onlyLocalArchive = chosen.every(post => post.archiveLocal);
   if (!onlyLocalArchive && !await ensureToolchain()) return;
+  const requiresVideoEngine = s.platform === 'pinterest' && chosen.some(post => !post.archiveLocal &&
+    post.components?.some(component => component.mediaType === 'video') && !pinterestDownloadPlan(post).length);
+  if (requiresVideoEngine && !await hasVideoDownloader()) {
+    ui.results.engine.setState('error', 'Нужно обновить видеокомпонент', { button: 'Скачать', detail: 'Будут загружены gallery-dl и yt-dlp из PyPI.' });
+    ui.status.set('Нужно обновить видеокомпонент', 'Нажмите «Скачать», затем повторите импорт.');
+    return;
+  }
 
   phase = 'importing';
   manualStopRequested = false;
@@ -2320,6 +2339,7 @@ async function runImport() {
 
     const downloaded = results.filter((entry) => entry.files.length);
     const failedDownloads = results.filter((entry) => entry.error || !entry.files.length);
+    ui.log.add(`Скачивание завершено: проверено ${results.length} публикаций; полностью скачано ${results.length - failedDownloads.length}; с ошибками ${failedDownloads.length}; файлов ${downloaded.reduce((sum, entry) => sum + entry.files.length, 0)}.`, failedDownloads.length ? 'warn' : 'ok');
 
     failedDownloads.forEach((entry) => {
       ui.log.add(`Не скачано: ${entry.post.url} — ${entry.error}`, 'err');
@@ -2528,25 +2548,24 @@ async function runImport() {
       signal: state.abortController.signal,
       onProgress: (progress) => {
         ui.status.set('Импорт в Eagle…',
-          `${progress.current} из ${progress.total} — ${progress.item.name}`,
+          `${progress.completed} из ${progress.total} — ${progress.item.name}`,
           true);
 
         lastProgressLead = `Импорт: ${progress.item.name}`;
-        lastProgressTrail = `${progress.current} из ${progress.total}`;
+        lastProgressTrail = `${progress.completed} из ${progress.total}`;
         ui.status.progress.update({
           mode: 'downloading',
           lead: lastProgressLead,
           trail: lastProgressTrail,
           progress: DOWNLOAD_SHARE
-            + (progress.current / progress.total) * (1 - DOWNLOAD_SHARE),
+            + (progress.completed / progress.total) * (1 - DOWNLOAD_SHARE),
           ...publicationInfo(),
         });
       },
       onLog: (line) => ui.log.add(line),
+      onLateCreated: (entry) => { confirmNumbering(entry); recordConfirmedImport(entry); ui.log.add('Eagle подтвердил задержанное добавление. Можно продолжить оставшуюся очередь.', 'ok'); },
       onCreated: async (createdEntry) => {
-        const numberPatch = advanceNumbering(state.settings, createdEntry.item.postId);
-        for (const [key, value] of Object.entries(numberPatch)) setSetting(key, value);
-        if (Object.keys(numberPatch).length) ui.naming.sync(state.settings);
+        confirmNumbering(createdEntry);
         recordConfirmedImport(createdEntry);
 
         checkpointRecovery('importing', {

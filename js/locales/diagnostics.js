@@ -1,5 +1,10 @@
 // Internal status and diagnostic messages. External engine output remains verbatim.
 export const diagnostics = [
+  ['Нужно обновить видеокомпонент', 'Video component update required', 'Mise à jour vidéo requise', 'Hay que actualizar el componente de vídeo', '需要更新视频组件'],
+  ['Будут загружены gallery-dl и yt-dlp из PyPI.', 'gallery-dl and yt-dlp will be downloaded from PyPI.', 'gallery-dl et yt-dlp seront téléchargés depuis PyPI.', 'Se descargarán gallery-dl y yt-dlp desde PyPI.', '将从 PyPI 下载 gallery-dl 和 yt-dlp。'],
+  ['Нажмите «Скачать», затем повторите импорт.', 'Click Download, then retry the import.', 'Cliquez sur Télécharger, puis relancez l’importation.', 'Pulsa Descargar y vuelve a importar.', '点击下载后重试导入。'],
+  ['Ожидание подтверждения Eagle', 'Waiting for Eagle confirmation', 'En attente de confirmation Eagle', 'Esperando confirmación de Eagle', '正在等待 Eagle 确认'],
+  ['Предыдущий файл ещё не подтверждён. Повторный импорт заблокирован, чтобы не создать дубль.', 'The previous file is not confirmed yet. Reimport is blocked to prevent duplicates.', 'Le fichier précédent n’est pas encore confirmé. La réimportation est bloquée pour éviter les doublons.', 'El archivo anterior aún no está confirmado. Se bloquea la reimportación para evitar duplicados.', '上一个文件尚未确认，已阻止重复导入。'],
   ['Изображение · {0}', 'Image · {0}', 'Image · {0}', 'Imagen · {0}', '图片 · {0}'],
   ['Видео · {0}', 'Video · {0}', 'Vidéo · {0}', 'Vídeo · {0}', '视频 · {0}'],
   ["Слишком сложная структура JSON", "JSON structure is too complex", "Structure JSON trop complexe", "La estructura JSON es demasiado compleja", "JSON 结构过于复杂"],

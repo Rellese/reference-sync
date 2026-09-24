@@ -18,6 +18,8 @@
    соцсетей добавляются модулями, ничего не ломая.
    ============================================================ */
 
+import { pinterestMedia, pinterestDownloadPlan } from '../pinterest-media.js';
+import { downloadMediaPlan } from '../media-download.js';
 import { createDiscoveryCounter, } from '../discovery-counter.js';
 import { runDiscoveryWithStop } from '../discovery-stop.js';
 import { postMatchesStopLink } from '../stop-link.js';
@@ -659,6 +661,7 @@ export function createGallerySource(spec) {
       (entry, index) => ({
         index: Number(entry.raw?.num) > 0 ? Number(entry.raw.num) : index + 1,
         mediaType: entry.mediaType,
+        directMedia: code === 'pinterest' ? pinterestMedia(entry.raw || {}) : null,
         previewUrl: entry.previewUrl,
         /*
          * Для компонента нужен URL файла, а не страница пина.
@@ -1182,7 +1185,9 @@ export function createGallerySource(spec) {
         error = null;
         let raw = '';
         try {
-          const result = await runGallery(args, {
+          const plan = code === 'pinterest' ? pinterestDownloadPlan(post) : [];
+          let result = plan.length ? await downloadMediaPlan({ plan, postDir, signal, control, profile }) : null;
+          if (!result || result.code !== 0) result = await runGallery(args, {
             signal,
             onStderr: (chunk) => {
               raw += chunk;
