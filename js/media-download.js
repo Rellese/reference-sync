@@ -26,7 +26,7 @@ export async function downloadMedia(url, destination, { signal, agent, redirects
         }
         else resolve(value);
       };
-      const request = https.get(parsed, { agent, headers: { 'User-Agent': 'ReferenceSync/1.2' } }, response => {
+      const request = https.get(parsed, { agent, headers: { 'User-Agent': 'ReferenceSync/1.0.1' } }, response => {
         if (settled) { response.destroy(); return; }
         activeResponse = response;
         const status = response.statusCode || 0;

@@ -1,4 +1,4 @@
-# Review notes — ReferenceSync 1.2.0
+# Review notes — ReferenceSync 1.0.1
 
 This is a release-preparation candidate, not a submission-ready build.
 No review credentials or personal data are included.

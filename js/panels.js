@@ -156,7 +156,7 @@ export function buildTitlebar({ onClose }) {
 /* ============================================================
    1 блок — шапка
    ============================================================ */
-export function buildHeader({ version = 'Beta v.1.2', onLanguage }) {
+export function buildHeader({ version = 'v1.0.1', onLanguage }) {
   const root = el('div', 'rs-header');
 
   const left = el('div', 'rs-header__left');
