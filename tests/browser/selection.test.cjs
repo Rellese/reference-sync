@@ -751,3 +751,28 @@ test('import totals occupy three corners and selection restores normal counters 
     assert.equal(await page.evaluate(() => window.__savedRow === document.querySelector('[data-table-post-id="b"]')), true);
   }
 });
+
+test('social buttons restore independent naming cards and persisted next numbers', async t => {
+  const page = await setup(t);
+  const configure = async (number, text) => page.evaluate(async ({number,text}) => {
+    const { setSetting } = await import('/js/state.js');
+    setSetting('counters',[{id:'counter-1',mode:'global',start:number,destination:'name',independent:true}]);
+    setSetting('descriptions',[{id:'text',text,destination:'description',placement:'end'}]);
+    window.__rs.ui.naming.sync();
+  }, {number,text});
+  await configure(11,'Instagram description');
+  await page.getByRole('button',{name:'Pinterest',exact:true}).click();
+  assert.equal(await page.locator('.rs-naming__text').inputValue(),'');
+  await configure(31,'Pinterest description');
+  await page.getByRole('button',{name:'Instagram',exact:true}).click();
+  assert.equal(await page.locator('.rs-naming__text').inputValue(),'Instagram description');
+  assert.equal(await page.evaluate(()=>window.__rs.state.settings.counters[0].start),11);
+  await page.getByRole('button',{name:'Pinterest',exact:true}).click();
+  await page.reload();
+  await page.waitForFunction(()=>window.__rs?.ui.naming);
+  assert.equal(await page.locator('.rs-naming__text').inputValue(),'Pinterest description');
+  assert.equal(await page.evaluate(()=>window.__rs.state.settings.counters[0].start),31);
+  await page.getByRole('button',{name:'Instagram',exact:true}).click();
+  assert.equal(await page.locator('.rs-naming__text').inputValue(),'Instagram description');
+  assert.equal(await page.evaluate(()=>window.__rs.state.settings.counters[0].start),11);
+});

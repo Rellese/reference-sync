@@ -981,7 +981,7 @@ function buildPublicationCounterValues(
       counter.mode ===
       NUMBERING_COUNTER_MODES.TYPE
     ) {
-      const nextByType = new Map();
+      const nextByType = new Map(Object.entries(counterSeeds?.[counter.id]?.types || {}));
 
       orderedPosts.forEach((post) => {
         const type =

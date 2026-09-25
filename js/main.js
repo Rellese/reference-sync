@@ -56,6 +56,8 @@ import {
 import {
   state,
   loadSettings,
+  settingsForPlatform,
+  setPlatformNaming,
   setSetting,
   numberingCounters,
   visiblePosts,
@@ -696,6 +698,9 @@ async function boot() {
   ui.social = buildSocial({
     onSelect: (platform) => {
       setSetting('platform', platform);
+      ui.naming?.sync();
+      refreshNames();
+      renderTable();
       ui.settings?.sync();
       refreshProfileSession();
       ui.log.add(`Выбрана платформа: ${platform}`);
@@ -2170,9 +2175,9 @@ async function runImport() {
   const s = { ...state.settings };
   const advanceNumbering = createNumberingProgress(s, state.generated);
   const confirmNumbering = entry => {
-    const patch = advanceNumbering(state.settings, entry.item.postId);
-    for (const [key, value] of Object.entries(patch)) setSetting(key, value);
-    if (Object.keys(patch).length) ui.naming.sync(state.settings);
+    const patch = advanceNumbering(settingsForPlatform(s.platform), entry.item.postId);
+    for (const [key, value] of Object.entries(patch)) setPlatformNaming(s.platform, key, value);
+    if (Object.keys(patch).length && state.settings.platform === s.platform) ui.naming.sync(state.settings);
   };
 
   const {
@@ -2685,13 +2690,14 @@ async function runImport() {
     } = currentNumberingContext(s);
 
     /*
-     * Ручной старт перебивает историю: перед сохранением
-     * очищаем прежние записи затронутых счётчиков, чтобы
-     * новая серия начиналась строго с введённого числа.
+     * Общий счётчик уже продолжен по подтверждениям Eagle. Убираем
+     * его старые серии только в текущей сети. Историю авторов и типов
+     * сохраняем, включая группы, которых не было в этой загрузке.
      */
     for (const counter of importedCounters) {
+      if (counter.mode !== 'global') continue;
       for (const key of [...counterHistoryRecords.keys()]) {
-        if (key.includes(`::${counter.id}::`)) {
+        if (key.startsWith(`${s.platform}::${counter.id}::`)) {
           counterHistoryRecords.delete(key);
         }
       }
