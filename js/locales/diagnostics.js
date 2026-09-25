@@ -1,5 +1,8 @@
 // Internal status and diagnostic messages. External engine output remains verbatim.
 export const diagnostics = [
+  ['Недоступно у источника', 'Unavailable at source', 'Indisponible à la source', 'No disponible en origen', '源内容不可用'],
+  ['Ошибка загрузки — можно повторить', 'Download failed — retry available', 'Échec du téléchargement — réessayez', 'Error de descarga — se puede reintentar', '下载失败，可重试'],
+  ['Импорт завершён с ошибками', 'Import finished with errors', 'Importation terminée avec des erreurs', 'Importación terminada con errores', '导入完成，但有错误'],
   ['Нужно обновить видеокомпонент', 'Video component update required', 'Mise à jour vidéo requise', 'Hay que actualizar el componente de vídeo', '需要更新视频组件'],
   ['Будут загружены gallery-dl, yt-dlp и FFmpeg из PyPI.', 'gallery-dl, yt-dlp and FFmpeg will be downloaded from PyPI.', 'gallery-dl, yt-dlp et FFmpeg seront téléchargés depuis PyPI.', 'Se descargarán gallery-dl, yt-dlp y FFmpeg desde PyPI.', '将从 PyPI 下载 gallery-dl、yt-dlp 和 FFmpeg。'],
   ['Нажмите «Скачать», затем повторите импорт.', 'Click Download, then retry the import.', 'Cliquez sur Télécharger, puis relancez l’importation.', 'Pulsa Descargar y vuelve a importar.', '点击下载后重试导入。'],

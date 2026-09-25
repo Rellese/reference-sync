@@ -404,3 +404,18 @@ export function recordCreatedEagleItems(records, created) {
 
   return updated;
 }
+
+// Fresh discovery describes visual components; old Pinterest records can still
+// count text/audio blocks filtered out by M6-T011. Preserve IDs within the new
+// shape, but stop demanding phantom components. Never touch Eagle files.
+export function alignPinterestRecordCounts(records, posts) {
+  const updated = new Map(records);
+  for (const post of posts || []) {
+    if (!String(post.postId).startsWith('pinterest:') || !post.components?.length || post.components.length !== post.componentCount) continue;
+    const record = updated.get(post.postId);
+    if (!record || record.componentCount === post.componentCount) continue;
+    updated.set(post.postId, { componentCount: post.componentCount,
+      components: new Map([...record.components].filter(([index]) => Number(index) >= 0 && Number(index) < post.componentCount)) });
+  }
+  return updated;
+}

@@ -17,7 +17,7 @@ test.before(async () => {
       if (!file.startsWith(root + path.sep)) throw new Error('Invalid path');
       let body = await fs.readFile(file);
       // Expose the actual picker only in the test response, never in shipped code.
-      if (pathname === '/js/main.js') body += '\nwindow.__testPicker = selectCollectionsInTable; window.__testConfirmedImport = recordConfirmedImport;';
+      if (pathname === '/js/main.js') body += '\nwindow.__testPicker = selectCollectionsInTable; window.__testConfirmedImport = recordConfirmedImport; window.__testFinishImportSelection = finishImportSelection;';
       res.writeHead(200, { 'Content-Type': types[path.extname(file)] || 'application/octet-stream' });
       res.end(body);
     } catch { res.writeHead(404); res.end(); }
@@ -704,4 +704,21 @@ test('confirmed imports immediately disable every source and leave unimported po
     assert.equal(await row(page, 'b').getAttribute('aria-disabled'), 'false');
     assert.equal(await page.evaluate(() => window.__rs.state.knownPostIds.has('a')), true);
   }
+});
+
+
+test('finishing a partial import clears remaining checkboxes and displays download errors', async t => {
+  const page = await setup(t);
+  await seed(page, { folders: true, duplicate: true });
+  await page.evaluate(() => {
+    const state = window.__rs.state;
+    state.posts.find(post => post.postId === 'b').downloadIssue = { label: 'Ошибка загрузки — можно повторить', detail: 'HTTP 403' };
+    window.__testConfirmedImport({ id: 'confirmed', item: { postId: 'a', component: '0', componentCount: 1 } });
+    window.__testFinishImportSelection();
+  });
+  assert.equal(await page.evaluate(() => window.__rs.state.selected.size), 0);
+  assert.equal(await page.evaluate(() => window.__rs.state.selectedOccurrences.size), 0);
+  for (const copy of await row(page, 'b').all()) await checked(copy, false);
+  assert.equal(await page.locator('.rs-download-issue').first().getAttribute('title'), 'HTTP 403');
+  assert.equal(await row(page, 'b').getAttribute('aria-disabled'), 'false');
 });

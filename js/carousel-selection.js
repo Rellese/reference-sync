@@ -319,12 +319,15 @@ export function selectedDownloadedFiles(entry, selection) {
   );
 
   if (componentCount <= 1) {
-    return entry.files
-      .map((file, componentIndex) => ({
-        file,
-        componentIndex,
-      }))
-      .filter(({ file }) => Boolean(file));
+    const component = entry.post.components?.[0];
+    const candidates = entry.files.filter(Boolean);
+    const expectedExtension = component?.directMedia?.extension;
+    const preferred = candidates.find(file => expectedExtension && file.toLowerCase().endsWith(`.${expectedExtension}`))
+      || candidates.find(file => component?.mediaType === 'video' && /\.(mp4|mov|webm|mkv|m4v|avi)$/i.test(file))
+      || candidates[0];
+    // A fallback can leave two final extensions for the same visual component.
+    // One publication component must never turn into two registry positions.
+    return preferred ? [{ file: preferred, componentIndex: 0 }] : [];
   }
 
   /*

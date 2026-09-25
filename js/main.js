@@ -1,3 +1,4 @@
+import { summarizeImportOutcome } from './download-outcome.js';
 import { pinterestDownloadPlan } from './pinterest-media.js';
 import { pendingEagleWrite, recoverAcknowledgedEagleWrite, retireIntermediateEagleWrite } from './eagle-write-guard.js';
 import { createNumberingProgress } from './numbering-progress.js';
@@ -111,6 +112,7 @@ import {
 } from './folder-routing.js';
 
 import {
+  alignPinterestRecordCounts,
   applyDiscoveryBoundary,
   loadImportRecords,
   reconcileImportRecords,
@@ -307,6 +309,24 @@ function rememberImportedCounterHistory(
   return saveCounterHistoryRecords(
     counterHistoryRecords,
   );
+}
+
+function finishImportSelection() {
+  resetSelectionsAfterImport(state.posts, state.selected);
+  state.selectedOccurrences.clear();
+  renderTable();
+  syncFooterActionAvailability();
+  if (recoveryState) checkpointRecovery('ready');
+}
+
+function alignCurrentImportCounts() {
+  const records = alignPinterestRecordCounts(state.importRecords, state.posts);
+  const reconciled = reconcileImportRecords(records,
+    [...records.values()].flatMap(record => [...record.components.values()].map(id => ({ id }))));
+  state.importRecords = reconciled.records;
+  state.knownPostIds = reconciled.knownPostIds;
+  state.missingComponents = reconciled.missingComponents;
+  saveImportRecords(state.importRecords);
 }
 
 function recordConfirmedImport(createdEntry) {
@@ -1941,6 +1961,7 @@ async function runSearch() {
     await nextFrames(2);
 
     state.posts = posts;
+    alignCurrentImportCounts();
     state.selected = new Set(
       posts.map((post) => post.postId),
     );
@@ -2110,6 +2131,13 @@ async function runImport() {
     ui.status.set('Ожидание подтверждения Eagle', 'Предыдущий файл ещё не подтверждён. Повторный импорт заблокирован, чтобы не создать дубль.');
     return;
   }
+  alignCurrentImportCounts();
+  for (const postId of state.knownPostIds) {
+    state.selected.delete(postId);
+    state.selectedOccurrences.delete(postId);
+  }
+  renderTable();
+  syncFooterActionAvailability();
   const s = { ...state.settings };
   const advanceNumbering = createNumberingProgress(s, state.generated);
   const confirmNumbering = entry => {
@@ -2341,6 +2369,10 @@ async function runImport() {
 
     const downloaded = results.filter((entry) => entry.files.length);
     const failedDownloads = results.filter((entry) => entry.error || !entry.files.length);
+    for (const entry of results) {
+      const post = state.posts.find(post => post.postId === entry.post.postId);
+      if (post) post.downloadIssue = entry.error ? (entry.issue || { label: 'Ошибка загрузки — можно повторить', detail: entry.error }) : null;
+    }
     ui.log.add(`Скачивание завершено: проверено ${results.length} публикаций; полностью скачано ${results.length - failedDownloads.length}; с ошибками ${failedDownloads.length}; файлов ${downloaded.reduce((sum, entry) => sum + entry.files.length, 0)}.`, failedDownloads.length ? 'warn' : 'ok');
 
     failedDownloads.forEach((entry) => {
@@ -2642,12 +2674,8 @@ async function runImport() {
     );
 
     if (created.length) {
-      if (stopReason || failed.length) {
-        // Keep failed and unattempted publications selected for a later retry.
-        for (const postId of importedPostIds) state.selected.delete(postId);
-      } else {
-        resetSelectionsAfterImport(state.posts, state.selected);
-      }
+      resetSelectionsAfterImport(state.posts, state.selected);
+      state.selectedOccurrences.clear();
 
       checkpointRecovery('importing');
       refreshNames();
@@ -2712,6 +2740,18 @@ async function runImport() {
         `Импорт завершён: ${importSummary.detail}.`,
         'ok',
       );
+    }
+    const outcome = summarizeImportOutcome(chosen, state.knownPostIds, state.importRecords, created);
+    const outcomeText = `Публикаций полностью: ${outcome.complete}/${outcome.total}; частично: ${outcome.partial}; не импортировано: ${outcome.notImported}. Файлов добавлено: ${outcome.files}.`;
+    ui.log.add(outcomeText);
+    if (stopReason) ui.status.progress.update({ mode: 'stopped', lead: 'Импорт завершён с ошибками', trail: outcomeText, ...publicationInfo() });
+    // Repeat the per-post causes after Eagle's verbose import logs so the
+    // bounded UI journal retains the failures, not only successful writes.
+    for (const entry of failedDownloads) ui.log.add(redact(`Не скачано: ${entry.post.url} — ${entry.error || 'Файлы не получены'}`), 'err');
+    for (const post of chosen) {
+      if (!state.knownPostIds.has(post.postId) && !failedDownloads.some(entry => entry.post.postId === post.postId)) {
+        ui.log.add(`Не завершено: ${post.url}; ожидается компонентов: ${post.componentCount}; подтверждено: ${state.importRecords.get(post.postId)?.components.size || 0}`, 'warn');
+      }
     }
     if (!stopReason) {
       discardRecovery();
@@ -2805,6 +2845,7 @@ async function runImport() {
       sessionCookieFile = '';
     }
 
+    finishImportSelection();
     state.abortController = null;
     control = null;
     manualStopRequested = false;
@@ -5758,6 +5799,11 @@ if (!isKnown) {
     );
   }
 
+  if (post.downloadIssue) {
+    const issue = el('div', 'rs-download-issue', L(post.downloadIssue.label));
+    issue.title = post.downloadIssue.detail;
+    structure.appendChild(issue);
+  }
   grid.append(lead, author, structure, nameCell, descCell);
   row.appendChild(grid);
   return row;

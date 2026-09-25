@@ -1,3 +1,4 @@
+import { downloadIssue } from '../download-outcome.js';
 /* ============================================================
    Универсальный источник на базе gallery-dl
 
@@ -1180,10 +1181,12 @@ export function createGallerySource(spec) {
 
       let error = null;
       let attempts = 0;
+      let issue = null;
 
       for (;;) {
         attempts += 1;
         error = null;
+        issue = null;
         let raw = '';
         try {
           const plan = code === 'pinterest' ? pinterestDownloadPlan(post) : [];
@@ -1203,6 +1206,10 @@ export function createGallerySource(spec) {
           error = runError.message;
         }
 
+        if (error) {
+          issue = downloadIssue(redactCommon(raw));
+          error = `${error} ${issue.detail}`.trim();
+        }
         if (!error) {
           if (control) control.resetRetries();
           break;
@@ -1236,6 +1243,7 @@ export function createGallerySource(spec) {
         } catch (validationError) {
           if (signal?.aborted) throw validationError;
           error = validationError.message;
+          issue = downloadIssue(error);
           onLog?.(error);
         }
       }
@@ -1252,6 +1260,7 @@ export function createGallerySource(spec) {
         post,
         files,
         error,
+        issue,
       };
 
       results.push(completedEntry);

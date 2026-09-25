@@ -3073,3 +3073,12 @@ html:not([lang='ru']) .rs-carousel-modal__summary { height: auto; min-height: 16
 html:not([lang='ru']) .rs-carousel-modal .rs-carousel-modal__controls > * {
   width: 100% !important; height: auto !important; white-space: normal !important;
 }
+
+.rs-download-issue {
+  color: #da764e;
+  font-size: 11px;
+  line-height: 1.35;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  margin-top: 5px;
+}

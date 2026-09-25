@@ -99,3 +99,20 @@ test('Pinterest downloads discovered MP4 directly when the HLS downloader is una
   assert.equal(result.results[0].error, null);
   assert.deepEqual(fs.readFileSync(result.results[0].files[0]), mediaBytes);
 });
+
+test('Pinterest preserves explicit unavailable reason in the per-post download result', async t => {
+  const root = setup(t, () => {
+    const child = childProcess();
+    queueMicrotask(() => {
+      child.stderr.write('[pinterest][error] NotFoundError: Requested pin could not be found\n');
+      child.emit('close', 1);
+    });
+    return child;
+  });
+  const result = await pinterest.download({ stagingRoot: root, cookieFile: '/fixture/not-read', posts: [{
+    postId: 'pinterest:123', url: 'https://www.pinterest.com/pin/123/', componentCount: 1, components: [{ index: 1 }],
+  }] });
+  assert.equal(result.results[0].issue.unavailable, true);
+  assert.match(result.results[0].error, /Requested pin could not be found/);
+  assert.deepEqual(result.results[0].files, []);
+});
