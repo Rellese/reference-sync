@@ -18,13 +18,14 @@
    соцсетей добавляются модулями, ничего не ломая.
    ============================================================ */
 
+import { finalMediaName, validateVideo } from '../downloaded-media.js';
 import { pinterestMedia, pinterestDownloadPlan } from '../pinterest-media.js';
 import { downloadMediaPlan } from '../media-download.js';
 import { createDiscoveryCounter, } from '../discovery-counter.js';
 import { runDiscoveryWithStop } from '../discovery-stop.js';
 import { postMatchesStopLink } from '../stop-link.js';
 import { nodeApi, ensureDir, workRoot } from '../node-bridge.js';
-import { runGallery, requireToolchain } from '../toolchain.js';
+import { runGallery, requireToolchain, toolchain } from '../toolchain.js';
 import { looksOffline, RETRY_STEPS } from '../job-control.js';
 
 /* Копируем базу кук Chrome во временную папку.
@@ -1219,7 +1220,7 @@ export function createGallerySource(spec) {
       let files = [];
       try {
         files = fs.readdirSync(postDir)
-          .filter((name) => !name.startsWith('.') && /\.(?:jpe?g|png|webp|gif|avif|heic|bmp|tiff|mp4|mov|webm|mkv|m4v|avi)$/i.test(name))
+          .filter(finalMediaName)
           .map((name) => path.join(postDir, name))
           .filter((file) => {
             try { const stat = fs.statSync(file); return stat.isFile() && stat.size > 0; } catch (_) { return false; }
@@ -1227,6 +1228,18 @@ export function createGallerySource(spec) {
           .sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
       } catch (_) { /* пусто */ }
 
+      const verifiedFiles = [];
+      for (const file of files) {
+        try {
+          await validateVideo(file, { ffmpeg: toolchain.ffmpeg, signal });
+          verifiedFiles.push(file);
+        } catch (validationError) {
+          if (signal?.aborted) throw validationError;
+          error = validationError.message;
+          onLog?.(error);
+        }
+      }
+      files = verifiedFiles;
       const expectedNumbers = Array.isArray(post.selectedComponents) && post.selectedComponents.length
         ? post.selectedComponents
         : post.components?.map(component => component.index) || [1];

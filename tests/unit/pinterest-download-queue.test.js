@@ -5,6 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { PassThrough } from 'node:stream';
 import { EventEmitter } from 'node:events';
+import { spawn } from 'node:child_process';
 import { nodeApi } from '../../js/node-bridge.js';
 import { toolchain } from '../../js/toolchain.js';
 import pinterest from '../../js/sources/pinterest.js';
@@ -71,7 +72,11 @@ test('Pinterest new-only discovery stops at a previously acknowledged pin in eve
 });
 
 test('Pinterest downloads discovered MP4 directly when the HLS downloader is unavailable', async t => {
-  const root = setup(t, () => { throw new Error('Cannot import yt-dlp or youtube-dl'); });
+  const ffmpeg = process.env.RS_TEST_FFMPEG || ['/usr/local/bin/ffmpeg', '/usr/bin/ffmpeg'].find(file => fs.existsSync(file));
+  if (!ffmpeg) { t.skip('FFmpeg required for real video validation'); return; }
+  const root = setup(t, (command, args, options) => { if (command === ffmpeg) return spawn(command, args, options); throw new Error('Cannot import yt-dlp or youtube-dl'); });
+  toolchain.ffmpeg = ffmpeg;
+  const mediaBytes = fs.readFileSync(new URL('../fixtures/media/synthetic-av.mp4', import.meta.url));
   const stream = await import('node:stream');
   Object.assign(nodeApi, { stream, https: {
     Agent: class { destroy() {} },
@@ -80,8 +85,8 @@ test('Pinterest downloads discovered MP4 directly when the HLS downloader is una
       const request = new EventEmitter(); request.setTimeout = () => {}; request.destroy = () => {};
       queueMicrotask(() => {
         const response = new PassThrough(); response.statusCode = 200;
-        response.headers = { 'content-type': 'video/mp4', 'content-length': '4' };
-        callback(response); response.end('data');
+        response.headers = { 'content-type': 'video/mp4', 'content-length': String(mediaBytes.length) };
+        callback(response); response.end(mediaBytes);
       });
       return request;
     },
@@ -92,5 +97,5 @@ test('Pinterest downloads discovered MP4 directly when the HLS downloader is una
   }])), { target: { id: 'board', name: 'Board' } });
   const result = await pinterest.download({ posts, cookieFile: '/fixture/not-read', stagingRoot: root, speedProfile: 'lightning' });
   assert.equal(result.results[0].error, null);
-  assert.equal(fs.readFileSync(result.results[0].files[0], 'utf8'), 'data');
+  assert.deepEqual(fs.readFileSync(result.results[0].files[0]), mediaBytes);
 });

@@ -1,3 +1,4 @@
+import { finalMediaName } from './downloaded-media.js';
 /* ============================================================
    Carousel component selection
 
@@ -307,6 +308,12 @@ export function selectedDownloadedFiles(entry, selection) {
     return [];
   }
 
+  // Defence in depth for restored queues created by older plugin versions.
+  // Archive files are copied to the same numeric naming convention.
+  entry = { ...entry, files: entry.files.filter(file => {
+    const name = String(file).split(/[\\/]/).pop();
+    return !/^\d+\./.test(name) || finalMediaName(name);
+  }) };
   const componentCount = Number(
     entry.post?.componentCount,
   );

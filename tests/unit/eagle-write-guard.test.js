@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { guardedEagleWrite, pendingEagleWrite } from '../../js/eagle-write-guard.js';
+import { guardedEagleWrite, pendingEagleWrite, retireIntermediateEagleWrite } from '../../js/eagle-write-guard.js';
 import { importToEagle } from '../../js/eagle-import.js';
 
 test('unanswered Eagle write stops the queue, blocks retries and records a late acknowledgement', async t => {
@@ -60,4 +60,21 @@ test('298-file queue stops at unanswered request 197 with exactly 196 confirmed 
   assert.equal(acknowledged.length, 197);
   assert.equal(new Set(acknowledged).size, 197);
   assert.equal(pendingEagleWrite(), null);
+});
+
+test('reload retires only obsolete intermediate writes, preserving uncertain final media', t => {
+  const previous = globalThis.localStorage;
+  let stored;
+  globalThis.localStorage = { getItem: () => stored, removeItem: () => { stored = null; } };
+  t.after(() => { globalThis.localStorage = previous; });
+  for (const file of ['/staging/1.faudio1-1.mp4', 'C:\\staging\\1.f1244.mp4']) {
+    stored = JSON.stringify({ item: { path: file } });
+    assert.equal(retireIntermediateEagleWrite(), true);
+    assert.equal(stored, null);
+  }
+  for (const file of ['/staging/1.mp4', '/staging/1.jpg', '/staging/holiday.mp4']) {
+    stored = JSON.stringify({ item: { path: file } });
+    assert.equal(retireIntermediateEagleWrite(), false);
+    assert.ok(stored);
+  }
 });

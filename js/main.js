@@ -1,5 +1,5 @@
 import { pinterestDownloadPlan } from './pinterest-media.js';
-import { pendingEagleWrite, recoverAcknowledgedEagleWrite } from './eagle-write-guard.js';
+import { pendingEagleWrite, recoverAcknowledgedEagleWrite, retireIntermediateEagleWrite } from './eagle-write-guard.js';
 import { createNumberingProgress } from './numbering-progress.js';
 import { joinText, L, setText, setUiText, setLocalizedProperty, setLanguage } from './i18n.js';
 import { startPickerDrag } from './picker-drag.js';
@@ -2104,6 +2104,7 @@ function startProgressMessageRotation({
 
 /* ---------- Скачивание и импорт ---------- */
 async function runImport() {
+  if (retireIntermediateEagleWrite()) ui.log.add('Старая запись промежуточной дорожки исключена из очереди. Файлы в Eagle не изменены.', 'warn');
   recoverAcknowledgedEagleWrite(recordConfirmedImport);
   if (pendingEagleWrite()) {
     ui.status.set('Ожидание подтверждения Eagle', 'Предыдущий файл ещё не подтверждён. Повторный импорт заблокирован, чтобы не создать дубль.');
@@ -2167,8 +2168,9 @@ async function runImport() {
   if (!onlyLocalArchive && !await ensureToolchain()) return;
   const requiresVideoEngine = s.platform === 'pinterest' && chosen.some(post => !post.archiveLocal &&
     post.components?.some(component => component.mediaType === 'video') && !pinterestDownloadPlan(post).length);
-  if (requiresVideoEngine && !await hasVideoDownloader()) {
-    ui.results.engine.setState('error', 'Нужно обновить видеокомпонент', { button: 'Скачать', detail: 'Будут загружены gallery-dl и yt-dlp из PyPI.' });
+  const hasVideo = s.platform === 'pinterest' && chosen.some(post => !post.archiveLocal && post.components?.some(component => component.mediaType === 'video'));
+  if (hasVideo && !await hasVideoDownloader({ requireHls: requiresVideoEngine })) {
+    ui.results.engine.setState('error', 'Нужно обновить видеокомпонент', { button: 'Скачать', detail: 'Будут загружены gallery-dl, yt-dlp и FFmpeg из PyPI.' });
     ui.status.set('Нужно обновить видеокомпонент', 'Нажмите «Скачать», затем повторите импорт.');
     return;
   }

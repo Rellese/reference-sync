@@ -54,3 +54,15 @@ export function recoverAcknowledgedEagleWrite(confirm) {
   globalThis.localStorage?.removeItem(KEY);
   return true;
 }
+
+// Old versions sent yt-dlp's intermediate tracks to Eagle. After a reload
+// these exact paths can never be retried by the final-file filter. Retire only
+// their ledger entry; never alter the library or clear an uncertain final file.
+export function retireIntermediateEagleWrite() {
+  if (active) return false;
+  const pending = pendingEagleWrite();
+  const name = String(pending?.item?.path || '').split(/[\\/]/).pop();
+  if (!/^\d+\.f[^/]+\.(?:mp4|webm|mkv|m4v)$/i.test(name)) return false;
+  globalThis.localStorage?.removeItem(KEY);
+  return true;
+}
