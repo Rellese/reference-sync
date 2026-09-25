@@ -17,7 +17,7 @@ test.before(async () => {
       if (!file.startsWith(root + path.sep)) throw new Error('Invalid path');
       let body = await fs.readFile(file);
       // Expose the actual picker only in the test response, never in shipped code.
-      if (pathname === '/js/main.js') body += '\nwindow.__testPicker = selectCollectionsInTable; window.__testConfirmedImport = recordConfirmedImport; window.__testFinishImportSelection = finishImportSelection;';
+      if (pathname === '/js/main.js') body += '\nwindow.__testPicker = selectCollectionsInTable; window.__testConfirmedImport = recordConfirmedImport; window.__testFinishImportSelection = finishImportSelection; window.__testShowImportResult = showImportResult;';
       res.writeHead(200, { 'Content-Type': types[path.extname(file)] || 'application/octet-stream' });
       res.end(body);
     } catch { res.writeHead(404); res.end(); }
@@ -721,4 +721,33 @@ test('finishing a partial import clears remaining checkboxes and displays downlo
   for (const copy of await row(page, 'b').all()) await checked(copy, false);
   assert.equal(await page.locator('.rs-download-issue').first().getAttribute('title'), 'HTTP 403');
   assert.equal(await row(page, 'b').getAttribute('aria-disabled'), 'false');
+});
+
+
+test('import totals occupy three corners and selection restores normal counters without replacing rows', async t => {
+  const page = await setup(t);
+  await seed(page, { folders: false });
+  const show = async errors => page.evaluate(errors => {
+    window.__testFinishImportSelection();
+    window.__rs.ui.status.showProgress(true);
+    window.__testShowImportResult({complete:420,total:444,partial:0,notImported:24,files:421}, errors);
+    window.__savedRow = document.querySelector('[data-table-post-id="b"]');
+  }, errors);
+  const progress = page.locator('.rs-progress');
+  for (const errors of [true, false]) {
+    await show(errors);
+    assert.equal(await progress.locator('.rs-progress__publication').isVisible(), true);
+    assert.equal(await progress.locator('.rs-progress__manage').isVisible(), false);
+    const top = progress.locator('.rs-progress__row > .rs-progress__label').last();
+    assert.equal(await top.textContent(), 'Полностью добавленных публикаций: 420/444');
+    assert.equal(await progress.locator('.rs-progress__found').textContent(), 'Частично: 0Не импортировано: 24');
+    assert.equal(await progress.locator('.rs-progress__publication > .rs-progress__label').textContent(), 'Файлов добавлено: 421');
+    const colors = await top.evaluate(el => [...el.children].map(node => getComputedStyle(node).color));
+    assert.notEqual(colors[0], colors[1]);
+    if (errors) await row(page, 'b').click(); else await all(page).click();
+    await page.waitForFunction(() => document.querySelector('.rs-progress').dataset.summary === 'false');
+    assert.equal(await progress.locator('.rs-progress__found').textContent(), 'Найдено: 4Показано: 4');
+    assert.match(await progress.locator('.rs-progress__publication > .rs-progress__label').textContent(), /^Выбрано: [14]\/4 публикаций$/);
+    assert.equal(await page.evaluate(() => window.__savedRow === document.querySelector('[data-table-post-id="b"]')), true);
+  }
 });

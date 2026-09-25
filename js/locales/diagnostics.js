@@ -1,5 +1,9 @@
 // Internal status and diagnostic messages. External engine output remains verbatim.
 export const diagnostics = [
+  ['Полностью добавленных публикаций: {0}/{1}', 'Fully imported posts: {0}/{1}', 'Publications entièrement importées : {0}/{1}', 'Publicaciones importadas por completo: {0}/{1}', '完整导入的帖子：{0}/{1}'],
+  ['Частично: {0}', 'Partial: {0}', 'Partiellement : {0}', 'Parcialmente: {0}', '部分导入：{0}'],
+  ['Не импортировано: {0}', 'Not imported: {0}', 'Non importées : {0}', 'Sin importar: {0}', '未导入：{0}'],
+  ['Готово к импорту', 'Ready to import', 'Prêt à importer', 'Listo para importar', '准备导入'],
   ['Недоступно у источника', 'Unavailable at source', 'Indisponible à la source', 'No disponible en origen', '源内容不可用'],
   ['Ошибка загрузки — можно повторить', 'Download failed — retry available', 'Échec du téléchargement — réessayez', 'Error de descarga — se puede reintentar', '下载失败，可重试'],
   ['Импорт завершён с ошибками', 'Import finished with errors', 'Importation terminée avec des erreurs', 'Importación terminada con errores', '导入完成，但有错误'],

@@ -148,6 +148,7 @@ export function createProgressBar({ onCommand } = {}) {
 
   /* ---------- Состояние ---------- */
   let mode = 'idle';
+  let summary = false;
   let target = 0;      // целевой прогресс 0..1
   let shown = 0;       // отрисованный прогресс 0..1
   let animFrom = 0;
@@ -439,6 +440,16 @@ export function createProgressBar({ onCommand } = {}) {
     buttons.stop.setOn(stop);
   }
 
+  function syncVisibility() {
+    const withControls = !summary && ['downloading', 'paused', 'offline'].includes(mode);
+    const withInterest = !summary && (withControls || mode === 'complete');
+    manage.hidden = !withInterest;
+    controls.hidden = !withControls;
+    interest.hidden = !withInterest;
+    publication.hidden = !(summary || withControls || mode === 'stopped');
+    root.dataset.summary = String(summary);
+  }
+
   /* ---------- Смена состояния ---------- */
   function setMode(kind) {
     if (mode === kind) return;
@@ -454,14 +465,8 @@ export function createProgressBar({ onCommand } = {}) {
     cells.forEach((cell) => { cell.alpha = -1; cell.glow = null; });
 
     /* Видимость частей — строго по макетам */
-    const withControls = kind === 'downloading' || kind === 'paused' || kind === 'offline';
-    const withInterest = withControls || kind === 'complete';
-    const withPublication = withControls || kind === 'stopped';
-
-    manage.hidden = !withInterest;
-    controls.hidden = !withControls;
-    interest.hidden = !withInterest;
-    publication.hidden = !withPublication;
+    summary = false;
+    syncVisibility();
 
     if (kind === 'downloading') setControls({ pause: true, play: false, stop: true });
     else if (kind === 'paused') setControls({ pause: false, play: true, stop: true });
@@ -515,12 +520,14 @@ export function createProgressBar({ onCommand } = {}) {
     /* Единая точка входа: состояние + все подписи + прогресс */
     update({
       mode: kind,
+      summary: showSummary,
       progress,
       lead, trail,
       found, displayed, selected,
       interest: interestText,
     } = {}) {
       if (kind) setMode(kind);
+      if (showSummary !== undefined) { summary = Boolean(showSummary); syncVisibility(); }
       if (lead !== undefined) paintSplitLabel(leadText, lead || '');
       if (trail !== undefined) paintSplitLabel(trailText, trail || '');
       if (found !== undefined) {

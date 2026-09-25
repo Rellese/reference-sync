@@ -1075,6 +1075,33 @@ let lastProgressLead = '';
 let lastProgressTrail = '';
 
 /* Подписи блока Publication info — общие для состояний 1, 3, 4, 5 */
+let importResult = null;
+let importResultVisible = false;
+
+function showImportResult(outcome, hasErrors) {
+  importResult = outcome;
+  importResultVisible = true;
+  ui.status.progress.update({
+    mode: hasErrors ? 'stopped' : 'complete',
+    summary: true,
+    lead: hasErrors ? 'Импорт завершён с ошибками' : 'Импорт завершён',
+    trail: `Полностью добавленных публикаций: ${outcome.complete}/${outcome.total}`,
+    found: `Частично: ${outcome.partial}`,
+    displayed: `Не импортировано: ${outcome.notImported}`,
+    selected: `Файлов добавлено: ${outcome.files}`,
+  });
+}
+
+function syncImportResultSelection() {
+  if (!importResult || phase !== 'ready') return;
+  if (selectedImportablePostCount() > 0) importResultVisible = false;
+  if (!importResultVisible) ui.status.progress.update({
+    mode: 'stopped', summary: false,
+    lead: 'Готово к импорту', trail: `0 из ${selectedImportablePostCount()}`,
+    ...publicationInfo(),
+  });
+}
+
 function publicationInfo() {
   const visible = visiblePosts();
 
@@ -1445,6 +1472,8 @@ async function resolveSelectedArchive() {
 
 /* ---------- Поиск ---------- */
 async function runSearch() {
+  importResult = null;
+  importResultVisible = false;
   /* Настройки фиксируются на момент нажатия «Поиск».
    Изменения формы во время операции не должны менять уже
    запущенный профиль браузера или лимит. */
@@ -2203,6 +2232,8 @@ async function runImport() {
     return;
   }
 
+  importResult = null;
+  importResultVisible = false;
   phase = 'importing';
   manualStopRequested = false;
   state.abortController = new AbortController();
@@ -2744,7 +2775,7 @@ async function runImport() {
     const outcome = summarizeImportOutcome(chosen, state.knownPostIds, state.importRecords, created);
     const outcomeText = `Публикаций полностью: ${outcome.complete}/${outcome.total}; частично: ${outcome.partial}; не импортировано: ${outcome.notImported}. Файлов добавлено: ${outcome.files}.`;
     ui.log.add(outcomeText);
-    if (stopReason) ui.status.progress.update({ mode: 'stopped', lead: 'Импорт завершён с ошибками', trail: outcomeText, ...publicationInfo() });
+    showImportResult(outcome, Boolean(stopReason || failed.length));
     // Repeat the per-post causes after Eagle's verbose import logs so the
     // bounded UI journal retains the failures, not only successful writes.
     for (const entry of failedDownloads) ui.log.add(redact(`Не скачано: ${entry.post.url} — ${entry.error || 'Файлы не получены'}`), 'err');
@@ -4340,6 +4371,7 @@ function updateTableSelectionTitle(
     row.classList.toggle('is-selected', selection.selectedCount > 0);
   }
   syncFooterActionAvailability();
+  syncImportResultSelection();
 }
 
 function scheduleTableSelectionTitleUpdate() {
@@ -5996,6 +6028,8 @@ function toggleAll(value) {
 }
 
 function clearResults() {
+  importResult = null;
+  importResultVisible = false;
   /*
    * Если сейчас открыт промежуточный выбор коллекций,
    * закрываем его как отменённый. Это разблокирует
