@@ -5,8 +5,8 @@ import path from 'node:path';
 import os from 'node:os';
 import { EventEmitter } from 'node:events';
 import { PassThrough } from 'node:stream';
-import behance, { behanceTarget, validateBehanceDiscovery } from '../../js/sources/behance.js';
-import { parseDumpJson } from '../../js/sources/gallery-source.js';
+import behanceAdapter, { behanceMediaSource as behance, behanceTarget, validateBehanceDiscovery } from '../../js/sources/behance.js';
+import { parseDumpJson, describeFailure } from '../../js/sources/gallery-source.js';
 import { selectedDownloadedFiles } from '../../js/carousel-selection.js';
 import { nodeApi } from '../../js/node-bridge.js';
 import { toolchain } from '../../js/toolchain.js';
@@ -19,6 +19,11 @@ const messages = [
   [3,'https://cdn.example/4.gif',{...project,num:4,extension:'gif'}],
 ];
 const posts = () => behance.assemble(parseDumpJson(JSON.stringify(messages)),{target:behanceTarget('https://www.behance.net/collection/789/Test'),accountUsername:'ignored'});
+test('Behance distinguishes an external player failure from account authorization', () => {
+  const failure={code:1,stderr:'[downloader.ytdl][error] [vimeo] HTTP Error 401: Unauthorized'};
+  assert.match(describeFailure(failure,'chrome','Behance'), /встроенное видео/);
+  assert.match(describeFailure({code:1,stderr:'[behance][error] Unauthorized'},'chrome','Behance'), /повторный вход/);
+});
 test('Behance rejects extraction errors even when gallery-dl exits successfully', () => {
   for (const message of ['403 Forbidden', 'NO_PROTOCOLS_AVAILABLE']) {
     assert.throws(() => validateBehanceDiscovery(parseDumpJson(JSON.stringify([
@@ -39,8 +44,8 @@ test('Behance groups media blocks by project and excludes text while keeping sou
 });
 test('Behance accepts only explicit project/collection HTTPS links and routes a collection',async()=>{
   for(const url of ['https://evil.example/collection/1','https://behance.net.evil.example/gallery/1','file:///gallery/1','designer']) assert.throws(()=>behanceTarget(url));
-  assert.equal(behanceTarget('https://behance.net/gallery/123/Case?x=1').url,'https://www.behance.net/gallery/123/');
-  assert.equal((await behance.listContainers({username:'https://www.behance.net/collection/789/Test'}))[0].id,'789');
+  assert.equal(behanceTarget('https://behance.net/gallery/123/Case?x=1').url,'https://www.behance.net/gallery/123/a');
+  assert.equal((await behanceAdapter.listContainers({username:'https://www.behance.net/collection/789/Test'}))[0].id,'789');
 });
 test('Behance passes selected block numbers to downloader and keeps only importable final files', async t=>{
   const oldNode={...nodeApi},oldTool={...toolchain};
@@ -48,7 +53,7 @@ test('Behance passes selected block numbers to downloader and keeps only importa
   t.after(()=>{Object.assign(nodeApi,oldNode);Object.assign(toolchain,oldTool);fs.rmSync(root,{recursive:true,force:true});});
   Object.assign(nodeApi,{available:true,fs,path,os:{homedir:()=>root},childProcess:{spawn(command,args){
     assert.equal(args[args.indexOf('--range')+1],'4');
-    assert.equal(args.at(-1),'https://www.behance.net/gallery/123/');
+    assert.equal(args.at(-1),'https://www.behance.net/gallery/123/a');
     const child=new EventEmitter(); child.stdout=new PassThrough(); child.stderr=new PassThrough(); child.kill=()=>{};
     queueMicrotask(()=>{const dir=args[args.indexOf('--dest')+1];fs.writeFileSync(path.join(dir,'4.gif'),Buffer.from('R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw==','base64'));fs.writeFileSync(path.join(dir,'3.faudio.mp4'),'intermediate');child.emit('close',0);});
     return child;

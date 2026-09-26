@@ -1,5 +1,6 @@
 // Internal status and diagnostic messages. External engine output remains verbatim.
 export const diagnostics = [
+  ['Не удалось скачать встроенное видео. Проверьте доступ к нему в плеере; остальные выбранные файлы сохраняются.', 'Could not download the embedded video. Check access in its player; other selected files are preserved.', 'Impossible de télécharger la vidéo intégrée. Vérifiez son accès dans le lecteur ; les autres fichiers sélectionnés sont conservés.', 'No se pudo descargar el vídeo incrustado. Comprueba el acceso en su reproductor; se conservan los demás archivos seleccionados.', '无法下载嵌入视频。请在其播放器中检查访问权限；其他已选文件会保留。'],
   ['Behance не разрешил получить данные проекта. Проверьте доступ в выбранном браузере и повторите поиск.', 'Behance could not return the project data. Check access in the selected browser and retry.', 'Behance n’a pas pu fournir les données du projet. Vérifiez l’accès dans le navigateur sélectionné et réessayez.', 'Behance no pudo devolver los datos del proyecto. Comprueba el acceso en el navegador seleccionado y vuelve a intentarlo.', 'Behance 无法返回项目数据。请在所选浏览器中检查访问权限并重试。'],
   ['Блоков', 'Blocks', 'Blocs', 'Bloques', '内容块'],
   ['Ссылка Behance', 'Behance link', 'Lien Behance', 'Enlace de Behance', 'Behance 链接'],

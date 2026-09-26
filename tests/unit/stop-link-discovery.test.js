@@ -304,3 +304,32 @@ for (const source of ['instagram', 'pinterest']) {
     assert.deepEqual(calls.map(call => call.killed), [true, true]);
   });
 }
+
+// Behance resolves nested projects into a single pretty-printed document.
+for (const boundary of ['link', 'known']) {
+  test(`Behance document: ${boundary} boundary excludes later projects and keeps complete blocks`, async t => {
+    const { behanceMediaSource: behance } = await import('../../js/sources/behance.js');
+    const document = JSON.stringify([...messages('behance', 1, 3), ...messages('behance', 2), ...messages('behance', 3)], null, 2);
+    const calls = fakeEngine(t, [{chunks:[document.slice(0,45),document.slice(45,117),document.slice(117)]}]);
+    const result = await behance.discover({username:'https://www.behance.net/collection/123/',cookieFile:'fixture',limit:0,
+      searchMode:boundary==='known'?'smart':'full', knownPostIds:new Set(['behance:2']),
+      stopLink:boundary==='link'?parseStopLink('https://www.behance.net/gallery/2/'):null});
+    assert.deepEqual(result.posts.map(post=>post.postId),['behance:1']);
+    assert.equal(result.posts[0].componentCount,3);
+    assert.equal(result.stoppedEarly,true);
+    assert.equal(result.stopLinkReached,boundary==='link');
+    assert.equal(calls[0].args.filter(arg=>arg==='--dump-json').length,2);
+    assert.ok(calls[0].args.includes('output.jsonl=false'));
+  });
+}
+
+test('Behance document: manual cancellation wins and truncated JSON is rejected', async () => {
+  const options={jsonDocument:true,stopAtKnown:true,knownPostIds:new Set(['behance:2']),recordToPost:record=>({postId:`behance:${record.id}`})};
+  await assert.rejects(runDiscoveryWithStop(async (_,opts)=>{
+    opts.onStdout('[\n [3, "https://example.test/file",');return {code:0};
+  },[],options),SyntaxError);
+  const controller=new AbortController();
+  await assert.rejects(runDiscoveryWithStop(async (_,opts)=>{
+    opts.onStdout('[]');controller.abort();return {code:0};
+  },[],{...options,signal:controller.signal}),{code:STOPPED});
+});

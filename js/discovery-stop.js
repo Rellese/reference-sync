@@ -8,6 +8,7 @@ export async function runDiscoveryWithStop(run, args, {
   stopLink,
   knownPostIds = new Set(),
   stopAtKnown = false,
+  jsonDocument = false,
   recordToPost,
   signal,
   onStdout,
@@ -76,6 +77,9 @@ export async function runDiscoveryWithStop(run, args, {
       onStdout(chunk) {
         if (reached) return;
         carry += String(chunk);
+        // Recursive DataJob emits one pretty-printed JSON document. Parsing
+        // individual lines loses message boundaries (and therefore stop links).
+        if (jsonDocument) return;
         const lines = carry.split(/\r?\n/);
         carry = lines.pop() || '';
         for (const line of lines) {
@@ -85,7 +89,8 @@ export async function runDiscoveryWithStop(run, args, {
       },
     });
     throwIfAborted(signal); // Ручной Stop всегда имеет приоритет.
-    processLine(carry);
+    if (jsonDocument && carry.trim()) accept(JSON.parse(carry));
+    else processLine(carry);
     return { ...result, stopLinkReached: reached && !knownPostReached, knownPostReached };
   } finally {
     signal?.removeEventListener('abort', abort);

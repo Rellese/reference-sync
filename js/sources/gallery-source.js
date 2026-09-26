@@ -465,6 +465,7 @@ export function createGallerySource(spec) {
     extraDiscoverArgs = [],
     extraDownloadArgs = [],
     validateDiscovery = null,
+    discoveryJsonDocument = false,
   } = spec;
 
   /* -------- Нормализация одной записи -------- */
@@ -889,6 +890,7 @@ export function createGallerySource(spec) {
       let buffer = '';
 
       const result = await runDiscoveryWithStop(runGallery, args, {
+        jsonDocument: discoveryJsonDocument,
         stopLink,
         knownPostIds,
         stopAtKnown: searchMode === 'smart' || searchMode === 'recent',
@@ -1344,6 +1346,9 @@ export function describeFailure(result, browser, title) {
   }
   if (text.includes('database is locked') || text.includes('permissionerror')) {
     return `Файл cookies занят браузером «${browser}». Закройте браузер и повторите.`;
+  }
+  if (title === 'Behance' && /\[downloader\.ytdl\]\[error\]/.test(text)) {
+    return 'Не удалось скачать встроенное видео. Проверьте доступ к нему в плеере; остальные выбранные файлы сохраняются.';
   }
   if (text.includes('login required') || text.includes('checkpoint') ||
       text.includes('challenge') || text.includes('unauthorized')) {
