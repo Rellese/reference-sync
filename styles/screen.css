@@ -541,10 +541,10 @@
  */
 html.is-resizing-table-column,
 html.is-resizing-table-column * {
-  cursor:
-    url('../assets/cursors/column-resize.svg')
-    14 8,
-    col-resize !important;
+  /* Eagle on macOS crashes when this SVG cursor is applied to the whole
+   * document during pointer capture. Keep the native cursor while dragging;
+   * the custom cursor on the idle divider remains unchanged. */
+  cursor: col-resize !important;
 
   user-select: none !important;
 }
@@ -748,16 +748,13 @@ html.is-resizing-table-column * {
   background: transparent;
   transition: background 120ms ease;
 
-  /*
-   * M1-T08E:
-   * Chromium не выполняет layout и paint строк,
-   * находящихся далеко за пределами таблицы.
-   *
-   * 70px — штатная высота строки из макета.
-   */
-  content-visibility: auto;
-  contain: layout style paint;
-  contain-intrinsic-size: 70px;
+  /* Stable geometry keeps the native scrollbar accurate at every scroll position.
+     Text remains painted; only image decoding is deferred. */
+  height: 70px;
+  contain: layout style;
+}
+.rs-row > .rs-table__grid {
+  height: 70px;
 }
 .rs-row:nth-child(odd) {
   background: var(--bg-row);
@@ -1087,8 +1084,8 @@ textarea.rs-editable {
 /* Скролл по макету Figma. */
 .rs-cell__text::-webkit-scrollbar,
 textarea.rs-editable::-webkit-scrollbar {
-  width: 4px;
-  height: 4px;
+  width: 6px;
+  height: 6px;
 }
 
 .rs-cell__text::-webkit-scrollbar-track,
@@ -1099,7 +1096,7 @@ textarea.rs-editable::-webkit-scrollbar-track {
 
 .rs-cell__text::-webkit-scrollbar-thumb,
 textarea.rs-editable::-webkit-scrollbar-thumb {
-  background: #313131;
+  background: linear-gradient(#313131, #313131) center / 4px 100% no-repeat;
   border-radius: 100px;
 }
 
@@ -1420,17 +1417,9 @@ M1-T09J(a) — дерево коллекций в таблице результ�
   outline-offset: -2px;
 }
 
-/*
- * Каждый уровень SECTION смещается относительно BOARD.
- * Значение --rs-tree-depth устанавливается из main.js.
- */
-.rs-collection__head {
-  padding-left:
-    calc(
-      20px +
-      var(--rs-tree-depth, 0) * 26px
-    );
-}
+/* Checkboxes remain in the first column; only the tree identity is indented. */
+.rs-collection__head { padding-left: 20px; }
+.rs-collection__identity { margin-left: calc(11px + var(--rs-tree-depth, 0) * 33px); }
 
 /*
  * Вложенный SECTION не должен перекрывать sticky-заголовок
@@ -1520,11 +1509,11 @@ M1-T09J(a) — дерево коллекций в таблице результ�
   background: #333333;
 
   -webkit-mask:
-    var(--rs-chevron-icon)
+    url('../assets/folder-chevron.svg')
     center / contain no-repeat;
 
   mask:
-    var(--rs-chevron-icon)
+    url('../assets/folder-chevron.svg')
     center / contain no-repeat;
 
   cursor: pointer;
@@ -1578,11 +1567,7 @@ M1-T09J(a) — дерево коллекций в таблице результ�
   box-sizing: border-box;
   width: 100%;
 
-  padding-left:
-    calc(
-      26px +
-      var(--rs-tree-depth, 0) * 26px
-    );
+  padding-left: 0;
 }
 
 .rs-collection__post > :not(
@@ -1592,81 +1577,41 @@ M1-T09J(a) — дерево коллекций в таблице результ�
   min-width: 0;
 }
 
+.rs-collection__post .rs-table__grid {
+  --rs-table-lead-width: calc(105px + var(--rs-tree-depth, 0) * 33px);
+}
 .rs-collection__branch {
   position: absolute;
-
-  left:
-    calc(
-      12px +
-      var(--rs-tree-depth, 0) * 26px
-    );
+  left: calc(60px + var(--rs-tree-depth, 0) * 33px);
   top: 0;
   bottom: 0;
-
-  width: 14px;
-
+  width: 18px;
   pointer-events: none;
+  z-index: 2;
 }
-
-/*
- * Обычная ветка:
- * checkbox публикации не выбран.
- */
-
 .rs-collection__branch::before {
-  content: '';
-
-  position: absolute;
-
-  left: 0;
-  top: 0;
-  bottom: 0;
-
-  width: 1px;
-
-  background: #232323;
-
-  transition:
-    background 120ms ease;
+  content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 1px; background: #313131;
 }
-
 .rs-collection__branch::after {
-  content: '';
-
-  position: absolute;
-
-  left: 0;
-  top: 50%;
-
-  width: 14px;
-  height: 1px;
-
-  background: #232323;
-
-  transition:
-    background 120ms ease;
+  content: ''; position: absolute; left: 0; top: calc(50% - 16px); width: 18px; height: 16px;
+  border-left: 1px solid #313131; border-bottom: 1px solid #313131; border-bottom-left-radius: 16px;
+  box-sizing: border-box;
 }
-
-/*
- * Активная ветка:
- * checkbox публикации выбран.
- */
-
-.rs-collection__post.is-selected
-.rs-collection__branch::before,
-.rs-collection__post.is-selected
-.rs-collection__branch::after {
-  background: #484848;
+.rs-collection__post:last-child > .rs-collection__branch::before { bottom: calc(50% + 15px); }
+.rs-collection .rs-collection::before {
+  content: ''; position: absolute; left: calc(27px + var(--rs-tree-depth, 0) * 33px);
+  top: 0; bottom: 0; width: 1px; background: #313131; z-index: 4; pointer-events: none;
 }
-
-/*
- * Вертикальная линия последнего элемента
- * заканчивается в середине строки.
- */
-
-.rs-collection__post:last-child
-.rs-collection__branch::before {
-  bottom: 50%;
+.rs-collection .rs-collection:last-child::before { bottom: auto; height: 9px; }
+.rs-collection > .rs-collection__head::before {
+  content: ''; position: absolute; left: calc(60px + var(--rs-tree-depth, 0) * 33px);
+  top: 32px; bottom: 0; width: 1px; background: #313131;
+}
+.rs-collection.is-collapsed > .rs-collection__head::before { display: none; }
+.rs-collection .rs-collection > .rs-collection__head::after {
+  content: ''; position: absolute; left: calc(27px + var(--rs-tree-depth, 0) * 33px);
+  top: 9px; width: 18px; height: 16px; border-left: 1px solid #313131;
+  border-bottom: 1px solid #313131; border-bottom-left-radius: 16px;
 }
 
 /* ============================================================
@@ -1774,4 +1719,88 @@ M1-T09J(a) — дерево коллекций в таблице результ�
   left: calc(30px + 403px + 5px);
   right: 30px;
   width: auto;
+}
+
+/* Loading only affects the thumbnail, never the publication text. */
+.rs-thumb.is-loading,
+.rs-carousel-modal__thumbnail.is-loading {
+  background: linear-gradient(100deg, #292929 20%, #414141 45%, #292929 70%);
+  background-size: 240% 100%;
+  animation: rs-thumbnail-loading 1.3s ease-in-out infinite;
+}
+.is-loading > img { opacity: 0; }
+@keyframes rs-thumbnail-loading {
+  from { background-position: 100% 0; }
+  to { background-position: -100% 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .rs-thumb.is-loading, .rs-carousel-modal__thumbnail.is-loading { animation: none; }
+}
+
+.rs-work { grid-template-columns: var(--rs-settings-width, 403px) minmax(0, 1fr); }
+.rs-right { grid-template-rows: auto minmax(100px, 1fr) var(--rs-naming-height, auto); }
+.rs-footer { left: calc(var(--rs-settings-width, 403px) + 35px); }
+.rs-right[style*="--rs-naming-height"] .rs-naming { max-height: none; min-height: 0; }
+.rs-right[style*="--rs-naming-height"] .rs-naming__body { max-height: 100%; box-sizing: border-box; }
+.rs-panel-resizer { position: absolute; z-index: 12; border-radius: 2.5px; touch-action: none; }
+.rs-panel-resizer:hover, .rs-panel-resizer.is-dragging, .rs-panel-resizer:focus-visible { background: rgba(211,82,45,.5); outline: none; }
+.rs-panel-resizer--width { width: 5px; cursor: url('../assets/cursor-resize.svg') 14 9, col-resize; }
+.rs-panel-resizer--height { height: 5px; cursor: url('../assets/cursor-resize-vertical.svg') 9 14, row-resize; }
+.rs-table__column-resizer { cursor: url('../assets/cursor-resize.svg') 14 9, col-resize; }
+.rs-naming { container-type: inline-size; padding: 13px 4px 15px 19px; }
+.rs-naming__columns { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 30px; }
+.rs-naming__section { position: relative; display: flex; flex-direction: column; gap: 20px; min-width: 0; }
+.rs-naming__section + .rs-naming__section::before { content: ''; position: absolute; left: -15px; top: 0; bottom: 0; border-left: 1px dashed #212121; }
+.rs-naming__section > .rs-switch-row { padding-bottom: 20px; border-bottom: 1px dashed #212121; justify-content: flex-start; }
+.rs-naming__cards { display: flex; flex-direction: column; gap: 30px; min-width: 0; }
+.rs-naming__cards[hidden] { display: none; }
+.rs-naming__card { display: flex; flex-direction: column; gap: 15px; width: 100%; min-width: 0; }
+.rs-naming__card + .rs-naming__card { padding-top: 30px; border-top: 1px dashed #212121; }
+.rs-naming__card-title { position: relative; display: flex; align-items: center; justify-content: space-between; font: 14px/18px var(--font-mono); letter-spacing: .1em; text-transform: uppercase; color: #707070; }
+.rs-naming__options { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 15px; }
+.rs-naming__options .rs-filter-row { min-height: 36px; display: flex; flex-wrap: wrap; align-items: center; column-gap: 20px; row-gap: 8px; }
+.rs-naming__remove { position: absolute; right: 0; border: 0; background: transparent; color: #707070; font-size: 16px; cursor: pointer; opacity: 0; }
+.rs-naming__card:hover .rs-naming__remove, .rs-naming__remove:focus-visible { opacity: 1; }
+.rs-naming__add { box-sizing: border-box; width: 100%; min-height: 42px; border: 1px solid #313131; background: transparent; color: #707070; border-radius: 25px; cursor: pointer; padding: 10px; font: 12px/16px var(--font-mono); letter-spacing: .1em; text-transform: uppercase; }
+.rs-naming__remove:hover, .rs-naming__add:hover { color: var(--accent); border-color: var(--accent); }
+@container (max-width: 800px) {
+  .rs-naming__columns { grid-template-columns: minmax(0, 1fr); }
+  .rs-naming__section + .rs-naming__section::before { display: none; }
+}
+@container (max-width: 430px) { .rs-naming__options { grid-template-columns: minmax(0, 1fr); } }
+.rs-archive { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.rs-archive__drop { white-space: pre-line; padding: 24px 12px; border: 1px dashed #707070; border-radius: 10px; background: var(--bg-row); color: var(--text-muted); font: 12px/1.6 var(--font-sans); cursor: pointer; }
+.rs-archive__drop:hover, .rs-archive__drop.is-over { border-color: var(--accent); color: var(--accent); }
+.rs-archive [hidden] { display: none; }
+/* Picker depth moves the whole row; do not indent its identity a second time. */
+.rs-collection-picker__row .rs-collection__identity { margin-left: 0; }
+
+.rs-naming .rs-spinner__value { text-align: left; padding-left: 14px; }
+.rs-naming .rs-field__input::placeholder { color: #707070; opacity: 1; }
+
+/* Translated headings can occupy two lines without covering the next column. */
+.rs-table__col { white-space: normal; overflow-wrap: anywhere; }
+.rs-step__title, .rs-field-label__text, .rs-naming__label,
+.rs-radio-row__label, .rs-switch-row__label { min-width: 0; overflow-wrap: anywhere; }
+.rs-results__title-row { gap: 12px; }
+.rs-results__title { min-width: 0; overflow-wrap: anywhere; }
+html[lang='zh-CN'] .rs-header__subtitle,
+html[lang='zh-CN'] .rs-step__title,
+html[lang='zh-CN'] .rs-field-label__text { letter-spacing: 0.03em; }
+.rs-field-label__text { flex: 0 1 auto; }
+
+.rs-cell__text::-webkit-scrollbar-thumb:hover,
+textarea.rs-editable::-webkit-scrollbar-thumb:hover {
+  background-image: linear-gradient(#5C5C5C, #5C5C5C);
+  background-size: 5px 100%;
+}
+
+.rs-cell__text::-webkit-scrollbar-thumb:horizontal,
+textarea.rs-editable::-webkit-scrollbar-thumb:horizontal { background-size: 100% 4px; }
+
+.rs-cell__text::-webkit-scrollbar-thumb:horizontal:hover,
+textarea.rs-editable::-webkit-scrollbar-thumb:horizontal:hover { background-size: 100% 5px; }
+
+.rs-results.is-thumbnails-hidden .rs-collection__post .rs-table__grid {
+  --rs-table-lead-width: calc(27px + var(--rs-tree-depth, 0) * 33px);
 }

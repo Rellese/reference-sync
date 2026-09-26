@@ -35,6 +35,7 @@ const MIN_VERSION = [1, 26, 0];
    ------------------------------------------------------------ */
 export const toolchain = {
   ready: false,
+  ffmpeg: null,
   /* 'binary' — исполняемый файл, 'module' — python -m gallery_dl */
   kind: null,
   command: null,
@@ -491,6 +492,8 @@ export async function installToolchain({ onLog, onProgress, signal } = {}) {
     '--no-warn-script-location',
     '--target', runtime,
     'gallery-dl',
+    'yt-dlp',
+    'imageio-ffmpeg',
   ];
 
   let output = '';
@@ -568,7 +571,8 @@ export function requireToolchain() {
    Все места плагина обращаются к gallery-dl только так. */
 export function runGallery(extra = [], options = {}) {
   requireToolchain();
-  return runCommand(toolchain.command, galleryArgs(extra), {
+  const videoArgs = toolchain.ffmpeg ? ['-o', `downloader.ytdl.raw-options=${JSON.stringify({ ffmpeg_location: toolchain.ffmpeg, merge_output_format: 'mp4' })}`] : [];
+  return runCommand(toolchain.command, galleryArgs([...videoArgs, ...extra]), {
     ...options,
     env: { ...toolchainEnv(), ...(options.env || {}) },
   });
@@ -637,4 +641,33 @@ export function describeToolchainError(error) {
         action: 'retry',
       };
   }
+}
+
+// Check in the exact Python environment used by gallery-dl, without installing anything.
+export async function hasVideoDownloader({ requireHls = true } = {}) {
+  if (!await findFFmpeg()) return false;
+  if (!requireHls || toolchain.kind !== 'module') return true;
+  const result = await runCommand(toolchain.command, ['-c', 'import yt_dlp'], {
+    env: toolchainEnv(), timeout: 15000,
+  }).catch(() => null);
+  return result?.code === 0;
+}
+export async function findFFmpeg() {
+  if (toolchain.ffmpeg) return toolchain.ffmpeg;
+  if (!nodeApi.available) return null;
+  const { path, fs } = nodeApi;
+  const executable = process.platform === 'win32' ? 'ffmpeg.exe' : 'ffmpeg';
+  const directories = [...(process.env.PATH || '').split(path.delimiter), '/usr/local/bin', '/opt/homebrew/bin'];
+  const candidates = directories.filter(Boolean).map(dir => path.join(dir, executable));
+  if (toolchain.kind === 'module') {
+    const probe = await runCommand(toolchain.command, ['-c', 'import imageio_ffmpeg; print(imageio_ffmpeg.get_ffmpeg_exe())'],
+      { env: toolchainEnv(), timeout: 15000 }).catch(() => null);
+    if (probe?.code === 0) candidates.unshift(probe.stdout.trim());
+  }
+  for (const candidate of new Set(candidates)) {
+    if (!fs.existsSync(candidate)) continue;
+    const check = await runCommand(candidate, ['-version'], { timeout: 5000 }).catch(() => null);
+    if (check?.code === 0) { toolchain.ffmpeg = candidate; return candidate; }
+  }
+  return null;
 }

@@ -36,6 +36,11 @@ export const nodeApi = (() => {
       https
     ),
     childProcess,
+    stream: tryRequire('stream'),
+    zlib: tryRequire('zlib'),
+    url: tryRequire('url'),
+    crypto: tryRequire('crypto'),
+    Buffer: tryRequire('buffer')?.Buffer,
     fs,
     path,
     os,

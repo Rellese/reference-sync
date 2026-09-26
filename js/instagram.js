@@ -1,3 +1,4 @@
+import { downloadMediaPlan } from './media-download.js';
 /* ============================================================
    ReferenceSync — движок Instagram
 
@@ -101,7 +102,7 @@ export function buildDiscoveryModeArgs({
 
 /* Профили скорости — app/instagram_download_staging.py */
 const SPEED_PROFILES = {
-  safe: { sleepRequest: '2.0-4.0', retries: 3 },
+  safe: { sleepRequest: '3-5', retries: 3 },
   balanced: { sleepRequest: '1.0-2.0', retries: 2 },
   /* «Молния» — без задержек между запросами. Instagram может
      ответить блокировкой, поэтому режим выбирается вручную. */
@@ -111,7 +112,7 @@ const SPEED_PROFILES = {
 /* Задержка добавляется только если профиль её задаёт */
 function paceArgs(profile) {
   return profile.sleepRequest
-    ? ['--sleep-request', profile.sleepRequest]
+    ? ['--sleep-request', profile.sleepRequest, '--sleep', profile.sleepRequest]
     : [];
 }
 
@@ -1079,8 +1080,11 @@ export async function discoverSaved({
     try {
       result = await runDiscoveryWithStop(runGallery, args, {
         stopLink,
+        knownPostIds,
+        stopAtKnown: stopsAtKnownPost(searchMode),
         recordToPost: (record) => ({
           source: 'instagram',
+          postId: textValue(record.post_id, record.external_id),
           raw: record,
           url: record.post_url || record.url,
         }),
@@ -1130,6 +1134,11 @@ export async function discoverSaved({
       throw makeInstagramRateLimitError(
         'Instagram временно ограничил запросы во время поиска.',
       );
+    }
+
+    if (result.knownPostReached) {
+      stoppedEarly = true;
+      targetStoppedEarly = true;
     }
 
     if (result.stopLinkReached) {
@@ -1363,81 +1372,6 @@ export function redact(text) {
     .replace(/(ds_user_id\s*[=:]\s*)[^;\s,"']+/gi, '$1<REDACTED>');
 }
 
-async function downloadDirectComponents({
-  plan,
-  postDir,
-  cookieFile,
-  profile,
-  signal,
-  onStderr,
-}) {
-  let stdout = '';
-  let stderr = '';
-
-  for (const component of plan) {
-    throwIfAborted(signal);
-
-    const filename =
-      `${component.componentIndex}.${component.extension}`;
-
-    const destination = nodeApi.path.join(
-      postDir,
-      filename,
-    );
-
-    const result = await runGallery([
-      '--config-ignore',
-      '--no-input',
-      '--cookies', cookieFile,
-      '--retries', String(profile.retries),
-      '--http-timeout', '60',
-      '--dest', postDir,
-      '--filename', filename,
-      '--directory', '',
-      component.url,
-    ], {
-      signal,
-      onStdout: (chunk) => {
-        stdout += chunk;
-      },
-      onStderr: (chunk) => {
-        stderr += chunk;
-        if (onStderr) onStderr(chunk);
-      },
-    });
-
-    stdout += `\n${result.stdout || ''}`;
-    stderr += `\n${result.stderr || ''}`;
-
-    let downloaded = false;
-
-    try {
-      downloaded =
-        result.code === 0 &&
-        nodeApi.fs.existsSync(destination) &&
-        nodeApi.fs.statSync(destination).size > 0;
-    } catch (_) {
-      downloaded = false;
-    }
-
-    if (!downloaded) {
-      return {
-        code: result.code || 1,
-        stdout,
-        stderr:
-          `${stderr}\nПрямая ссылка компонента ` +
-          `${component.componentIndex} недоступна.`,
-      };
-    }
-  }
-
-  return {
-    code: 0,
-    stdout,
-    stderr,
-  };
-}
-
 /* ------------------------------------------------------------
    Скачивание выбранных публикаций во временную папку.
    Перенос instagram_download_staging.py: файлы сначала
@@ -1547,12 +1481,13 @@ if (onLog) {
        и повторяем ту же публикацию, не сдвигая очередь */
     let error = null;
     let attempts = 0;
+    let raw = '';
     const maxAttempts = control ? RETRY_STEPS_COUNT : 1;
 
     for (;;) {
       attempts += 1;
       error = null;
-      let raw = '';
+      raw = '';
       try {
         const handleStderr = (chunk) => {
           raw += chunk;
@@ -1567,9 +1502,10 @@ if (onLog) {
         let result;
 
         if (directPlan.length) {
-          result = await downloadDirectComponents({
+          result = await downloadMediaPlan({
 
             plan: directPlan,
+            control,
             postDir,
             cookieFile: activeCookieFile,
             profile,
@@ -1581,7 +1517,7 @@ if (onLog) {
             `\n${result.stdout || ''}` +
             `\n${result.stderr || ''}`;
 
-          if (result.code !== 0) {
+          if (result.code !== 0 && !/HTTP 429/.test(result.stderr || '')) {
             if (onLog) {
               onLog(
                 `Прямая ссылка устарела: ${post.url}. ` +
@@ -1643,7 +1579,7 @@ if (onLog) {
         .filter((name) => !name.startsWith('.'))
         .map((name) => path.join(postDir, name))
         .filter((file) => {
-          try { return fs.statSync(file).size > 0; }
+          try { return !/\.(?:part|ytdl|tmp)$/i.test(file) && fs.statSync(file).isFile() && fs.statSync(file).size > 0; }
           catch (_) { return false; }
         })
         .sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
@@ -1674,7 +1610,7 @@ const completedEntry = {
 };
 
 if (onCompleted) {
-  onCompleted(completedEntry);
+  await onCompleted(completedEntry);
 }
 
 return completedEntry;

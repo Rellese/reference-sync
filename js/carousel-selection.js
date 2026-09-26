@@ -1,3 +1,4 @@
+import { finalMediaName } from './downloaded-media.js';
 /* ============================================================
    Carousel component selection
 
@@ -307,17 +308,26 @@ export function selectedDownloadedFiles(entry, selection) {
     return [];
   }
 
+  // Defence in depth for restored queues created by older plugin versions.
+  // Archive files are copied to the same numeric naming convention.
+  entry = { ...entry, files: entry.files.filter(file => {
+    const name = String(file).split(/[\\/]/).pop();
+    return !/^\d+\./.test(name) || finalMediaName(name);
+  }) };
   const componentCount = Number(
     entry.post?.componentCount,
   );
 
   if (componentCount <= 1) {
-    return entry.files
-      .map((file, componentIndex) => ({
-        file,
-        componentIndex,
-      }))
-      .filter(({ file }) => Boolean(file));
+    const component = entry.post.components?.[0];
+    const candidates = entry.files.filter(Boolean);
+    const expectedExtension = component?.directMedia?.extension;
+    const preferred = candidates.find(file => expectedExtension && file.toLowerCase().endsWith(`.${expectedExtension}`))
+      || candidates.find(file => component?.mediaType === 'video' && /\.(mp4|mov|webm|mkv|m4v|avi)$/i.test(file))
+      || candidates[0];
+    // A fallback can leave two final extensions for the same visual component.
+    // One publication component must never turn into two registry positions.
+    return preferred ? [{ file: preferred, componentIndex: 0 }] : [];
   }
 
   /*
@@ -336,12 +346,22 @@ export function selectedDownloadedFiles(entry, selection) {
         );
 
   return entry.files
-    .map((file, componentIndex) => ({
-      file,
-      componentIndex,
-    }))
+    .map((file, position) => {
+      // Downloaders name files with the original one-based component number.
+      // Missing earlier files must not shift a later carousel component.
+      const match = String(file).split(/[\\/]/).pop().match(/^(\d+)\.[^.]+$/);
+      const number = match ? Number(match[1]) : null;
+      // Source numbers can have gaps after excluding text/audio story blocks.
+      // Registry keys are zero-based positions in the visual component list.
+      const original = number !== null && entry.post?.components?.length
+        ? entry.post.components.findIndex((component, index) => componentNumber(component, index) === number)
+        : number !== null ? number - 1 : position;
+      return { file, componentIndex: original };
+    })
     .filter((item) => (
       Boolean(item.file) &&
+      !/\.(?:part|tmp|ytdl)$/i.test(item.file) &&
+      item.componentIndex >= 0 && item.componentIndex < componentCount &&
       selectedPositions.has(item.componentIndex)
     ));
 }

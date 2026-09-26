@@ -9,6 +9,7 @@ const STORAGE_KEY = 'reference-sync.settings.v1';
 
 export const defaultSettings = {
   platform: 'instagram',
+  namingByPlatform: null,
   source: 'browser',          // browser | meta
   username: '',
   browser: 'chrome',
@@ -27,6 +28,8 @@ export const defaultSettings = {
   authorExclude: '',
   thumbnails: true,
   numberingEnabled: true,
+  counters: null,
+  descriptions: null,
   numberingDestination: 'name',
   numberingMarker: 'instpoporder-',
 
@@ -49,6 +52,27 @@ export const defaultSettings = {
   extraDescription: '',
   language: 'ru',
 };
+
+// Only the naming panel is platform-scoped; search/display preferences stay shared.
+export const namingKeys = Object.keys(defaultSettings).filter(key =>
+  /^(numbering|counter|description)/.test(key) || key === 'extraDescription');
+const copy = value => value == null ? value : JSON.parse(JSON.stringify(value));
+function namingSnapshot(settings) {
+  return Object.fromEntries(namingKeys.map(key => [key, copy(settings[key] ?? defaultSettings[key])]));
+}
+export function settingsForPlatform(platform) {
+  if (platform === state.settings.platform) return state.settings;
+  return { ...state.settings, ...namingSnapshot(defaultSettings),
+    ...copy(state.settings.namingByPlatform?.[platform] || {}), platform };
+}
+export function setPlatformNaming(platform, key, value) {
+  if (!namingKeys.includes(key)) return false;
+  if (platform === state.settings.platform) return setSetting(key, value, { record: false });
+  const profiles = state.settings.namingByPlatform ||= {};
+  profiles[platform] = { ...namingSnapshot(settingsForPlatform(platform)), [key]: copy(value) };
+  saveSettings();
+  return true;
+}
 
 export const state = {
   settings: { ...defaultSettings },
@@ -102,10 +126,10 @@ export const appHistory = createHistory({
     }
 
     if (action.type === 'setting') {
-      state.settings[action.key] = value;
-      saveSettings();
+      if (action.platform && namingKeys.includes(action.key)) setPlatformNaming(action.platform, action.key, value);
+      else setSetting(action.key, value, { record: false });
     }
-    if (action.type === 'selection') {
+        if (action.type === 'selection') {
       for (const change of action.changes) {
         const next =
           direction === 'undo'
@@ -114,8 +138,22 @@ export const appHistory = createHistory({
 
         if (next.selected) {
           state.selected.add(change.postId);
+
+          if (next.occurrenceId) {
+            state.selectedOccurrences.set(
+              change.postId,
+              next.occurrenceId,
+            );
+          } else {
+            state.selectedOccurrences.delete(
+              change.postId,
+            );
+          }
         } else {
           state.selected.delete(change.postId);
+          state.selectedOccurrences.delete(
+            change.postId,
+          );
         }
 
         const post = state.posts.find(
@@ -124,7 +162,7 @@ export const appHistory = createHistory({
         );
 
         if (!post) {
-      continue;
+          continue;
         }
 
         if (next.components === undefined) {
@@ -160,11 +198,19 @@ export function loadSettings() {
       state.settings.counterOneStart =
         parsed.numberingStart;
     }
+    const profiles = state.settings.namingByPlatform;
+    state.settings.namingByPlatform = profiles && typeof profiles === 'object' && !Array.isArray(profiles) ? profiles : {};
+    const current = state.settings.namingByPlatform[state.settings.platform];
+    if (current && typeof current === 'object') Object.assign(state.settings, namingSnapshot({ ...defaultSettings, ...current }));
+    // Legacy shared values belong only to the platform that was active at migration.
+    saveSettings();
   } catch (_) { /* настройки повреждены — используем значения по умолчанию */ }
 }
 
 export function saveSettings() {
   try {
+    state.settings.namingByPlatform ||= {};
+    state.settings.namingByPlatform[state.settings.platform] = namingSnapshot(state.settings);
     localStorage.setItem(STORAGE_KEY, JSON.stringify(state.settings));
   } catch (_) { /* локальное хранилище недоступно */ }
 }
@@ -180,12 +226,19 @@ export function setSetting(
     return false;
   }
 
+  if (key === 'platform') {
+    state.settings.namingByPlatform ||= {};
+    state.settings.namingByPlatform[state.settings.platform] = namingSnapshot(state.settings);
+    const next = settingsForPlatform(value);
+    Object.assign(state.settings, namingSnapshot(next));
+  }
   state.settings[key] = value;
   saveSettings();
 
   if (record) {
     appHistory.record({
       type: 'setting',
+      platform: namingKeys.includes(key) ? state.settings.platform : undefined,
       key,
       before: previous,
       after: value,
@@ -207,6 +260,7 @@ function positiveInteger(value, fallback = 1) {
 export function numberingCounters(
   settings = state.settings,
 ) {
+  if (Array.isArray(settings.counters)) return settings.counters.map(counter => ({ ...counter, independent: true }));
   return [
     {
       id: 'counter-1',
@@ -446,9 +500,14 @@ export function recordSelectionChange(
                 afterComponents[index],
             );
 
+      const sameOccurrence =
+        change.before.occurrenceId ===
+        change.after.occurrenceId;
+
       return (
         change.before.selected !==
           change.after.selected ||
+        !sameOccurrence ||
         !sameComponents
       );
     })
@@ -458,6 +517,10 @@ export function recordSelectionChange(
       before: {
         selected:
           Boolean(change.before.selected),
+
+        occurrenceId:
+          change.before.occurrenceId ||
+          undefined,
 
         components:
           Array.isArray(
@@ -470,6 +533,10 @@ export function recordSelectionChange(
       after: {
         selected:
           Boolean(change.after.selected),
+
+        occurrenceId:
+          change.after.occurrenceId ||
+          undefined,
 
         components:
           Array.isArray(
