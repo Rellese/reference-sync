@@ -1,3 +1,4 @@
+import { sessionErrorTitle } from './session-account.js';
 import { summarizeImportOutcome } from './download-outcome.js';
 import { pinterestDownloadPlan } from './pinterest-media.js';
 import { pendingEagleWrite, recoverAcknowledgedEagleWrite, retireIntermediateEagleWrite } from './eagle-write-guard.js';
@@ -82,7 +83,7 @@ import {
 } from './instagram.js';
 
 import {
-  createPinterestCookieSnapshot,
+  requireMatchingPinterestSession,
   removePinterestCookieSnapshot,
 } from './sources/pinterest-containers.js';
 
@@ -1616,26 +1617,7 @@ async function runSearch() {
           operationController.signal,
         )
       : isPinterest
-        ? {
-            cookieFile:
-              await createPinterestCookieSnapshot({
-                username: s.username,
-                browser: s.browser,
-                browserProfile:
-                  s.browserProfile,
-                signal:
-                  operationController.signal,
-              }),
-
-            username:
-              s.username,
-
-            browser:
-              s.browser,
-
-            browserProfile:
-              s.browserProfile,
-          }
+        ? await requireMatchingPinterestSession(s, operationController.signal)
         : {
             cookieFile: '',
             username: s.username,
@@ -2281,22 +2263,7 @@ async function runImport() {
             state.abortController.signal,
           )
         : isPinterestImport
-          ? {
-              cookieFile:
-                await createPinterestCookieSnapshot({
-                  username:
-                    s.username,
-
-                  browser:
-                    s.browser,
-
-                  browserProfile:
-                    s.browserProfile,
-
-                  signal:
-                    state.abortController.signal,
-                }),
-            }
+          ? await requireMatchingPinterestSession(s, state.abortController.signal)
           : {
               cookieFile: '',
             };
@@ -2893,14 +2860,8 @@ async function runImport() {
    Отсутствие движка показывается как понятная подсказка
    с кнопкой, а не как технический текст. */
 function reportRunError(title, error) {
-    if (
-    error?.code === 'INSTAGRAM_ACCOUNT_MISMATCH' ||
-    error?.code === 'INSTAGRAM_SESSION_INVALID'
-  ) {
-    const modalTitle = error.code === 'INSTAGRAM_ACCOUNT_MISMATCH'
-      ? 'Выбран другой Instagram-аккаунт'
-      : 'Необходимо войти в Instagram';
-
+  const modalTitle = sessionErrorTitle(error);
+  if (modalTitle) {
     /* В статусе оставляем только короткий текст — длинное
        объяснение находится в отдельном окне. */
     ui.status.set(

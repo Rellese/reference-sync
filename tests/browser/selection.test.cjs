@@ -17,7 +17,7 @@ test.before(async () => {
       if (!file.startsWith(root + path.sep)) throw new Error('Invalid path');
       let body = await fs.readFile(file);
       // Expose the actual picker only in the test response, never in shipped code.
-      if (pathname === '/js/main.js') body += '\nwindow.__testPicker = selectCollectionsInTable; window.__testConfirmedImport = recordConfirmedImport; window.__testFinishImportSelection = finishImportSelection; window.__testShowImportResult = showImportResult;';
+      if (pathname === '/js/main.js') body += '\nwindow.__testPicker = selectCollectionsInTable; window.__testConfirmedImport = recordConfirmedImport; window.__testFinishImportSelection = finishImportSelection; window.__testShowImportResult = showImportResult; window.__testReportError = reportRunError;';
       res.writeHead(200, { 'Content-Type': types[path.extname(file)] || 'application/octet-stream' });
       res.end(body);
     } catch { res.writeHead(404); res.end(); }
@@ -775,4 +775,16 @@ test('social buttons restore independent naming cards and persisted next numbers
   await page.getByRole('button',{name:'Instagram',exact:true}).click();
   assert.equal(await page.locator('.rs-naming__text').inputValue(),'Instagram description');
   assert.equal(await page.evaluate(()=>window.__rs.state.settings.counters[0].start),11);
+});
+
+
+test('Pinterest account mismatch opens an explanatory modal, as Instagram does', async t => {
+  const page = await setup(t);
+  await page.evaluate(async()=>{
+    const { assertMatchingAccount } = await import('/js/session-account.js');
+    try { assertMatchingAccount({authenticated:true,username:'actual'}, {platform:'pinterest',title:'Pinterest',username:'expected',browser:'Chrome'}); }
+    catch(error) { window.__testReportError('Ошибка поиска',error); }
+  });
+  assert.equal(await page.getByText('Выбран другой Pinterest-аккаунт',{exact:true}).count() > 0,true);
+  assert.equal(await page.getByText(/@actual, а указан @expected/).count() > 0,true);
 });

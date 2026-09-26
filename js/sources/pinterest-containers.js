@@ -1,3 +1,4 @@
+import { assertMatchingAccount } from '../session-account.js';
 import { probePinterestAccount, pinterestCookieHeaderForHost } from '../pinterest-session.js';
 export { pinterestSessionFromHtml } from '../pinterest-session.js';
 /* ============================================================
@@ -1089,7 +1090,8 @@ export async function listPinterestContainers({
 }
 
 
-export async function verifyPinterestSession({ browser, browserProfile, signal }) {
+export async function verifyPinterestSession({ browser, browserProfile, signal, keepCookieFile = false }) {
+  let retained = false;
   const cookieFile = pinterestCookieSnapshotPath();
   if (!cookieFile) return { authenticated: false, status: 'unavailable' };
   try {
@@ -1102,10 +1104,23 @@ export async function verifyPinterestSession({ browser, browserProfile, signal }
     nodeApi.fs.chmodSync(cookieFile, 0o600);
     const cookieText = nodeApi.fs.readFileSync(cookieFile, 'utf8');
     try {
-      return await probePinterestAccount({ cookieText, request: requestText, userAgent: browserUserAgent(), signal });
+      const session = await probePinterestAccount({ cookieText, request: requestText, userAgent: browserUserAgent(), signal });
+      retained = keepCookieFile && session.authenticated;
+      return { ...session, ...(retained ? { cookieFile } : {}) };
     } catch (error) {
       if (signal?.aborted) throw error;
       return { authenticated: false, status: 'network-error' };
     }
-  } finally { removePinterestCookieSnapshot(cookieFile); }
+  } finally { if (!retained) removePinterestCookieSnapshot(cookieFile); }
+}
+
+export async function requireMatchingPinterestSession(settings, signal) {
+  const session = await verifyPinterestSession({ ...settings, signal, keepCookieFile: true });
+  try {
+    assertMatchingAccount(session, { ...settings, platform: 'pinterest', title: 'Pinterest' });
+    return { ...session, browser: settings.browser, browserProfile: settings.browserProfile };
+  } catch (error) {
+    removePinterestCookieSnapshot(session.cookieFile);
+    throw error;
+  }
 }
