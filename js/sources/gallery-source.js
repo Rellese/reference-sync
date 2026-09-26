@@ -245,6 +245,8 @@ export function findPreview(record = {}) {
     record.preview,
     record.preview_url,
     record.display_url,
+    record.module?.imageSizes?.allAvailable,
+    record.module?.thumbnail,
   ];
 
   for (const value of explicit) {
@@ -462,6 +464,7 @@ export function createGallerySource(spec) {
     groupBy = 'post',
     extraDiscoverArgs = [],
     extraDownloadArgs = [],
+    validateDiscovery = null,
   } = spec;
 
   /* -------- Нормализация одной записи -------- */
@@ -917,7 +920,9 @@ export function createGallerySource(spec) {
         throw new Error(describeFailure(result, browser, title));
       }
 
-      const found = assemble(parseDumpJson(buffer), {
+      const records = parseDumpJson(buffer);
+      if (!signal?.aborted && !result.stopLinkReached && !result.knownPostReached) validateDiscovery?.(records);
+      const found = assemble(records, {
         target,
         accountUsername: cleanUser,
       });
@@ -1160,6 +1165,11 @@ export function createGallerySource(spec) {
         '--filename', '{num}.{extension}',
         '--directory', '',
       ];
+      if (code === 'behance' && Array.isArray(post.selectedComponents)) {
+        const numbers = post.selectedComponents.map(Number).filter(number => Number.isInteger(number) && number > 0);
+        if (!numbers.length) continue;
+        args.push('--range', [...new Set(numbers)].join(','));
+      }
       if (cookies) {
         if (cookieFile) {
           args.push(

@@ -1,5 +1,12 @@
 // Internal status and diagnostic messages. External engine output remains verbatim.
 export const diagnostics = [
+  ['Behance не разрешил получить данные проекта. Проверьте доступ в выбранном браузере и повторите поиск.', 'Behance could not return the project data. Check access in the selected browser and retry.', 'Behance n’a pas pu fournir les données du projet. Vérifiez l’accès dans le navigateur sélectionné et réessayez.', 'Behance no pudo devolver los datos del proyecto. Comprueba el acceso en el navegador seleccionado y vuelve a intentarlo.', 'Behance 无法返回项目数据。请在所选浏览器中检查访问权限并重试。'],
+  ['Блоков', 'Blocks', 'Blocs', 'Bloques', '内容块'],
+  ['Ссылка Behance', 'Behance link', 'Lien Behance', 'Enlace de Behance', 'Behance 链接'],
+  ['Ссылка на кейс или коллекцию', 'Project or collection link', 'Lien du projet ou de la collection', 'Enlace al proyecto o colección', '项目或收藏集链接'],
+  ['Вставьте HTTPS-ссылку на кейс или коллекцию Behance.', 'Paste an HTTPS link to a Behance project or collection.', 'Collez un lien HTTPS vers un projet ou une collection Behance.', 'Pega un enlace HTTPS a un proyecto o colección de Behance.', '请粘贴 Behance 项目或收藏集的 HTTPS 链接。'],
+  ['Для поиска по папкам вставьте ссылку на коллекцию Behance.', 'For folder search, paste a Behance collection link.', 'Pour la recherche par dossiers, collez un lien de collection Behance.', 'Para buscar por carpetas, pega un enlace a una colección de Behance.', '要按文件夹搜索，请粘贴 Behance 收藏集链接。'],
+  ['Вставьте ссылку на кейс или коллекцию. Скачиваются отдельные изображения и видео; целый кейс будет доступен позже.', 'Paste a project or collection link. Images and videos are downloaded separately; whole-project downloads will be available later.', 'Collez un lien de projet ou de collection. Les images et vidéos sont téléchargées séparément ; le projet complet sera disponible plus tard.', 'Pega un enlace a un proyecto o colección. Se descargan imágenes y vídeos por separado; el proyecto completo estará disponible más adelante.', '粘贴项目或收藏集链接。当前分别下载图片和视频，完整项目下载将在以后提供。'],
   ['Выбран другой {0}-аккаунт', 'A different {0} account is selected', 'Un autre compte {0} est sélectionné', 'Se ha seleccionado otra cuenta de {0}', '选择了其他 {0} 账户'],
   ['Необходимо войти в {0}', 'Sign in to {0}', 'Connectez-vous à {0}', 'Inicia sesión en {0}', '请登录 {0}'],
   ['Не удалось проверить аккаунт {0}', 'Could not verify the {0} account', 'Impossible de vérifier le compte {0}', 'No se pudo verificar la cuenta de {0}', '无法验证 {0} 账户'],

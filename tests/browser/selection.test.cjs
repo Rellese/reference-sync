@@ -566,7 +566,7 @@ test('table columns: invalid saved widths recover and valid widths survive reope
 
 test('unavailable sources: translated tooltip, keyboard access and no activation', async t => {
   const page = await setup(t);
-  for (const name of ['Dribbble', 'Behance', 'Vimeo', 'X', 'Layers.to']) {
+  for (const name of ['Dribbble', 'Vimeo', 'X', 'Layers.to']) {
     const button = page.getByRole('button', { name, exact: true });
     assert.equal(await button.getAttribute('aria-disabled'), 'true');
     await button.hover();
@@ -787,4 +787,21 @@ test('Pinterest account mismatch opens an explanatory modal, as Instagram does',
   });
   assert.equal(await page.getByText('Выбран другой Pinterest-аккаунт',{exact:true}).count() > 0,true);
   assert.equal(await page.getByText(/@actual, а указан @expected/).count() > 0,true);
+});
+
+test('Behance activates link input and renders selectable media blocks', async t => {
+  const page = await setup(t);
+  await page.getByRole('button', {name:'Behance', exact:true}).click();
+  assert.equal(await page.evaluate(() => window.__rs.state.settings.platform), 'behance');
+  assert.equal(await page.getByPlaceholder('Ссылка на кейс или коллекцию').count(), 1);
+  await page.evaluate(() => {
+    const {state,setPosts}=window.__rs;
+    state.settings.folderSearch=false;
+    setPosts([{source:'behance',postId:'behance:123',username:'designer',type:'carousel',componentCount:2,
+      url:'https://www.behance.net/gallery/123/',components:[{index:1,type:'image',url:''},{index:2,type:'image',url:''}]}]);
+  });
+  const blocks=page.locator('.rs-carousel-button').filter({hasText:'Блоков'});
+  assert.equal(await blocks.count(),1);
+  await blocks.click();
+  assert.equal(await page.locator('.rs-carousel-modal.is-open').count(),1);
 });

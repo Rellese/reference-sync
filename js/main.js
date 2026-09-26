@@ -2210,9 +2210,9 @@ async function runImport() {
   const isArchiveImport = chosen.some(post => post.archiveLocal || post.archiveLink);
   const onlyLocalArchive = chosen.every(post => post.archiveLocal);
   if (!onlyLocalArchive && !await ensureToolchain()) return;
-  const requiresVideoEngine = s.platform === 'pinterest' && chosen.some(post => !post.archiveLocal &&
-    post.components?.some(component => component.mediaType === 'video') && !pinterestDownloadPlan(post).length);
-  const hasVideo = s.platform === 'pinterest' && chosen.some(post => !post.archiveLocal && post.components?.some(component => component.mediaType === 'video'));
+  const requiresVideoEngine = ['pinterest', 'behance'].includes(s.platform) && chosen.some(post => !post.archiveLocal &&
+    post.components?.some(component => component.mediaType === 'video') && (s.platform !== 'pinterest' || !pinterestDownloadPlan(post).length));
+  const hasVideo = ['pinterest', 'behance'].includes(s.platform) && chosen.some(post => !post.archiveLocal && post.components?.some(component => component.mediaType === 'video'));
   if (hasVideo && !await hasVideoDownloader({ requireHls: requiresVideoEngine })) {
     ui.results.engine.setState('error', 'Нужно обновить видеокомпонент', { button: 'Скачать', detail: 'Будут загружены gallery-dl, yt-dlp и FFmpeg из PyPI.' });
     ui.status.set('Нужно обновить видеокомпонент', 'Нажмите «Скачать», затем повторите импорт.');
@@ -5412,7 +5412,7 @@ if (isKnown) {
     const carouselLabel = el(
       'span',
       'rs-carousel-button__label',
-      L(post.type),
+      L(post.source === 'behance' ? 'Блоков' : post.type),
     );
 
     const carouselCount = el(

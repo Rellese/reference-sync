@@ -709,6 +709,8 @@ export function buildSettings({ onChange, onFolderSearch, onArchive, onArchiveRe
           : 'none';
 
       accountField.set(next.username);
+      accountField.node.classList.toggle('has-at', next.platform !== 'behance');
+      setLocalizedProperty(accountField.input, 'placeholder', L(next.platform === 'behance' ? 'Ссылка на кейс или коллекцию' : 'имя пользователя'));
       browserSelect.set(next.browser);
       profileSelect.set(next.browserProfile);
       speedSelect.set(next.speed);
@@ -771,7 +773,8 @@ export function buildSettings({ onChange, onFolderSearch, onArchive, onArchiveRe
       profileLabel.info?.setText(text);
       bindTextRender(browserHint, 'profile-hint', L(text), (node, value) => { node.textContent = value.replace(/\*\*/g, ''); });
       const label = accountLabel.querySelector('.rs-field-label__text');
-      if (label) setText(label, L(platform + '-аккаунт'));
+      if (label) setText(label, L(state.settings.platform === 'behance' ? 'Ссылка Behance' : platform + '-аккаунт'));
+      if (state.settings.platform === 'behance') setText(browserHint, L('Вставьте ссылку на кейс или коллекцию. Скачиваются отдельные изображения и видео; целый кейс будет доступен позже.'));
     },
     setUsername(value) {
       accountField.set(value);
