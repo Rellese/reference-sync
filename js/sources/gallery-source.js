@@ -340,8 +340,8 @@ export function parseDumpJson(text) {
       const galleryUrl = item.find(
         (value) =>
           typeof value === 'string' &&
-          /^https?:\/\//i.test(value),
-      );
+          /^(?:ytdl:)?https?:\/\//i.test(value),
+      )?.replace(/^ytdl:/i, '');
 
       const record = { ...metadata };
       record._galleryType = item[0];
@@ -1162,7 +1162,7 @@ export function createGallerySource(spec) {
         '--retries', String(profile.retries),
         '--http-timeout', '60',
         ...paceArgs(profile),
-        ...extraDownloadArgs,
+        ...(typeof extraDownloadArgs === 'function' ? extraDownloadArgs(post) : extraDownloadArgs),
         '--dest', postDir,
         '--filename', '{num}.{extension}',
         '--directory', '',

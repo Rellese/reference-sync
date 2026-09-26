@@ -36,7 +36,8 @@ export const behanceMediaSource = createGallerySource({
   // DataJob JSONL drops extraction exceptions and cannot resolve child jobs.
   // A second --dump-json resolves collection projects; a JSON document keeps errors.
   extraDiscoverArgs: ['--dump-json', '-o', 'output.jsonl=false', '-o', 'extractor.behance.tls12=true', '-o', `extractor.behance.user-agent=${BEHANCE_USER_AGENT}`],
-  extraDownloadArgs: ['-o', 'extractor.behance.tls12=true', '-o', `extractor.behance.user-agent=${BEHANCE_USER_AGENT}`],
+  extraDownloadArgs: post => ['-o', 'extractor.behance.tls12=true', '-o', `extractor.behance.user-agent=${BEHANCE_USER_AGENT}`,
+    '-o', `downloader.ytdl.cmdline-args=${JSON.stringify(['--referer', behanceTarget(post.url).url, '--no-playlist'])}`],
   validateDiscovery: validateBehanceDiscovery,
   discoveryJsonDocument: true,
 });

@@ -193,7 +193,7 @@ async function askLoginShell(binary = 'gallery-dl') {
    Поиск интерпретатора Python (нужен для установки и для
    запуска `python -m gallery_dl`)
    ------------------------------------------------------------ */
-export async function findPython() {
+export async function findPython({ minimumMinor = 8 } = {}) {
   if (!nodeApi.available) return null;
   const { path, os, fs } = nodeApi;
   const home = os.homedir();
@@ -209,14 +209,14 @@ export async function findPython() {
       const result = await runCommand(probeCmd, [name], { timeout: 8000 });
       const first = result.stdout.split(/\r?\n/).map((s) => s.trim())
         .filter(Boolean)[0];
-      if (first && await pythonWorks(first)) return first;
+      if (first && await pythonWorks(first, minimumMinor)) return first;
     } catch (_) { /* дальше */ }
   }
 
   /* 2. Login-shell */
   for (const name of names) {
     const found = await askLoginShell(name);
-    if (found && await pythonWorks(found)) return found;
+    if (found && await pythonWorks(found, minimumMinor)) return found;
   }
 
   /* 3. Прямые пути */
@@ -234,7 +234,7 @@ export async function findPython() {
     for (const name of names) {
       const file = path.join(dir, name);
       try {
-        if (fs.existsSync(file) && await pythonWorks(file)) return file;
+        if (fs.existsSync(file) && await pythonWorks(file, minimumMinor)) return file;
       } catch (_) { /* дальше */ }
     }
   }
@@ -249,7 +249,7 @@ export async function findPython() {
         `/Library/Frameworks/Python.framework/Versions/${tag}/bin/python3`,
       ]) {
         try {
-          if (fs.existsSync(file) && await pythonWorks(file)) return file;
+          if (fs.existsSync(file) && await pythonWorks(file, minimumMinor)) return file;
         } catch (_) { /* дальше */ }
       }
     }
@@ -258,7 +258,7 @@ export async function findPython() {
   return null;
 }
 
-async function pythonWorks(file) {
+async function pythonWorks(file, minimumMinor = 8) {
   try {
     const result = await runCommand(file, ['-c', 'import sys;print(sys.version_info[:2])'], {
       timeout: 12000,
@@ -267,7 +267,7 @@ async function pythonWorks(file) {
     /* gallery-dl требует Python 3.8+ */
     const match = result.stdout.match(/\((\d+),\s*(\d+)\)/);
     if (!match) return false;
-    return Number(match[1]) === 3 && Number(match[2]) >= 8;
+    return Number(match[1]) === 3 && Number(match[2]) >= minimumMinor;
   } catch (_) {
     return false;
   }
@@ -453,7 +453,7 @@ export async function installToolchain({ onLog, onProgress, signal } = {}) {
   }
 
   step('python', 5);
-  let python = toolchain.python || await findPython();
+  let python = await findPython({ minimumMinor: 10 });
 
   if (!python) {
     throw new Error('NO_PYTHON');
@@ -492,7 +492,7 @@ export async function installToolchain({ onLog, onProgress, signal } = {}) {
     '--no-warn-script-location',
     '--target', runtime,
     'gallery-dl',
-    'yt-dlp',
+    'yt-dlp[default,curl-cffi]',
     'imageio-ffmpeg',
   ];
 
@@ -599,11 +599,7 @@ export function describeToolchainError(error) {
     case 'NO_PYTHON':
       return {
         title: 'Не найден Python',
-        text: isWindows()
-          ? 'Установите Python с python.org (при установке отметьте '
-            + '«Add python.exe to PATH») и нажмите «Подготовить движок» снова.'
-          : 'Установите Python 3 (на macOS — команда «xcode-select --install» '
-            + 'или пакет с python.org) и повторите подготовку.',
+        text: 'Установите Python 3.10 или новее с python.org и повторите подготовку движка.',
         action: 'retry',
       };
     case 'NETWORK':
@@ -644,10 +640,14 @@ export function describeToolchainError(error) {
 }
 
 // Check in the exact Python environment used by gallery-dl, without installing anything.
-export async function hasVideoDownloader({ requireHls = true } = {}) {
+export async function hasVideoDownloader({ requireHls = true, requireBrowserCompatibility = false } = {}) {
   if (!await findFFmpeg()) return false;
-  if (!requireHls || toolchain.kind !== 'module') return true;
-  const result = await runCommand(toolchain.command, ['-c', 'import yt_dlp'], {
+  if (!requireHls) return true;
+  if (toolchain.kind !== 'module') return !requireBrowserCompatibility;
+  const probe = requireBrowserCompatibility
+    ? 'import sys, yt_dlp, curl_cffi; assert sys.version_info >= (3, 10); curl_cffi.Curl().close()'
+    : 'import yt_dlp';
+  const result = await runCommand(toolchain.command, ['-c', probe], {
     env: toolchainEnv(), timeout: 15000,
   }).catch(() => null);
   return result?.code === 0;

@@ -39,6 +39,7 @@ test('Behance groups media blocks by project and excludes text while keeping sou
   assert.equal(post.source,'behance');
   assert.deepEqual(post.components.map(c=>c.index),[1,3,4]);
   assert.equal(post.components[1].mediaType,'video');
+  assert.equal(post.components[1].url,'https://player.example/video');
   assert.equal(post.collectionId,'789');
   assert.deepEqual(selectedDownloadedFiles({post,files:['1.jpg','3.mp4','4.gif']},[3]).map(x=>x.componentIndex),[1]);
 });
@@ -53,6 +54,8 @@ test('Behance passes selected block numbers to downloader and keeps only importa
   t.after(()=>{Object.assign(nodeApi,oldNode);Object.assign(toolchain,oldTool);fs.rmSync(root,{recursive:true,force:true});});
   Object.assign(nodeApi,{available:true,fs,path,os:{homedir:()=>root},childProcess:{spawn(command,args){
     assert.equal(args[args.indexOf('--range')+1],'4');
+    const playerArgs=args.find(arg=>arg.startsWith('downloader.ytdl.cmdline-args='));
+    assert.deepEqual(JSON.parse(playerArgs.slice(playerArgs.indexOf('=')+1)),['--referer','https://www.behance.net/gallery/123/a','--no-playlist']);
     assert.equal(args.at(-1),'https://www.behance.net/gallery/123/a');
     const child=new EventEmitter(); child.stdout=new PassThrough(); child.stderr=new PassThrough(); child.kill=()=>{};
     queueMicrotask(()=>{const dir=args[args.indexOf('--dest')+1];fs.writeFileSync(path.join(dir,'4.gif'),Buffer.from('R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw==','base64'));fs.writeFileSync(path.join(dir,'3.faudio.mp4'),'intermediate');child.emit('close',0);});

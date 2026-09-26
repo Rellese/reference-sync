@@ -2213,8 +2213,8 @@ async function runImport() {
   const requiresVideoEngine = ['pinterest', 'behance'].includes(s.platform) && chosen.some(post => !post.archiveLocal &&
     post.components?.some(component => component.mediaType === 'video') && (s.platform !== 'pinterest' || !pinterestDownloadPlan(post).length));
   const hasVideo = ['pinterest', 'behance'].includes(s.platform) && chosen.some(post => !post.archiveLocal && post.components?.some(component => component.mediaType === 'video'));
-  if (hasVideo && !await hasVideoDownloader({ requireHls: requiresVideoEngine })) {
-    ui.results.engine.setState('error', 'Нужно обновить видеокомпонент', { button: 'Скачать', detail: 'Будут загружены gallery-dl, yt-dlp и FFmpeg из PyPI.' });
+  if (hasVideo && !await hasVideoDownloader({ requireHls: requiresVideoEngine, requireBrowserCompatibility: s.platform === 'behance' })) {
+    ui.results.engine.setState('error', 'Нужно обновить видеокомпонент', { button: 'Скачать', detail: 'Будут загружены gallery-dl, yt-dlp, FFmpeg и компонент совместимости с браузерами из PyPI.' });
     ui.status.set('Нужно обновить видеокомпонент', 'Нажмите «Скачать», затем повторите импорт.');
     return;
   }
