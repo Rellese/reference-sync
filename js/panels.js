@@ -254,11 +254,39 @@ function formatAuthorFieldInput(field, event) {
 /* ============================================================
    3 блок — настройки поиска (шаг 1 и шаг 2)
    ============================================================ */
-export function buildSettings({ onChange, onFolderSearch, onArchive, onArchiveResolve }) {
+export function buildSettings({ onChange, onFolderSearch, onArchive, onArchiveResolve, canChangeScenario = () => true }) {
   const root = el('div', 'rs-panel');
   const body = el('div', 'rs-panel__body rs-scroll');
 
   const s = state.settings;
+
+  const downloadStep = el('div', 'rs-step');
+  downloadStep.appendChild(el('div', 'rs-step__title', L('Шаг 1 — что скачать')));
+  const downloadGroup = createRadioGroup([
+    {value:'link', label:L('Скачивание по ссылке')},
+    {value:'saved', label:L('Скачивание ваших сохранённых')},
+  ], {value:s.downloadMode || 'saved', onChange(value) {
+    if (!canChangeScenario()) { downloadGroup.set(state.settings.downloadMode || 'saved'); return; }
+    setSetting('downloadMode', value);
+    if (value === 'link') setSetting('source', 'browser');
+    onChange?.('downloadMode', value);
+  }});
+  const downloadChoices = el('div', 'rs-step__group');
+  for (const [value, tip] of [
+    ['link', 'Скачайте **публикацию или публикации профиля** по ссылке. Выберите соответствующую социальную сеть.'],
+    ['saved', 'Скачайте **публикации, которые вы сохранили в своём аккаунте**. Укажите свой никнейм и браузер с выполненным входом.'],
+  ]) {
+    const row = el('div', 'rs-switch-row');
+    row.append(downloadGroup.rowOf(value), el('span', 'rs-switch-row__gap'), createInfo(L(tip)).node);
+    downloadChoices.append(row);
+  }
+  downloadStep.append(downloadChoices);
+  const linkRow = el('div', 'rs-step__row');
+  const linkField = createField({value:s.sourceUrl || '', placeholder:L('Ссылка на пост/профиль'), onCommit(value) {
+    setSetting('sourceUrl', value.trim()); linkField.set(value.trim()); onChange?.('sourceUrl', value.trim());
+  }});
+  linkField.input.id = 'source-link-input';
+  linkRow.append(el('div', 'rs-field-label', L('Ссылка на пост/профиль')), linkField.node);
 
   /* ---------- Шаг 1: выбор источника ---------- */
   const step1 = el('div', 'rs-step');
@@ -266,7 +294,7 @@ export function buildSettings({ onChange, onFolderSearch, onArchive, onArchiveRe
     el(
       'div',
       'rs-step__title',
-      L('Шаг 1 — выбор анализа'),
+      L('Шаг 2 — настройки'),
     ),
   );
 
@@ -373,6 +401,7 @@ export function buildSettings({ onChange, onFolderSearch, onArchive, onArchiveRe
   speedRow.append(speedLabel, speedSelect.node);
 
   browserBlock.append(
+    linkRow,
     accountRow,
     browserRow,
     profileRow,
@@ -386,7 +415,7 @@ export function buildSettings({ onChange, onFolderSearch, onArchive, onArchiveRe
     el(
       'div',
       'rs-step__title',
-      L('Шаг 2 — тип поиска'),
+      L('Шаг 3 — тип поиска'),
     ),
   );
 
@@ -672,10 +701,13 @@ export function buildSettings({ onChange, onFolderSearch, onArchive, onArchiveRe
   );
   filtersBody.append(includeRow, excludeRow);
 
+  const searchDivider = el('div', 'rs-divider');
   body.append(
+    downloadStep,
+    el('div', 'rs-divider'),
     step1,
     browserBlock,
-    el('div', 'rs-divider'),
+    searchDivider,
     step2,
     el('div', 'rs-divider'),
     step3,
@@ -695,6 +727,16 @@ export function buildSettings({ onChange, onFolderSearch, onArchive, onArchiveRe
       const next =
         nextSettings || state.settings;
 
+      const byLink = next.downloadMode === 'link';
+      downloadGroup.set(byLink ? 'link' : 'saved');
+      if (byLink) setText(browserHint, L('Браузер нужен для публикаций, доступных после входа. Никнейм владельца ссылки не требуется.'));
+      linkRow.style.display = byLink ? '' : 'none';
+      linkField.set(next.sourceUrl || '');
+      accountRow.style.display = byLink ? 'none' : '';
+      sourceList.style.display = byLink ? 'none' : '';
+      step2.style.display = byLink ? 'none' : '';
+      searchDivider.style.display = byLink ? 'none' : '';
+      folderRow.style.display = next.platform === 'behance' ? 'none' : '';
       sourceGroup.set(next.source);
       setUiText(sourceGroup.rowOf('meta').querySelector('.rs-radio-row__label'), 'Из архива');
 
@@ -709,8 +751,8 @@ export function buildSettings({ onChange, onFolderSearch, onArchive, onArchiveRe
           : 'none';
 
       accountField.set(next.username);
-      accountField.node.classList.toggle('has-at', next.platform !== 'behance');
-      setLocalizedProperty(accountField.input, 'placeholder', L(next.platform === 'behance' ? 'Ссылка на кейс или коллекцию' : 'имя пользователя'));
+      accountField.node.classList.add('has-at');
+      setLocalizedProperty(accountField.input, 'placeholder', L('имя пользователя'));
       browserSelect.set(next.browser);
       profileSelect.set(next.browserProfile);
       speedSelect.set(next.speed);
@@ -773,8 +815,9 @@ export function buildSettings({ onChange, onFolderSearch, onArchive, onArchiveRe
       profileLabel.info?.setText(text);
       bindTextRender(browserHint, 'profile-hint', L(text), (node, value) => { node.textContent = value.replace(/\*\*/g, ''); });
       const label = accountLabel.querySelector('.rs-field-label__text');
-      if (label) setText(label, L(state.settings.platform === 'behance' ? 'Ссылка Behance' : platform + '-аккаунт'));
-      if (state.settings.platform === 'behance') setText(browserHint, L('Вставьте ссылку на кейс или коллекцию. Скачиваются отдельные изображения и видео; целый кейс будет доступен позже.'));
+      if (label) setText(label, L(platform + '-аккаунт'));
+      if (state.settings.downloadMode === 'link') setText(browserHint, L('Браузер нужен для публикаций, доступных после входа. Никнейм владельца ссылки не требуется.'));
+      else if (state.settings.platform === 'behance') setText(browserHint, L('Для сохранённых публикаций выберите доски настроения своего аккаунта.'));
     },
     setUsername(value) {
       accountField.set(value);

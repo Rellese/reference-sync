@@ -793,7 +793,10 @@ test('Behance activates link input and renders selectable media blocks', async t
   const page = await setup(t);
   await page.getByRole('button', {name:'Behance', exact:true}).click();
   assert.equal(await page.evaluate(() => window.__rs.state.settings.platform), 'behance');
-  assert.equal(await page.getByPlaceholder('Ссылка на кейс или коллекцию').count(), 1);
+  assert.equal(await page.getByPlaceholder('имя пользователя').isVisible(), true);
+  await page.getByText('Скачивание по ссылке', {exact:true}).click();
+  assert.equal(await page.getByPlaceholder('Ссылка на пост/профиль').isVisible(), true);
+  assert.equal(await page.getByPlaceholder('имя пользователя').isVisible(), false);
   await page.evaluate(() => {
     const {state,setPosts}=window.__rs;
     state.settings.folderSearch=false;
@@ -804,4 +807,25 @@ test('Behance activates link input and renders selectable media blocks', async t
   assert.equal(await blocks.count(),1);
   await blocks.click();
   assert.equal(await page.locator('.rs-carousel-modal.is-open').count(),1);
+});
+
+test('download scenarios preserve search preferences, clear old results and persist link fields', async t => {
+ const page=await setup(t);
+ await seed(page);
+ await page.evaluate(()=>{window.__rs.state.settings.searchMode='recent';window.__rs.state.settings.stopLinkEnabled=true;window.__rs.ui.settings.sync();});
+ await page.getByText('Скачивание по ссылке',{exact:true}).click();
+ assert.equal(await page.evaluate(()=>window.__rs.state.posts.length),0);
+ assert.equal(await page.getByText('Найти только новые',{exact:true}).isVisible(),false);
+ assert.equal(await page.getByText('Браузер с выполненным входом',{exact:true}).isVisible(),true);
+ await page.locator('#source-link-input').fill('https://www.instagram.com/p/abc/');
+ await page.locator('#source-link-input').press('Tab');
+ await page.getByText('Скачивание ваших сохранённых',{exact:true}).click();
+ assert.equal(await page.getByText('Найти только новые',{exact:true}).isVisible(),true);
+ assert.equal(await page.evaluate(()=>window.__rs.state.settings.searchMode),'recent');
+ assert.equal(await page.evaluate(()=>window.__rs.state.settings.stopLinkEnabled),true);
+ await page.getByText('Скачивание по ссылке',{exact:true}).click();
+ await page.reload();await page.waitForFunction(()=>window.__rs?.ui.settings);
+ assert.equal(await page.locator('#source-link-input').isVisible(),true);
+ assert.equal(await page.locator('#source-link-input').inputValue(),'https://www.instagram.com/p/abc/');
+ await page.screenshot({path:'/tmp/rs-link-mode.png'});
 });

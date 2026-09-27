@@ -89,3 +89,9 @@ export async function withBehanceSession(options, url, action) {
     fs.rmSync(directory, {recursive:true,force:true});
   }
 }
+
+export async function refreshBehanceChallenge(cookieFile, url, signal) {
+  const token = await challengeFor(url, signal);
+  throwIfAborted(signal);
+  if (token) nodeApi.fs.writeFileSync(cookieFile, behanceCookieText(nodeApi.fs.readFileSync(cookieFile, 'utf8'), token));
+}

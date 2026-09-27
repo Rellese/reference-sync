@@ -1,3 +1,4 @@
+import { searchSettings } from './source-link.js';
 import { sessionErrorTitle } from './session-account.js';
 import { summarizeImportOutcome } from './download-outcome.js';
 import { pinterestDownloadPlan } from './pinterest-media.js';
@@ -709,9 +710,11 @@ async function boot() {
   });
 
   ui.settings = buildSettings({
+    canChangeScenario: () => !['searching', 'importing'].includes(phase),
     onArchive: readSelectedArchive,
     onArchiveResolve: resolveSelectedArchive,
     onChange: (key) => {
+      if (key === 'downloadMode') { clearResults(); ui.settings.sync(); refreshProfileSession(); }
       if (key === 'browser') refreshBrowserProfiles();
       else if (key === 'browserProfile') refreshProfileSession();
 
@@ -721,6 +724,8 @@ async function boot() {
       }
     },
   });
+
+  ui.settings.sync();
 
   ui.status = buildStatus({
     onCommand: (name) =>
@@ -1484,7 +1489,9 @@ async function runSearch() {
    Изменения формы во время операции не должны менять уже
    запущенный профиль браузера или лимит. */
   await refreshImportRegistry();
-  const s = { ...state.settings };
+  let s;
+  try { s = searchSettings(state.settings); }
+  catch (error) { ui.status.set('Проверьте ссылку', error.message); return; }
 
   let activeSource;
 
@@ -1535,8 +1542,8 @@ async function runSearch() {
     return;
   }
 
-  if (!s.username.trim()) {
-    ui.status.set('Не указан аккаунт', 'Введите Instagram-никнейм в шаге 1');
+  if (!s.targetUrl && !s.username.trim()) {
+    ui.status.set('Не указан аккаунт', 'Введите имя пользователя');
     ui.log.add('Поиск невозможен: не заполнено имя аккаунта.', 'err');
     return;
   }
@@ -1611,16 +1618,17 @@ async function runSearch() {
   }
 
   try {
-    const session = isInstagram
+    const session = isInstagram && !s.targetUrl
       ? await requireMatchingInstagramSession(
           s,
           operationController.signal,
         )
-      : isPinterest
+      : isPinterest && !s.targetUrl
         ? await requireMatchingPinterestSession(s, operationController.signal)
         : {
             cookieFile: '',
             username: s.username,
+            targetUrl: s.targetUrl,
             browser: s.browser,
             browserProfile:
               s.browserProfile,
@@ -1822,6 +1830,7 @@ async function runSearch() {
       try {
         discoveryResult =
           await runDiscover({
+            targetUrl: s.targetUrl,
             username: s.username,
             browser: s.browser,
             browserProfile: s.browserProfile,
@@ -2154,7 +2163,7 @@ async function runImport() {
   }
   renderTable();
   syncFooterActionAvailability();
-  const s = { ...state.settings };
+  const s = { ...state.settings, folderSearch: state.settings.downloadMode === 'link' ? false : state.settings.platform === 'behance' || state.settings.folderSearch };
   const advanceNumbering = createNumberingProgress(s, state.generated);
   const confirmNumbering = entry => {
     const patch = advanceNumbering(settingsForPlatform(s.platform), entry.item.postId);
@@ -2257,12 +2266,12 @@ async function runImport() {
       'pinterest' && !isArchiveImport;
 
     const session =
-      isInstagramImport
+      isInstagramImport && s.downloadMode !== 'link'
         ? await requireMatchingInstagramSession(
             s,
             state.abortController.signal,
           )
-        : isPinterestImport
+        : isPinterestImport && s.downloadMode !== 'link'
           ? await requireMatchingPinterestSession(s, state.abortController.signal)
           : {
               cookieFile: '',
@@ -5106,7 +5115,8 @@ function renderTable() {
   const posts = visiblePosts();
 
   const folderTableEnabled =
-    state.settings.folderSearch === true &&
+    state.settings.downloadMode !== 'link' &&
+    (state.settings.platform === 'behance' || state.settings.folderSearch === true) &&
     state.collections.length > 0;
 
   updateTableSelectionTitle(posts);

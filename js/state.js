@@ -10,6 +10,8 @@ const STORAGE_KEY = 'reference-sync.settings.v1';
 export const defaultSettings = {
   platform: 'instagram',
   namingByPlatform: null,
+  downloadMode: 'saved',
+  sourceUrl: '',
   source: 'browser',          // browser | meta
   username: '',
   browser: 'chrome',
@@ -185,6 +187,12 @@ export function loadSettings() {
     Object.keys(defaultSettings).forEach((key) => {
       if (parsed[key] !== undefined) state.settings[key] = parsed[key];
     });
+
+    if (parsed.downloadMode === undefined && state.settings.platform === 'behance' && /^https:\/\//.test(state.settings.username)) {
+      state.settings.sourceUrl = state.settings.username;
+      state.settings.username = '';
+      state.settings.downloadMode = 'link';
+    }
 
     /*
     * Пользовательские настройки до M1-T09D

@@ -1,3 +1,4 @@
+import { sourceLinkTarget } from '../source-link.js';
 import { downloadIssue } from '../download-outcome.js';
 /* ============================================================
    Универсальный источник на базе gallery-dl
@@ -780,6 +781,7 @@ export function createGallerySource(spec) {
   /* -------- Поиск -------- */
   async function discover({
     username,
+    targetUrl = '',
     browser = 'chrome',
     browserProfile = '',
     cookieFile = '',
@@ -821,12 +823,12 @@ export function createGallerySource(spec) {
     try {
 
     const cleanUser = String(username || '').trim().replace(/^@/, '');
-    if (needsAccount && !cleanUser) {
+    if (needsAccount && !cleanUser && !targetUrl) {
       throw new Error(`Не указан аккаунт для ${title}`);
     }
 
     const profile = SPEED_PROFILES[speedProfile] || SPEED_PROFILES.safe;
-    const targets = buildTargets({ username: cleanUser, collections });
+    const targets = targetUrl ? [{id:'link', name:title, url:sourceLinkTarget(code, targetUrl)}] : buildTargets({ username: cleanUser, collections });
     if (!targets.length) {
       throw new Error(`${title}: не удалось определить, где искать`);
     }
@@ -1083,6 +1085,7 @@ export function createGallerySource(spec) {
     onOffline = null,
     onStagingReady = null,
     onCompleted = null,
+    preparePost = null,
   } = {}) {
     if (!nodeApi.available) {
       throw new Error('Скачивание доступно только внутри Eagle');
@@ -1201,6 +1204,7 @@ export function createGallerySource(spec) {
         issue = null;
         let raw = '';
         try {
+          await preparePost?.(post, {cookieFile, signal});
           const plan = code === 'pinterest' ? pinterestDownloadPlan(post) : [];
           let result = plan.length ? await downloadMediaPlan({ plan, postDir, signal, control, profile }) : null;
           if (!result || result.code !== 0) result = await runGallery(args, {

@@ -1,3 +1,4 @@
+import { sourceLinkTarget } from './source-link.js';
 import { downloadMediaPlan } from './media-download.js';
 /* ============================================================
    ReferenceSync — движок Instagram
@@ -976,6 +977,7 @@ export function normalizePost(record, options = {}) {
    ------------------------------------------------------------ */
 export async function discoverSaved({
   username,
+  targetUrl = '',
   browser = 'chrome',
   browserProfile = '',
   cookieFile = '',
@@ -990,8 +992,8 @@ export async function discoverSaved({
   signal,
 } = {}) {
   const cleanUser = String(username || '').trim().replace(/^@/, '');
-  if (!cleanUser) throw new Error('Не указан Instagram-аккаунт');
-  if (!/^[A-Za-z0-9._]+$/.test(cleanUser)) {
+  if (!cleanUser && !targetUrl) throw new Error('Не указан Instagram-аккаунт');
+  if (!targetUrl && !/^[A-Za-z0-9._]+$/.test(cleanUser)) {
     throw new Error(`Некорректное имя аккаунта: ${cleanUser}`);
   }
 
@@ -1011,7 +1013,7 @@ export async function discoverSaved({
   /* Целевые адреса: общая лента или выбранные коллекции.
      Контракт из docs/CONTEXT.md сохранён. */
   const savedUrl = `https://www.instagram.com/${cleanUser}/saved/all-posts/`;
-  const targets = collections.length
+  const targets = targetUrl ? [{id:'link', name:'Instagram', url:sourceLinkTarget('instagram', targetUrl)}] : collections.length
     ? collections.map((entry) => ({
       id: entry.id,
       name: entry.name || entry.id,

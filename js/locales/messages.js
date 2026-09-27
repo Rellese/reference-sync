@@ -2,6 +2,27 @@ import { diagnostics } from './diagnostics.js';
 // Columns: Russian source, English, French, Spanish, Simplified Chinese.
 export const messages = [
   ...diagnostics,
+  ["Проверьте ссылку", "Check the link", "Vérifiez le lien", "Comprueba el enlace", "请检查链接"],
+  ["Браузер нужен для публикаций, доступных после входа. Никнейм владельца ссылки не требуется.", "The browser is used for posts that require sign-in. The link owner’s username is not needed.", "Le navigateur sert aux publications nécessitant une connexion. Le pseudo du propriétaire du lien n’est pas nécessaire.", "El navegador permite acceder a publicaciones que requieren iniciar sesión. No necesitas el usuario del propietario del enlace.", "浏览器用于访问需要登录的帖子。无需填写链接所有者的用户名。"],
+  ["Не удалось прочитать список кейсов Behance.", "Could not read the Behance project list.", "Impossible de lire la liste des projets Behance.", "No se pudo leer la lista de proyectos de Behance.", "无法读取 Behance 项目列表。"],
+
+  ["Шаг 1 — что скачать", "Step 1 — what to download", "Étape 1 — contenu à télécharger", "Paso 1 — qué descargar", "第 1 步 — 下载内容"],
+  ["Шаг 2 — настройки", "Step 2 — settings", "Étape 2 — paramètres", "Paso 2 — ajustes", "第 2 步 — 设置"],
+  ["Шаг 3 — тип поиска", "Step 3 — search type", "Étape 3 — type de recherche", "Paso 3 — tipo de búsqueda", "第 3 步 — 搜索类型"],
+  ["Скачивание по ссылке", "Download from a link", "Télécharger depuis un lien", "Descargar desde un enlace", "通过链接下载"],
+  ["Скачивание ваших сохранённых", "Download your saved posts", "Télécharger vos publications enregistrées", "Descargar tus publicaciones guardadas", "下载你收藏的帖子"],
+  ["Ссылка на пост/профиль", "Post/profile link", "Lien de publication/profil", "Enlace de publicación/perfil", "帖子/个人资料链接"],
+  ["Скачайте **публикацию или публикации профиля** по ссылке. Выберите соответствующую социальную сеть.", "Download **a post or a profile’s posts** from a link. Select the matching social network.", "Téléchargez **une publication ou les publications d’un profil** depuis un lien. Sélectionnez le réseau correspondant.", "Descarga **una publicación o las publicaciones de un perfil** desde un enlace. Selecciona la red correspondiente.", "通过链接下载**单个帖子或某个用户的帖子**。请选择对应的社交平台。"],
+  ["Скачайте **публикации, которые вы сохранили в своём аккаунте**. Укажите свой никнейм и браузер с выполненным входом.", "Download **posts you saved in your own account**. Enter your username and choose a signed-in browser.", "Téléchargez **les publications enregistrées dans votre compte**. Indiquez votre pseudo et choisissez un navigateur connecté.", "Descarga **las publicaciones que guardaste en tu cuenta**. Indica tu usuario y el navegador con la sesión iniciada.", "下载**你在自己账户中收藏的帖子**。输入用户名并选择已登录的浏览器。"],
+  ["Для сохранённых публикаций выберите доски настроения своего аккаунта.", "For saved posts, choose moodboards from your account.", "Pour les publications enregistrées, choisissez les moodboards de votre compte.", "Para las publicaciones guardadas, elige los moodboards de tu cuenta.", "对于收藏的帖子，请选择自己账户中的情绪板。"],
+  ["Вставьте ссылку на публикацию или профиль выбранной социальной сети.", "Paste a post or profile link from the selected social network.", "Collez un lien de publication ou de profil du réseau sélectionné.", "Pega un enlace de publicación o perfil de la red seleccionada.", "请粘贴所选社交平台的帖子或个人资料链接。"],
+  ["Введите имя пользователя", "Enter your username", "Saisissez votre nom d’utilisateur", "Introduce tu nombre de usuario", "请输入用户名"],
+  ["Введите имя пользователя Behance.", "Enter your Behance username.", "Saisissez votre nom d’utilisateur Behance.", "Introduce tu nombre de usuario de Behance.", "请输入 Behance 用户名。"],
+  ["Не удалось прочитать список досок Behance.", "Could not read Behance moodboards.", "Impossible de lire les moodboards Behance.", "No se pudieron leer los moodboards de Behance.", "无法读取 Behance 情绪板。"],
+  ["Behance повторил страницу досок. Повторите поиск.", "Behance repeated a moodboard page. Retry the search.", "Behance a répété une page de moodboards. Relancez la recherche.", "Behance repitió una página de moodboards. Repite la búsqueda.", "Behance 返回了重复的情绪板页面。请重试搜索。"],
+  ["Недопустимый адрес Behance.", "Invalid Behance address.", "Adresse Behance incorrecte.", "Dirección de Behance no válida.", "无效的 Behance 地址。"],
+  ["Ответ Behance слишком большой.", "The Behance response is too large.", "La réponse Behance est trop volumineuse.", "La respuesta de Behance es demasiado grande.", "Behance 响应过大。"],
+
   ["Не удалось скачать публикаций: {0}. Повторите импорт оставшихся публикаций.", "Posts that could not be downloaded: {0}. Retry importing the remaining posts.", "Publications non téléchargées : {0}. Réessayez d’importer les publications restantes.", "Publicaciones no descargadas: {0}. Vuelve a importar las publicaciones restantes.", "未能下载的帖子：{0}。请重试导入剩余帖子。"],
   ["Поддержка будет добавлена в будущих обновлениях", "Support will be added in future updates", "La prise en charge sera ajoutée lors de futures mises à jour", "La compatibilidad se añadirá en futuras actualizaciones", "将在未来更新中添加支持"],
   ["Название", "Name", "Nom", "Nombre", "名称"],

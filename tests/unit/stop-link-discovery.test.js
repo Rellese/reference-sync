@@ -333,3 +333,14 @@ test('Behance document: manual cancellation wins and truncated JSON is rejected'
     opts.onStdout('[]');controller.abort();return {code:0};
   },[],{...options,signal:controller.signal}),{code:STOPPED});
 });
+
+for (const source of ['instagram','pinterest']) {
+  test(`${source}: explicit profile routes to posts without requiring owner nickname`, async t => {
+    const calls=fakeEngine(t,[{chunks:jsonl(messages(source,1,2))}]);
+    const host=source==='instagram'?'www.instagram.com':'www.pinterest.com';
+    const result=await discover(source,{username:'',targetUrl:`https://${host}/artist/`,stopLink:null,
+      collections:[{id:'stale',name:'Saved'}]});
+    assert.equal(result.posts.length,1);assert.equal(result.posts[0].componentCount,2);
+    assert.equal(calls[0].args.at(-1),`https://${host}/artist/${source==='instagram'?'posts':'pins'}/`);
+  });
+}
