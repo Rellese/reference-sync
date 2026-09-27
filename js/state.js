@@ -191,7 +191,6 @@ export function loadSettings() {
     if (parsed.downloadMode === undefined && state.settings.platform === 'behance' && /^https:\/\//.test(state.settings.username)) {
       state.settings.sourceUrl = state.settings.username;
       state.settings.username = '';
-      state.settings.downloadMode = 'link';
     }
 
     /*

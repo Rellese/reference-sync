@@ -23,7 +23,7 @@ export function validateSourceLink(platform, input) {
 export function searchSettings(settings) {
   if (settings.downloadMode === 'link') return {...settings, source:'browser', targetUrl:validateSourceLink(settings.platform, settings.sourceUrl),
     searchMode:'full', folderSearch:false, stopLinkEnabled:false};
-  return {...settings, folderSearch:settings.platform === 'behance' || settings.folderSearch};
+  return {...settings, source:settings.platform === 'behance' ? 'browser' : settings.source, folderSearch:settings.platform === 'behance' || settings.folderSearch};
 }
 
 export function sourceLinkTarget(platform, input) {

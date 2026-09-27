@@ -793,7 +793,7 @@ test('Behance activates link input and renders selectable media blocks', async t
   const page = await setup(t);
   await page.getByRole('button', {name:'Behance', exact:true}).click();
   assert.equal(await page.evaluate(() => window.__rs.state.settings.platform), 'behance');
-  assert.equal(await page.getByPlaceholder('имя пользователя').isVisible(), true);
+  assert.equal(await page.getByPlaceholder('имя пользователя').isVisible(), false);
   await page.getByText('Скачивание по ссылке', {exact:true}).click();
   assert.equal(await page.getByPlaceholder('Ссылка на пост/профиль').isVisible(), true);
   assert.equal(await page.getByPlaceholder('имя пользователя').isVisible(), false);
@@ -828,4 +828,23 @@ test('download scenarios preserve search preferences, clear old results and pers
  assert.equal(await page.locator('#source-link-input').isVisible(),true);
  assert.equal(await page.locator('#source-link-input').inputValue(),'https://www.instagram.com/p/abc/');
  await page.screenshot({path:'/tmp/rs-link-mode.png'});
+});
+
+
+test('Behance saved mode uses browser only while other sources retain account and archive controls', async t => {
+ const page=await setup(t);
+ const settings=page.locator('.rs-panel').filter({has:page.getByText('Шаг 1 — что скачать',{exact:true})});
+ const choices=settings.locator('.rs-step').first().locator('.rs-radio-row__label');
+ assert.equal(await choices.first().textContent(),'Скачивание ваших сохранённых');
+ assert.equal(await page.evaluate(()=>window.__rs.state.settings.downloadMode),'saved');
+ await page.getByText('Из архива',{exact:true}).click();
+ await page.getByRole('button',{name:'Behance',exact:true}).click();
+ assert.equal(await page.getByPlaceholder('имя пользователя').isVisible(),false);
+ assert.equal(await page.getByText('Из архива',{exact:true}).isVisible(),false);
+ assert.equal(await page.getByText('Через авторизованный браузер',{exact:true}).isVisible(),false);
+ assert.equal(await page.getByText('Браузер с выполненным входом',{exact:true}).isVisible(),true);
+ await page.getByRole('button',{name:'Pinterest',exact:true}).click();
+ assert.equal(await page.getByText('Из архива',{exact:true}).isVisible(),true);
+ await page.getByText('Через авторизованный браузер',{exact:true}).click();
+ assert.equal(await page.getByPlaceholder('имя пользователя').isVisible(),true);
 });

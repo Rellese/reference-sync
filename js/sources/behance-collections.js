@@ -28,12 +28,12 @@ export async function readBehancePage(url, { cookieFile, signal, json }, redirec
   return new Promise((resolve, reject) => {
     let request;
     const abort = () => request?.destroy(makeStopError());
-    const timer = setTimeout(() => request?.destroy(new Error('ETIMEDOUT')), 30000);
+    let timer;
     const finish = (error, value) => {
       clearTimeout(timer); signal?.removeEventListener('abort', abort);
       if (error) reject(error); else resolve(value);
     };
-    request = nodeApi.https.request(target, { method:json ? 'POST' : 'GET', headers: {
+    request = nodeApi.https.request({hostname:target.hostname, path:target.pathname + target.search, protocol:'https:', method:json ? 'POST' : 'GET', headers: {
       'User-Agent': BEHANCE_USER_AGENT, Cookie: cookieHeader(cookieFile, target),
       'Accept-Encoding': 'identity',
       ...(json ? {'Content-Type':'application/json', 'X-Requested-With':'XMLHttpRequest', 'X-BCP': cookieHeader(cookieFile, target).match(/(?:^|; )bcp=([^;]+)/)?.[1] || ''} : {}),
@@ -55,6 +55,7 @@ export async function readBehancePage(url, { cookieFile, signal, json }, redirec
       });
       response.on('end', () => finish(null, body));
     });
+    timer = setTimeout(() => request?.destroy(new Error('ETIMEDOUT')), 30000);
     request.on('error', error => finish(error));
     signal?.addEventListener('abort', abort, {once:true});
     if (signal?.aborted) abort();
@@ -63,14 +64,18 @@ export async function readBehancePage(url, { cookieFile, signal, json }, redirec
 }
 
 export async function collectBehanceBoards(options, read = readBehancePage) {
-  const username = String(options.username || '').trim().replace(/^@/, '');
-  if (!/^[\w.-]+$/.test(username)) throw new Error('Введите имя пользователя Behance.');
+  const home = parseBehancePage(await read('https://www.behance.net/', options));
+  const actual = home.user?.loggedInUser;
+  assertMatchingAccount({username: actual?.username, authenticated: !!actual?.username, status: actual ? 'unknown' : 'signed-out'},
+    {platform:'behance', title:'Behance', browser:options.browser});
+  // Display names may contain spaces. Only the authenticated account's URL slug
+  // is used; an old/manual username setting never selects someone else's boards.
+  const username = String(actual.username);
   const base = `https://www.behance.net/${encodeURIComponent(username)}`;
   const initial = await read(`${base}/moodboards`, options);
   const data = initial.trim().startsWith('{') ? JSON.parse(initial) : parseBehancePage(initial);
-  const actual = data.user?.loggedInUser;
-  assertMatchingAccount({username: actual?.username, authenticated: !!actual?.username, status: actual ? 'unknown' : 'signed-out'},
-    {platform:'behance', title:'Behance', username, browser:options.browser});
+  assertMatchingAccount({username:data.user?.loggedInUser?.username, authenticated:!!data.user?.loggedInUser?.username,
+    status:data.user?.loggedInUser ? 'unknown':'signed-out'}, {platform:'behance',title:'Behance',username});
   let page = data.profile?.activeSection?.collections;
   const boards = new Map();
   const cursors = new Set();
@@ -102,7 +107,5 @@ export async function collectBehanceBoards(options, read = readBehancePage) {
 }
 
 export function listBehanceCollections(options) {
-  const username = String(options.username || '').trim().replace(/^@/, '');
-  if (!/^[\w.-]+$/.test(username)) throw new Error('Введите имя пользователя Behance.');
-  return withBehanceSession(options, `https://www.behance.net/${encodeURIComponent(username)}/moodboards`, next => collectBehanceBoards(next));
+  return withBehanceSession(options, 'https://www.behance.net/', next => collectBehanceBoards(next));
 }

@@ -31,13 +31,13 @@ async function challengeFor(url, signal, redirects = 0) {
   return new Promise((resolve, reject) => {
     let request;
     const abort = () => request?.destroy(makeStopError());
-    const timer = setTimeout(() => request?.destroy(new Error('ETIMEDOUT')), 30000);
+    let timer;
     const finish = (error, token) => {
       clearTimeout(timer);
       signal?.removeEventListener('abort', abort);
       if (error) reject(error); else resolve(token);
     };
-    request = nodeApi.https.get(url, {headers:{'User-Agent':BEHANCE_USER_AGENT}}, response => {
+    request = nodeApi.https.get({hostname:parsed.hostname, path:parsed.pathname + parsed.search, protocol:'https:', headers:{'User-Agent':BEHANCE_USER_AGENT}}, response => {
       response.on('error', error => finish(error));
       if ([301,302,303,307,308].includes(response.statusCode) && response.headers.location && redirects < 3) {
         response.resume();
@@ -58,6 +58,7 @@ async function challengeFor(url, signal, redirects = 0) {
         finish(token ? null : failure(), token);
       });
     });
+    timer = setTimeout(() => request?.destroy(new Error('ETIMEDOUT')), 30000);
     request.on('error', error => finish(error));
     signal?.addEventListener('abort', abort, {once:true});
     if (signal?.aborted) abort();

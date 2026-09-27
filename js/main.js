@@ -1151,7 +1151,7 @@ const profileSession = createProfileSessionController({
 });
 
 function refreshProfileSession() {
-  if (state.settings.source === 'browser') profileSession.refresh(state.settings);
+  if (state.settings.source === 'browser' || state.settings.platform === 'behance') profileSession.refresh(state.settings);
 }
 
 async function requireMatchingInstagramSession(settings, signal) {
@@ -1542,7 +1542,7 @@ async function runSearch() {
     return;
   }
 
-  if (!s.targetUrl && !s.username.trim()) {
+  if (!s.targetUrl && s.platform !== 'behance' && !s.username.trim()) {
     ui.status.set('Не указан аккаунт', 'Введите имя пользователя');
     ui.log.add('Поиск невозможен: не заполнено имя аккаунта.', 'err');
     return;
@@ -1570,7 +1570,7 @@ async function runSearch() {
     `Идёт обращение к ${activeSource.title}`,
     true,
   );
-  ui.log.add(`Поиск: @${s.username}, режим ${s.searchMode}`);
+  ui.log.add(`Поиск: ${s.platform === 'behance' ? 'Behance' : '@' + s.username}, режим ${s.searchMode}`);
 
   /* Состояние 6 — «Search for Publications»: бегущая полоса
      из начала в конец, пока идёт обращение к Eagle и браузеру */

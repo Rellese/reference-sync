@@ -18,4 +18,5 @@ test('link mode ignores hidden saved options without overwriting user preference
   assert.equal(next.folderSearch,false);assert.equal(next.stopLinkEnabled,false);assert.equal(next.source,'browser');assert.equal(next.searchMode,'full');
   assert.equal(original.searchMode,'recent');assert.equal(original.folderSearch,true);
   assert.equal(searchSettings({...original,downloadMode:'saved',folderSearch:false}).folderSearch,true);
+  assert.equal(searchSettings({...original,downloadMode:'saved',source:'meta',username:''}).source,'browser');
 });

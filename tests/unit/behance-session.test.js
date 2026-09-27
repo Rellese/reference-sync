@@ -21,8 +21,8 @@ for(const outcome of ['success','failure','cancel']) test(`Behance temporary ses
  t.after(()=>{Object.assign(nodeApi,before);fs.rmSync(dir,{recursive:true,force:true});});
  const original=path.join(dir,'input'); const initial='.behance.net\tTRUE\t/\tTRUE\t0\tsession\tfixture\n';fs.writeFileSync(original,initial);
  const controller=new AbortController(); let prepared;
- Object.assign(nodeApi,{available:true,fs,path,os,https:{get(url,options,callback){
-   assert.equal(new URL(url).hostname,'www.behance.net');
+ Object.assign(nodeApi,{available:true,fs,path,os,https:{get(options,callback){
+   assert.equal(options.hostname,'www.behance.net');
    const request=new EventEmitter();request.destroy=e=>request.emit('error',e);
    queueMicrotask(()=>{const response=new EventEmitter();response.statusCode=403;response.setEncoding=()=>{};response.resume=()=>{};callback(response);response.emit('data',challenge);response.emit('end');});
    return request;
@@ -43,7 +43,7 @@ test('Behance refuses unknown challenges and redirects outside its host, cleanin
  const original=path.join(directory,'input');fs.writeFileSync(original,'# Netscape HTTP Cookie File\n');
  for(const status of [302,403]) {
   let calls=0;
-  Object.assign(nodeApi,{available:true,fs,path,os:{...os,tmpdir:()=>directory},https:{get(url,options,callback){
+  Object.assign(nodeApi,{available:true,fs,path,os:{...os,tmpdir:()=>directory},https:{get(options,callback){
    calls++;const request=new EventEmitter();request.destroy=error=>request.emit('error',error);
    queueMicrotask(()=>{const response=new EventEmitter();response.statusCode=status;response.headers={location:'https://outside.example/'};response.resume=()=>{};response.setEncoding=()=>{};callback(response);response.emit('data','<script>runUnknownCode()</script>');response.emit('end');});return request;
   }}});

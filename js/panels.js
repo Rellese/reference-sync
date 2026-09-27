@@ -263,8 +263,8 @@ export function buildSettings({ onChange, onFolderSearch, onArchive, onArchiveRe
   const downloadStep = el('div', 'rs-step');
   downloadStep.appendChild(el('div', 'rs-step__title', L('Шаг 1 — что скачать')));
   const downloadGroup = createRadioGroup([
-    {value:'link', label:L('Скачивание по ссылке')},
     {value:'saved', label:L('Скачивание ваших сохранённых')},
+    {value:'link', label:L('Скачивание по ссылке')},
   ], {value:s.downloadMode || 'saved', onChange(value) {
     if (!canChangeScenario()) { downloadGroup.set(state.settings.downloadMode || 'saved'); return; }
     setSetting('downloadMode', value);
@@ -273,8 +273,8 @@ export function buildSettings({ onChange, onFolderSearch, onArchive, onArchiveRe
   }});
   const downloadChoices = el('div', 'rs-step__group');
   for (const [value, tip] of [
+    ['saved', 'Скачайте **публикации, которые вы сохранили в своём аккаунте**. Выберите браузер с выполненным входом. Для Instagram и Pinterest также укажите свой никнейм.'],
     ['link', 'Скачайте **публикацию или публикации профиля** по ссылке. Выберите соответствующую социальную сеть.'],
-    ['saved', 'Скачайте **публикации, которые вы сохранили в своём аккаунте**. Укажите свой никнейм и браузер с выполненным входом.'],
   ]) {
     const row = el('div', 'rs-switch-row');
     row.append(downloadGroup.rowOf(value), el('span', 'rs-switch-row__gap'), createInfo(L(tip)).node);
@@ -728,12 +728,14 @@ export function buildSettings({ onChange, onFolderSearch, onArchive, onArchiveRe
         nextSettings || state.settings;
 
       const byLink = next.downloadMode === 'link';
+      const isBehance = next.platform === 'behance';
+      const browserOnly = byLink || isBehance;
       downloadGroup.set(byLink ? 'link' : 'saved');
       if (byLink) setText(browserHint, L('Браузер нужен для публикаций, доступных после входа. Никнейм владельца ссылки не требуется.'));
       linkRow.style.display = byLink ? '' : 'none';
       linkField.set(next.sourceUrl || '');
-      accountRow.style.display = byLink ? 'none' : '';
-      sourceList.style.display = byLink ? 'none' : '';
+      accountRow.style.display = browserOnly ? 'none' : '';
+      sourceList.style.display = browserOnly ? 'none' : '';
       step2.style.display = byLink ? 'none' : '';
       searchDivider.style.display = byLink ? 'none' : '';
       folderRow.style.display = next.platform === 'behance' ? 'none' : '';
@@ -741,12 +743,12 @@ export function buildSettings({ onChange, onFolderSearch, onArchive, onArchiveRe
       setUiText(sourceGroup.rowOf('meta').querySelector('.rs-radio-row__label'), 'Из архива');
 
       browserBlock.style.display =
-        next.source === 'browser'
+        (browserOnly || next.source === 'browser')
           ? ''
           : 'none';
 
       metaHint.style.display =
-        next.source === 'meta'
+        (!browserOnly && next.source === 'meta')
           ? ''
           : 'none';
 

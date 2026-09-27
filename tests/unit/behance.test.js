@@ -47,7 +47,6 @@ test('Behance accepts only explicit project/collection HTTPS links and routes a 
   for(const url of ['https://evil.example/collection/1','https://behance.net.evil.example/gallery/1','file:///gallery/1','designer']) assert.throws(()=>behanceTarget(url));
   assert.equal(behanceTarget('https://behance.net/gallery/123/Case?x=1').url,'https://www.behance.net/gallery/123/a');
   assert.equal(behanceTarget('https://www.behance.net/moodboard/789/Test').id,'789');
-  assert.throws(() => behanceAdapter.listContainers({username:'https://www.behance.net/collection/789/Test'}), /имя пользователя/);
 });
 test('Behance passes selected block numbers to downloader and keeps only importable final files', async t=>{
   const oldNode={...nodeApi},oldTool={...toolchain};
