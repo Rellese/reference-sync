@@ -465,6 +465,7 @@ export function createGallerySource(spec) {
     groupBy = 'post',
     extraDiscoverArgs = [],
     extraDownloadArgs = [],
+    previewResolver = findPreview,
     validateDiscovery = null,
     discoveryJsonDocument = false,
   } = spec;
@@ -499,7 +500,7 @@ export function createGallerySource(spec) {
         record.url);
 
     const mediaType = guessMediaType(record);
-    const preview = findPreview(record);
+    const preview = previewResolver(record);
     const num = Number(record.num ?? record.number ?? 1) || 1;
 
     return {
