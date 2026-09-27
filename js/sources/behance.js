@@ -1,4 +1,5 @@
 import { decorateBehancePost } from './behance-case.js';
+import { packageBehanceCase } from '../case/package.js';
 import { behancePreview } from './behance-preview.js';
 import { validateSourceLink } from '../source-link.js';
 // Saved moodboards and explicit links share the same media-block importer.
@@ -57,6 +58,7 @@ export const behanceMediaSource = createGallerySource({
 });
 export default {
   ...behanceMediaSource,
+  packageCase: packageBehanceCase,
   discover: discoverBehance,
   download(options) {
     if (!options.posts?.length) return behanceMediaSource.download(options);
