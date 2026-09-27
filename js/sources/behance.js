@@ -1,5 +1,6 @@
 import { decorateBehancePost } from './behance-case.js';
 import { packageBehanceCase } from '../case/package.js';
+import { downloadWithCases } from '../case/download.js';
 import { behancePreview } from './behance-preview.js';
 import { validateSourceLink } from '../source-link.js';
 // Saved moodboards and explicit links share the same media-block importer.
@@ -63,7 +64,8 @@ export default {
   download(options) {
     if (!options.posts?.length) return behanceMediaSource.download(options);
     const target = behanceTarget(options.posts[0].url);
-    return withBehanceSession(options, target.url, next => behanceMediaSource.download({...next, preparePost:(post, context) => refreshBehanceChallenge(context.cookieFile, behanceTarget(post.url).url, context.signal)}));
+    return withBehanceSession(options, target.url, next => downloadWithCases(next,
+      request => behanceMediaSource.download({...request, preparePost:(post, context) => refreshBehanceChallenge(context.cookieFile, behanceTarget(post.url).url, context.signal)})));
   },
   listContainers: listBehanceCollections,
 };

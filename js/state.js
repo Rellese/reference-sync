@@ -167,6 +167,8 @@ export const appHistory = createHistory({
           continue;
         }
 
+        if (next.caseSelection) post.caseSelection={...next.caseSelection};
+        else delete post.caseSelection;
         if (next.components === undefined) {
           delete post.selectedComponents;
         } else {
@@ -515,13 +517,14 @@ export function recordSelectionChange(
         change.before.selected !==
           change.after.selected ||
         !sameOccurrence ||
-        !sameComponents
+        !sameComponents || JSON.stringify(change.before.caseSelection) !== JSON.stringify(change.after.caseSelection)
       );
     })
     .map((change) => ({
       postId: change.postId,
 
       before: {
+        caseSelection: change.before.caseSelection ? {...change.before.caseSelection} : undefined,
         selected:
           Boolean(change.before.selected),
 
@@ -538,6 +541,7 @@ export function recordSelectionChange(
       },
 
       after: {
+        caseSelection: change.after.caseSelection ? {...change.after.caseSelection} : undefined,
         selected:
           Boolean(change.after.selected),
 

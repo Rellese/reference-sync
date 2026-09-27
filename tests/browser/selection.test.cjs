@@ -17,7 +17,7 @@ test.before(async () => {
       if (!file.startsWith(root + path.sep)) throw new Error('Invalid path');
       let body = await fs.readFile(file);
       // Expose the actual picker only in the test response, never in shipped code.
-      if (pathname === '/js/main.js') body += '\nwindow.__testPicker = selectCollectionsInTable; window.__testConfirmedImport = recordConfirmedImport; window.__testFinishImportSelection = finishImportSelection; window.__testShowImportResult = showImportResult; window.__testReportError = reportRunError;';
+      if (pathname === '/js/main.js') body += '\nwindow.__testRunImport = runImport; window.__testPicker = selectCollectionsInTable; window.__testConfirmedImport = recordConfirmedImport; window.__testFinishImportSelection = finishImportSelection; window.__testShowImportResult = showImportResult; window.__testReportError = reportRunError;';
       res.writeHead(200, { 'Content-Type': types[path.extname(file)] || 'application/octet-stream' });
       res.end(body);
     } catch { res.writeHead(404); res.end(); }
@@ -874,4 +874,78 @@ test('Behance case blocks preserve order, safe text and downloadable selection i
   await page.locator('.rs-carousel-modal__foot').getByRole('button',{name:'OK',exact:true}).click();
   assert.deepEqual(await page.evaluate(()=>window.caseSelection),[0]);
  }
+});
+
+test('Behance whole case and blocks are independent, including already imported media',async t=>{
+ const page=await setup(t);
+ await page.evaluate(()=>{
+  const {state,setPosts}=window.__rs;state.settings.folderSearch=false;
+  setPosts([{source:'behance',postId:'behance:mode',username:'designer',type:'carousel',componentCount:2,url:'https://www.behance.net/gallery/12/a',
+   components:[{index:1,type:'image',extension:'jpg'},{index:2,type:'video',extension:'mp4'}],caseDocument:{format:'reference-sync-case',version:1,blocks:[]}}]);
+ });
+ await page.locator('.rs-carousel-button').click();
+ await page.getByText('Скачать кейс целиком',{exact:true}).click();
+ await page.getByText('Скачать каждый блок отдельно',{exact:true}).click();
+ assert.equal(await page.locator('.rs-carousel-modal__list').evaluate(node=>node.inert),true);
+ assert.match(await page.locator('.rs-carousel-modal__summary').textContent(),/Кейс: 1; отдельных файлов: 0/);
+ await page.locator('.rs-carousel-modal__foot').getByRole('button',{name:'OK',exact:true}).click();
+ assert.deepEqual(await page.evaluate(()=>window.__rs.state.posts[0].caseSelection),{whole:true,blocks:false});
+ assert.equal(await page.evaluate(()=>window.__rs.state.selected.has('behance:mode')),true);
+ await page.locator('.rs-carousel-button').click();
+ await page.getByText('Скачать кейс целиком',{exact:true}).click();
+ await page.locator('.rs-carousel-modal__foot').getByRole('button',{name:'OK',exact:true}).click();
+ assert.equal(await page.evaluate(()=>window.__rs.state.selected.has('behance:mode')),false);
+ await page.evaluate(()=>{
+  const {state,setPosts}=window.__rs;
+  state.knownPostIds.add('behance:mode');
+  state.importRecords.set('behance:mode',{componentCount:2,components:new Map([['0','A'],['1','B']])});
+  setPosts(state.posts);
+ });
+ await page.locator('.rs-carousel-button').click();
+ await page.getByText('Скачать кейс целиком',{exact:true}).click();
+ await page.locator('.rs-carousel-modal__foot').getByRole('button',{name:'OK',exact:true}).click();
+ assert.equal(await page.evaluate(()=>window.__rs.state.selected.has('behance:mode')),true);
+ if(process.env.UI_SCREENSHOT) {await page.locator('.rs-carousel-button').click();await page.screenshot({path:process.env.UI_SCREENSHOT+'-case-modes.png'});}
+});
+
+test('Behance import submits a case plus only selected blocks and records their confirmations separately',async t=>{
+ const page=await setup(t);
+ await page.evaluate(async()=>{
+  const {getSource}=await import('/js/sources/registry.js');
+  const {state,setPosts,toolchain}=window.__rs;
+  state.settings.platform='behance';state.settings.downloadMode='link';state.settings.folderSearch=false;toolchain.ready=true;
+  window.fixtureWrites=[];
+  const fetchOriginal=window.fetch;
+  window.fetch=async(url,options)=>{
+   if(String(url).startsWith('http://localhost:41595/')) {
+    if(String(url).includes('/item/add')) {window.fixtureWrites.push(JSON.parse(options.body));return new Response(JSON.stringify({status:'success',data:'E'+window.fixtureWrites.length}));}
+    const id=new URL(url).searchParams.get('id');return new Response(JSON.stringify({status:'success',data:{id}}));
+   }
+   return fetchOriginal(url,options);
+  };
+  getSource('behance').download=async options=>{
+   const post=options.posts[0];window.requestedModes=post.caseSelection;
+   const entry={post,files:['/tmp/1.jpg','/tmp/2.jpg'],blockFiles:['/tmp/2.jpg'],caseFile:'/tmp/case.rscase',caseComplete:true,error:null};
+   await options.onCompleted(entry);return {results:[entry]};
+  };
+  setPosts([{source:'behance',postId:'behance:123',username:'designer',url:'https://www.behance.net/gallery/123/a',type:'carousel',componentCount:2,
+   components:[{index:1,type:'image',extension:'jpg'},{index:2,type:'image',extension:'jpg'}],selectedComponents:[2],caseSelection:{whole:true,blocks:true},
+   caseDocument:{format:'reference-sync-case',version:1,source:{title:'Case'},blocks:[]}}]);
+  await window.__testRunImport();
+ });
+ assert.deepEqual(await page.evaluate(()=>window.fixtureWrites.map(item=>item.path)),['/tmp/case.rscase','/tmp/2.jpg']);
+ assert.deepEqual(await page.evaluate(()=>window.requestedModes),{whole:true,blocks:true});
+ assert.deepEqual(await page.evaluate(()=>[...window.__rs.state.importRecords.keys()].sort()),['behance:123','case:v1:behance:123']);
+ assert.deepEqual(await page.evaluate(()=>[...window.__rs.state.importRecords.get('behance:123').components.keys()]),['1']);
+ assert.equal(await page.evaluate(()=>window.__rs.state.knownPostIds.has('behance:123')),false);
+ assert.equal(await page.evaluate(()=>window.__rs.state.knownPostIds.has('case:v1:behance:123')),true);
+ assert.equal(await page.evaluate(()=>window.__rs.state.selected.size),0);
+ await page.evaluate(async()=>{
+  const {state,setPosts}=window.__rs;
+  state.posts[0].selectedComponents=[1];state.posts[0].caseSelection={whole:true,blocks:true};
+  setPosts(state.posts);await window.__testRunImport();
+ });
+ assert.deepEqual(await page.evaluate(()=>window.fixtureWrites.map(item=>item.path)),['/tmp/case.rscase','/tmp/2.jpg','/tmp/1.jpg']);
+ assert.deepEqual(await page.evaluate(()=>window.requestedModes),{whole:false,blocks:true});
+ assert.equal(await page.evaluate(()=>window.__rs.state.knownPostIds.has('behance:123')),true);
 });

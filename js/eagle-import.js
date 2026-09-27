@@ -613,11 +613,11 @@ export function orderImportItemsOldestFirst(
   return [...(items || [])].sort(
     (left, right) => {
       const leftOrder = publicationOrder.get(
-        String(left?.postId || ''),
+        String(left?.sourcePostId || left?.postId || ''),
       );
 
       const rightOrder = publicationOrder.get(
-        String(right?.postId || ''),
+        String(right?.sourcePostId || right?.postId || ''),
       );
 
       const normalizedLeft =

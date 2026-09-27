@@ -2,6 +2,10 @@ import { diagnostics } from './diagnostics.js';
 // Columns: Russian source, English, French, Spanish, Simplified Chinese.
 export const messages = [
   ...diagnostics,
+  ["Скачать кейс целиком", "Download the whole case", "Télécharger le projet complet", "Descargar el proyecto completo", "下载完整项目"],
+  ["Скачать каждый блок отдельно", "Download blocks separately", "Télécharger les blocs séparément", "Descargar los bloques por separado", "分别下载各内容块"],
+  ["Для просмотра .rscase нужен отдельный плагин Eagle.", "Viewing .rscase requires a separate Eagle plugin.", "Un plugin Eagle distinct est nécessaire pour afficher les fichiers .rscase.", "Para ver .rscase se necesita un complemento de Eagle independiente.", "查看 .rscase 需要单独的 Eagle 插件。"],
+  ["Кейс: 1; отдельных файлов: {0}", "Case: 1; separate files: {0}", "Projet : 1 ; fichiers séparés : {0}", "Proyecto: 1; archivos separados: {0}", "项目：1；独立文件：{0}"],
   ["Текст — не отдельный файл", "Text — not a separate file", "Texte — pas un fichier séparé", "Texto — no es un archivo separado", "文本 — 非独立文件"],
   ["Неподдерживаемый блок", "Unsupported block", "Bloc non pris en charge", "Bloque no compatible", "不支持的内容块"],
   ["Блок недоступен для скачивания", "Block unavailable for download", "Bloc indisponible au téléchargement", "Bloque no disponible para descargar", "内容块无法下载"],

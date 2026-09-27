@@ -1,7 +1,8 @@
 # ReferenceSync Case, version 1
 
-Implementation stage: package writer and adapter API, fixture-tested. This is not
-an enabled Eagle import mode yet. The separate preview plugin is still required.
+Implementation stage: package writer, two independent Behance download modes,
+and import queue integration, fixture-tested. The separate preview plugin is
+still required; live `.rscase` import and preview in Eagle are not yet verified.
 
 A `.rscase` is a ZIP (STORE, UTF-8 names, CRC32, no ZIP64) with:
 
@@ -41,7 +42,20 @@ case for editor operations is not implemented by this initial writer.
 `{post, files, error, issue}` download result. Files retain their original numeric
 component names. It returns `{path, bytes, manifest}`. It neither modifies the
 ordinary download result nor marks blocks imported in Eagle. Whole-case registry
-identity and independent whole-case/media UI switches remain a separate step.
+identity is `case:v1:<source-post-id>`, with component 0 of 1. Individual media
+keep their original post ID and component positions. The download wrapper expands
+the request for a whole case without changing the user's block selection; the
+import queue includes the packaged file and selected media independently.
+Missing blocks remain in the manifest. An imported partial case is not silently
+replaced; deletion/editing/replacement is a later viewer workflow.
+
+Recovery stores the mode, original selection and packaged path. Existing case
+acknowledgements suppress duplicate case writes; media acknowledgements never
+suppress a new case. Browser tests run the queue against a mock Eagle API,
+including a second pass for remaining blocks.
+
+Official API references: [local file import](https://developer.eagle.cool/plugin-api/api/item)
+and [format extensions](https://developer.eagle.cool/plugin-api/get-started/plugin-types/preview).
 
 For development verification only:
 

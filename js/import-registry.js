@@ -5,6 +5,7 @@
    импортированной только после создания всех её элементов Eagle.
    ============================================================ */
 
+import { caseModes, pendingCase } from './case/download.js';
 const STORAGE_KEY = 'reference-sync.known-post-ids.v1';
 const RECORDS_STORAGE_KEY =
   'reference-sync.import-records.v2';
@@ -121,6 +122,10 @@ export function selectImportablePosts(
 
   return (posts || []).filter((post) => {
     const postId = normalizePostId(post?.postId);
+    if (post?.source === 'behance' && post.caseDocument) {
+      return selected.has(postId) && (pendingCase(post, known) ||
+        (caseModes(post).blocks && !known.has(postId) && (!Array.isArray(post.selectedComponents) || post.selectedComponents.length > 0)));
+    }
 
     return Boolean(
       postId &&

@@ -1,3 +1,4 @@
+import { caseModes, caseRegistryId, caseImportItem, pendingCase } from './case/download.js';
 import { searchSettings } from './source-link.js';
 import { sessionErrorTitle } from './session-account.js';
 import { summarizeImportOutcome } from './download-outcome.js';
@@ -411,9 +412,10 @@ async function refreshImportRegistry(confirmed = []) {
 }
 
 function recoveryDownloadSnapshot(downloaded) {
-  return (downloaded || []).filter(entry => !entry.error && entry.files?.length).map((entry) => ({
+  return (downloaded || []).filter(entry => !entry.error && !entry.caseError && (entry.files?.length || entry.caseFile)).map((entry) => ({
     postId: entry.post.postId,
     files: [...entry.files],
+    caseFile: entry.caseFile, caseComplete: entry.caseComplete, blockFiles: entry.blockFiles,
   }));
 }
 
@@ -440,7 +442,8 @@ function restoreDownloadedEntries(snapshot) {
 
     if (
       !post ||
-      !files.length ||
+      (!files.length && !entry.caseFile) ||
+      (entry.caseFile && !nodeApi.fs.existsSync(entry.caseFile)) ||
       files.some((file) => !nodeApi.fs.existsSync(file))
     ) {
       return null;
@@ -449,6 +452,7 @@ function restoreDownloadedEntries(snapshot) {
     restored.push({
       post,
       files,
+      caseFile:entry.caseFile, caseComplete:entry.caseComplete, blockFiles:entry.blockFiles,
       error: null,
     });
   }
@@ -2158,6 +2162,7 @@ async function runImport() {
   }
   alignCurrentImportCounts();
   for (const postId of state.knownPostIds) {
+    if (pendingCase(state.posts.find(post => post.postId === postId), state.knownPostIds)) continue;
     state.selected.delete(postId);
     state.selectedOccurrences.delete(postId);
   }
@@ -2166,7 +2171,7 @@ async function runImport() {
   const s = { ...state.settings, folderSearch: state.settings.downloadMode === 'link' ? false : state.settings.platform === 'behance' || state.settings.folderSearch };
   const advanceNumbering = createNumberingProgress(s, state.generated);
   const confirmNumbering = entry => {
-    const patch = advanceNumbering(settingsForPlatform(s.platform), entry.item.postId);
+    const patch = advanceNumbering(settingsForPlatform(s.platform), entry.item.sourcePostId || entry.item.postId);
     for (const [key, value] of Object.entries(patch)) setPlatformNaming(s.platform, key, value);
     if (Object.keys(patch).length && state.settings.platform === s.platform) ui.naming.sync(state.settings);
   };
@@ -2185,6 +2190,11 @@ async function runImport() {
       state.knownPostIds,
     ),
   );
+
+  for (let i=0; i<chosen.length; i++) {
+    const post=chosen[i];
+    if (post.source === 'behance' && post.caseDocument) chosen[i]={...post,caseSelection:{whole:pendingCase(post,state.knownPostIds),blocks:caseModes(post).blocks && !state.knownPostIds.has(post.postId)}};
+  }
 
   if (!chosen.length) {
     ui.status.set(
@@ -2282,7 +2292,7 @@ async function runImport() {
 
     const chosenIds = new Set(chosen.map(post => String(post.postId)));
     const restoredResults = Array.isArray(recoveredDownloaded)
-      ? recoveredDownloaded.filter(entry => chosenIds.has(String(entry.post?.postId)))
+      ? recoveredDownloaded.filter(entry => chosenIds.has(String(entry.post?.postId)) && (!pendingCase(chosen.find(post=>post.postId===entry.post.postId),state.knownPostIds) || entry.caseFile)).map(entry=>({...entry,post:chosen.find(post=>post.postId===entry.post.postId)}))
       : [];
 
     const restoredPostIds = new Set(
@@ -2379,16 +2389,16 @@ async function runImport() {
       downloaded: recoveryDownloadSnapshot(results),
     });
 
-    const downloaded = results.filter((entry) => entry.files.length);
-    const failedDownloads = results.filter((entry) => entry.error || !entry.files.length);
+    const downloaded = results.filter((entry) => entry.files.length || entry.caseFile);
+    const failedDownloads = results.filter((entry) => entry.error || entry.caseError || (!entry.files.length && !entry.caseFile));
     for (const entry of results) {
       const post = state.posts.find(post => post.postId === entry.post.postId);
-      if (post) post.downloadIssue = entry.error ? (entry.issue || { label: 'Ошибка загрузки — можно повторить', detail: entry.error }) : null;
+      if (post) post.downloadIssue = (entry.error || entry.caseError) ? (entry.issue || { label: 'Ошибка загрузки — можно повторить', detail: entry.error || entry.caseError }) : null;
     }
     ui.log.add(`Скачивание завершено: проверено ${results.length} публикаций; полностью скачано ${results.length - failedDownloads.length}; с ошибками ${failedDownloads.length}; файлов ${downloaded.reduce((sum, entry) => sum + entry.files.length, 0)}.`, failedDownloads.length ? 'warn' : 'ok');
 
     failedDownloads.forEach((entry) => {
-      ui.log.add(`Не скачано: ${entry.post.url} — ${entry.error}`, 'err');
+      ui.log.add(`Не скачано: ${entry.post.url} — ${entry.error || entry.caseError}`, 'err');
     });
 
     if (!downloaded.length) {
@@ -2435,7 +2445,11 @@ async function runImport() {
         ? entry.post.selectedComponents
         : undefined;
 
-      const selectedFiles = selectedDownloadedFiles(entry, selection);
+      const selectedFiles = selectedDownloadedFiles({...entry,files:entry.post.source === 'behance' && !caseModes(entry.post).blocks ? [] : entry.files}, selection);
+      const caseItem=pendingCase(entry.post,state.knownPostIds) ? caseImportItem(entry) : null;
+      if (caseItem && !state.knownPostIds.has(caseItem.postId)) {
+        items.push({...caseItem,name:resolveComponentName({nameOverride,generatedName:names?.name,componentIndex:0,fallback:caseItem.name}),annotation});
+      }
 
       selectedFiles.forEach(({
         file,
@@ -2517,7 +2531,7 @@ async function runImport() {
         }
 
         const post =
-          postsById.get(postId);
+          postsById.get(item.sourcePostId || postId);
 
         if (!post) {
           continue;
@@ -2528,7 +2542,7 @@ async function runImport() {
             instanceof Map
             ? (
                 state.selectedOccurrences.get(
-                  postId,
+                  item.sourcePostId || postId,
                 ) || ''
               )
             : '';
@@ -2658,7 +2672,7 @@ async function runImport() {
     const importedPostIds = new Set(
       [...state.knownPostIds].filter(
         (postId) => !knownBeforeImport.has(postId),
-      ),
+      ).map(postId=>postId.replace(/^case:v1:/,'')),
     );
 
     const {
@@ -2762,7 +2776,7 @@ async function runImport() {
     // bounded UI journal retains the failures, not only successful writes.
     for (const entry of failedDownloads) ui.log.add(redact(`Не скачано: ${entry.post.url} — ${entry.error || 'Файлы не получены'}`), 'err');
     for (const post of chosen) {
-      if (!state.knownPostIds.has(post.postId) && !failedDownloads.some(entry => entry.post.postId === post.postId)) {
+      if (!summarizeImportOutcome([post],state.knownPostIds,state.importRecords,[]).complete && !failedDownloads.some(entry => entry.post.postId === post.postId)) {
         ui.log.add(`Не завершено: ${post.url}; ожидается компонентов: ${post.componentCount}; подтверждено: ${state.importRecords.get(post.postId)?.components.size || 0}`, 'warn');
       }
     }
@@ -3597,7 +3611,7 @@ function componentNumbersFromPositions(post, positions) {
 
 function currentCarouselState(post) {
   if (
-    Number(post?.componentCount) <= 1 ||
+    (Number(post?.componentCount) <= 1 && !post?.caseDocument) ||
     !Array.isArray(post?.components)
   ) {
     return null;
@@ -3648,6 +3662,7 @@ function tablePostSelectionSnapshot(post) {
         post.postId,
       ),
 
+    caseSelection: post.caseSelection ? {...post.caseSelection} : undefined,
     components:
       Array.isArray(post.selectedComponents)
         ? [...post.selectedComponents]
@@ -3659,6 +3674,7 @@ function sameSelectionSnapshot(
   first,
   second,
 ) {
+  if (JSON.stringify(first.caseSelection) !== JSON.stringify(second.caseSelection)) return false;
   if (
     first.selected !== second.selected
   ) {
@@ -3945,7 +3961,7 @@ function updateTableDragPointer(event) {
 
 function tablePostVisualState(post) {
   const isKnown =
-    state.knownPostIds.has(post.postId);
+    state.knownPostIds.has(post.postId) && !pendingCase(post,state.knownPostIds);
 
   const carouselState =
     currentCarouselState(post);
@@ -3955,14 +3971,14 @@ function tablePostVisualState(post) {
     state.selected.has(post.postId) &&
     (
       !carouselState ||
-      carouselState.selectedCount > 0
+      carouselState.selectedCount > 0 || pendingCase(post,state.knownPostIds)
     );
 
   return {
     selected,
 
     checked: carouselState
-      ? selected && carouselState.checked
+      ? selected && (carouselState.checked || pendingCase(post,state.knownPostIds))
       : selected,
 
     mixed: Boolean(
@@ -4002,7 +4018,7 @@ function setTablePostChecked(
 ) {
   if (
     !post ||
-    state.knownPostIds.has(post.postId)
+    (state.knownPostIds.has(post.postId) && !pendingCase(post,state.knownPostIds))
   ) {
     return;
   }
@@ -4020,6 +4036,7 @@ function setTablePostChecked(
   const before =
     tablePostSelectionSnapshot(post);
 
+  if (post.caseSelection) post.caseSelection=checked ? {...post.caseSelection,blocks:true} : {...post.caseSelection,whole:false};
   const carouselState =
     currentCarouselState(post);
 
@@ -4131,20 +4148,18 @@ function syncTablePostCheckbox(post) {
           );
 
     const selected =
-      !state.knownPostIds.has(
-        post.postId,
-      ) &&
+      (!state.knownPostIds.has(post.postId) || pendingCase(post,state.knownPostIds)) &&
       occurrenceIsSelected &&
       (
         !carouselState ||
-        carouselState.selectedCount > 0
+        carouselState.selectedCount > 0 || pendingCase(post,state.knownPostIds)
       );
 
     const checked =
       carouselState
         ? (
             selected &&
-            carouselState.checked
+            (carouselState.checked || pendingCase(post,state.knownPostIds))
           )
         : selected;
 
@@ -4155,7 +4170,7 @@ function syncTablePostCheckbox(post) {
         carouselState.mixed,
       );
 
-    const isKnown = state.knownPostIds.has(post.postId);
+    const isKnown = state.knownPostIds.has(post.postId) && !pendingCase(post,state.knownPostIds);
     entry.checkbox.setDisabled(isKnown);
     entry.row.classList.toggle('is-imported', isKnown);
     if (isKnown) setLocalizedProperty(entry.row, 'title', L('Эта публикация уже добавлена в Eagle'));
@@ -5169,7 +5184,7 @@ function renderRow(
   occurrence = null,
 ) {
   const row = el('div', 'rs-row');
-  const isKnown = state.knownPostIds.has(post.postId);
+  const isKnown = state.knownPostIds.has(post.postId) && !pendingCase(post,state.knownPostIds);
 
   const rowOccurrenceId =
     String(
@@ -5210,14 +5225,14 @@ const isSelected =
   occurrenceIsSelected &&
   (
     !isCarousel ||
-    carouselState.selectedCount > 0
+    carouselState.selectedCount > 0 || pendingCase(post,state.knownPostIds)
   );
 
 const parentChecked =
   isCarousel
     ? (
         isSelected &&
-        carouselState.checked
+        (carouselState.checked || pendingCase(post,state.knownPostIds))
       )
     : isSelected;
 
@@ -5406,8 +5421,7 @@ if (isKnown) {
     );
 
     const carouselDisabled =
-      isKnown ||
-      carouselState.disabled;
+      (isKnown || carouselState.disabled) && !post.caseDocument;
 
     carouselButton.classList.toggle(
       'is-disabled',
@@ -5442,9 +5456,8 @@ if (isKnown) {
   }
 
   if (
-    post.componentCount > 1 &&
-    !isKnown &&
-    !carouselState?.disabled
+    (post.caseDocument || post.componentCount > 1) &&
+    (post.caseDocument || (!isKnown && !carouselState?.disabled))
   ) {
     structure.classList.add('is-clickable');
     setLocalizedProperty(structure, 'title', L('Настроить компоненты публикации'));
@@ -5459,7 +5472,9 @@ if (isKnown) {
       importedPositions:
         latestState?.imported || new Set(),
 
-      onConfirm: (selection) => {
+      caseImported: post.source === 'behance' && state.knownPostIds.has(caseRegistryId(post)),
+      onConfirm: (selection, modes) => {
+        if (modes && post.caseDocument) post.caseSelection=modes;
         const available =
           latestState?.available ||
           availableComponentPositions(post);
@@ -5478,7 +5493,7 @@ if (isKnown) {
             selectedPositions,
           );
 
-          if (selectedPositions.size) {
+          if (selectedPositions.size || pendingCase(post,state.knownPostIds)) {
             state.selected.add(post.postId);
           } else {
             state.selected.delete(post.postId);

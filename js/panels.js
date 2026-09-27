@@ -1,3 +1,4 @@
+import { caseModes } from './case/download.js';
 import { translate, joinText, L, setText, setUiText, setLocalizedProperty, bindTextRender, normalizeLanguage, getLanguage } from './i18n.js';
 import { createArchivePicker } from './archive-panel.js';
 import { attachThumbnail } from './thumbnail.js';
@@ -2019,6 +2020,17 @@ export function buildCarouselModal() {
   );
 
   let currentPost = null;
+  let wholeCase = false;
+  let separateBlocks = true;
+  const caseControls = el('div', 'rs-case-modes');
+  const wholeControl = createCheckbox({label:L('Скачать кейс целиком'),onChange:value=>{wholeCase=value;updateSummary();}});
+  const blocksControl = createCheckbox({label:L('Скачать каждый блок отдельно'),checked:true,onChange:value=>{separateBlocks=value;syncCaseControls();updateSummary();}});
+  caseControls.append(wholeControl.row,blocksControl.row,el('div','rs-case-modes__note',L('Для просмотра .rscase нужен отдельный плагин Eagle.')));
+  function syncCaseControls() {
+    const enabled = !currentPost?.caseDocument || separateBlocks;
+    list.inert = !enabled; controls.inert = !enabled;
+    list.classList.toggle('is-case-only', !enabled);
+  }
   let currentSelection = new Set();
   let currentImported = new Set();
   const selectionGesture =
@@ -2371,9 +2383,9 @@ export function buildCarouselModal() {
       componentTotal - currentImported.size,
     );
 
-    const selected = currentSelection.size;
+    const selected = separateBlocks ? currentSelection.size : 0;
 
-    setText(summary, L(`Выбрано файлов: ${selected} из ${availableTotal}`));
+    setText(summary, wholeCase ? L(`Кейс: 1; отдельных файлов: ${selected}`) : L(`Выбрано файлов: ${selected} из ${availableTotal}`));
   }
 
   function updateSelection(nextSelection) {
@@ -2559,7 +2571,7 @@ function syncComponentCheckboxes() {
   });
 
   foot.append(cancel.node, confirm.node);
-  content.append(controls, list, summaryRow);
+  content.append(caseControls, controls, list, summaryRow);
   box.append(title, content, foot);
   root.appendChild(box);
 
@@ -2946,7 +2958,7 @@ function syncComponentCheckboxes() {
     close();
 
     if (callback) {
-      callback(selection);
+      callback(separateBlocks ? selection : new Set(),currentPost?.caseDocument ? {whole:wholeCase,blocks:separateBlocks} : undefined);
     }
   }
 
@@ -2973,6 +2985,7 @@ function syncComponentCheckboxes() {
       post = null,
       selection,
       importedPositions = new Set(),
+      caseImported = false,
       thumbnails = true,
       onConfirm = null,
       onCancel = null,
@@ -2980,12 +2993,21 @@ function syncComponentCheckboxes() {
       if (
         !post ||
         !Array.isArray(post.components) ||
-        post.components.length <= 1
+        (post.components.length <= 1 && !post.caseDocument)
       ) {
         return;
       }
 
       currentPost = post;
+      const modes=caseModes(post);
+      wholeCase=Boolean(post.caseDocument && modes.whole && !caseImported);
+      separateBlocks=modes.blocks;
+      caseControls.hidden=!post.caseDocument;
+      root.classList.toggle('is-case',Boolean(post.caseDocument));
+      wholeControl.setDisabled(caseImported);
+      wholeControl.set(wholeCase,true);
+      blocksControl.set(separateBlocks,true);
+      syncCaseControls();
 
       const componentTotal = Array.isArray(currentPost.components)
       ? currentPost.components.length

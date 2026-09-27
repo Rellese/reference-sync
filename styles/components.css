@@ -3105,3 +3105,15 @@ html:not([lang='ru']) .rs-carousel-modal .rs-carousel-modal__controls > * {
   overflow-wrap: anywhere;
   margin-top: 5px;
 }
+
+.rs-case-modes { display: flex; flex-direction: column; gap: 12px; }
+.rs-case-modes[hidden] { display: none; }
+.rs-case-modes__note { color: var(--text-muted); font-size: 11px; line-height: 16px; }
+.rs-carousel-modal__list.is-case-only { opacity: 0.45; }
+.rs-carousel-modal.is-case .rs-carousel-modal__box {
+  height: auto;
+  max-height: calc(100vh - 40px);
+  overflow-y: auto;
+}
+.rs-carousel-modal.is-case .rs-carousel-modal__content { height: auto; }
+.rs-case-modes { flex: none; width: 100%; }
