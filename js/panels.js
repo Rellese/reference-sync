@@ -1,6 +1,7 @@
 import { translate, joinText, L, setText, setUiText, setLocalizedProperty, bindTextRender, normalizeLanguage, getLanguage } from './i18n.js';
 import { createArchivePicker } from './archive-panel.js';
 import { attachThumbnail } from './thumbnail.js';
+import { showBehanceCaseBlocks } from './behance-case-list.js';
 /* ============================================================
    ReferenceSync — сборка панелей интерфейса
    Соответствие блокам Figma:
@@ -2920,6 +2921,7 @@ function syncComponentCheckboxes() {
         list.appendChild(row);
       },
     );
+    showBehanceCaseBlocks(list, currentPost);
   }
 
   function close() {
@@ -3031,4 +3033,3 @@ function syncComponentCheckboxes() {
     close,
   };
 }
-

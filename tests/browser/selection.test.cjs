@@ -848,3 +848,30 @@ test('Behance saved mode uses browser only while other sources retain account an
  await page.getByText('Через авторизованный браузер',{exact:true}).click();
  assert.equal(await page.getByPlaceholder('имя пользователя').isVisible(),true);
 });
+
+test('Behance case blocks preserve order, safe text and downloadable selection in all languages', async t => {
+ const page=await setup(t);
+ const labels={RU:'Текст — не отдельный файл',EN:'Text — not a separate file',FR:'Texte — pas un fichier séparé',ES:'Texto — no es un archivo separado',ZH:'文本 — 非独立文件'};
+ for(const [code,label] of Object.entries(labels)) {
+  await page.getByRole('button',{name:({RU:'РУ',ZH:'中文'}[code] || code),exact:true}).click();
+  await page.evaluate(()=>window.__rs.ui.carouselModal.open({
+   post:{source:'behance',postId:'behance:case',components:[{index:1,extension:'jpg'},{index:2,extension:'mp4',mediaType:'video'}],
+    caseDocument:{blocks:[
+     {kind:'image',status:'downloadable',componentNumber:1},
+     {kind:'text',status:'text',componentNumber:null,text:'<img src=x onerror="window.injected=true">'},
+     {kind:'video',status:'unavailable',componentNumber:null},
+     {kind:'unsupported',status:'unsupported',componentNumber:null},
+     {kind:'video',status:'downloadable',componentNumber:2},
+    ]}},selection:new Set([0,1]),thumbnails:false,onConfirm:selection=>{window.caseSelection=[...selection];},
+  }));
+  assert.deepEqual(await page.locator('.rs-carousel-modal__list .rs-carousel-modal__position').allTextContents(),['1.','2.','3.','4.','5.']);
+  assert.equal(await page.locator('[data-case-block-status="text"] .rs-case-block-info__status').textContent(),label);
+  assert.equal(await page.locator('.rs-case-block-info img').count(),0);
+  assert.equal(await page.locator('.rs-case-block-info .rs-check').count(),0);
+  assert.equal(await page.locator('.rs-carousel-modal__list .rs-check').count(),2);
+  if(process.env.UI_SCREENSHOT && code==='RU') await page.screenshot({path:process.env.UI_SCREENSHOT+'-behance-case.png'});
+  await page.locator('[data-carousel-component-index="1"]').click();
+  await page.locator('.rs-carousel-modal__foot').getByRole('button',{name:'OK',exact:true}).click();
+  assert.deepEqual(await page.evaluate(()=>window.caseSelection),[0]);
+ }
+});

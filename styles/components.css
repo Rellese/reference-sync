@@ -772,6 +772,29 @@
   flex: none;
 }
 
+.rs-case-block-info {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 32px;
+  padding: 5px 15px 5px 37px;
+  color: var(--text-muted);
+  font: 11px/16px 'CommitMono', var(--font-mono);
+}
+
+.rs-case-block-info__status { flex-shrink: 0; }
+.rs-case-block-info__text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+@media (max-width: 700px) {
+  .rs-case-block-info { flex-wrap: wrap; }
+  .rs-case-block-info__text { flex-basis: 100%; }
+}
+
 .rs-carousel-modal__media {
   overflow: hidden;
   text-overflow: ellipsis;

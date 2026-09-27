@@ -2,6 +2,9 @@ import { diagnostics } from './diagnostics.js';
 // Columns: Russian source, English, French, Spanish, Simplified Chinese.
 export const messages = [
   ...diagnostics,
+  ["Текст — не отдельный файл", "Text — not a separate file", "Texte — pas un fichier séparé", "Texto — no es un archivo separado", "文本 — 非独立文件"],
+  ["Неподдерживаемый блок", "Unsupported block", "Bloc non pris en charge", "Bloque no compatible", "不支持的内容块"],
+  ["Блок недоступен для скачивания", "Block unavailable for download", "Bloc indisponible au téléchargement", "Bloque no disponible para descargar", "内容块无法下载"],
   ["Проверьте ссылку", "Check the link", "Vérifiez le lien", "Comprueba el enlace", "请检查链接"],
   ["Браузер нужен для публикаций, доступных после входа. Никнейм владельца ссылки не требуется.", "The browser is used for posts that require sign-in. The link owner’s username is not needed.", "Le navigateur sert aux publications nécessitant une connexion. Le pseudo du propriétaire du lien n’est pas nécessaire.", "El navegador permite acceder a publicaciones que requieren iniciar sesión. No necesitas el usuario del propietario del enlace.", "浏览器用于访问需要登录的帖子。无需填写链接所有者的用户名。"],
   ["Не удалось прочитать список кейсов Behance.", "Could not read the Behance project list.", "Impossible de lire la liste des projets Behance.", "No se pudo leer la lista de proyectos de Behance.", "无法读取 Behance 项目列表。"],
