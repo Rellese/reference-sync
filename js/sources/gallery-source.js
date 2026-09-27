@@ -466,6 +466,7 @@ export function createGallerySource(spec) {
     extraDiscoverArgs = [],
     extraDownloadArgs = [],
     previewResolver = findPreview,
+    decoratePost = null,
     validateDiscovery = null,
     discoveryJsonDocument = false,
   } = spec;
@@ -709,7 +710,7 @@ export function createGallerySource(spec) {
       )?.previewUrl ||
       '';
 
-    return {
+    const post = {
       postId: head.postId,
       externalId: head.externalId,
       shortcode: head.externalId,
@@ -777,6 +778,7 @@ export function createGallerySource(spec) {
           head.collectionParentName || '',
       }],
     };
+    return decoratePost ? decoratePost(post, parts.map(entry => entry.raw)) : post;
   }
 
   /* -------- Поиск -------- */

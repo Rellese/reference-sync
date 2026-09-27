@@ -1,3 +1,4 @@
+import { decorateBehancePost } from './behance-case.js';
 import { behancePreview } from './behance-preview.js';
 import { validateSourceLink } from '../source-link.js';
 // Saved moodboards and explicit links share the same media-block importer.
@@ -42,6 +43,7 @@ export const behanceMediaSource = createGallerySource({
   urlPattern: /(?:^|\/\/)(?:www\.)?behance\.net\//i, groupBy: 'post',
   buildTargets: buildBehanceTargets,
   previewResolver: behancePreview,
+  decoratePost: decorateBehancePost,
   idFields: ['id', 'gallery_id', 'project_id'], progressIdField: 'id',
   authorFields: ['creator', 'user', 'username'], captionFields: ['description', 'name', 'title'],
   canonicalUrl: (record, id) => `https://www.behance.net/gallery/${id}/a`,
