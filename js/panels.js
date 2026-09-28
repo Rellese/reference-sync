@@ -2023,12 +2023,14 @@ export function buildCarouselModal() {
   let wholeCase = false;
   let separateBlocks = true;
   const caseControls = el('div', 'rs-case-modes');
-  const wholeControl = createCheckbox({label:L('Скачать кейс целиком'),onChange:value=>{wholeCase=value;updateSummary();}});
-  const blocksControl = createCheckbox({label:L('Скачать каждый блок отдельно'),checked:true,onChange:value=>{separateBlocks=value;syncCaseControls();updateSummary();}});
-  caseControls.append(wholeControl.row,blocksControl.row,el('div','rs-case-modes__note',L('Для просмотра .rscase нужен отдельный плагин Eagle.')));
+  const wholeControl = createSwitch({label:L('Скачать кейс целиком'),onChange:value=>{wholeCase=value;updateSummary();}});
+  const blocksControl = createSwitch({label:L('Скачать каждый блок отдельно'),checked:true,onChange:value=>{separateBlocks=value;syncCaseControls();updateSummary();}});
+  caseControls.append(wholeControl.row,blocksControl.row);
+  wholeControl.row.title=L('Для просмотра .rscase нужен отдельный плагин Eagle.');
   function syncCaseControls() {
     const enabled = !currentPost?.caseDocument || separateBlocks;
-    list.inert = !enabled; controls.inert = !enabled;
+    controls.inert = !enabled;
+    list.querySelectorAll('.rs-carousel-modal__row').forEach(row=>{row.inert=!enabled;});
     list.classList.toggle('is-case-only', !enabled);
   }
   let currentSelection = new Set();
@@ -2571,7 +2573,7 @@ function syncComponentCheckboxes() {
   });
 
   foot.append(cancel.node, confirm.node);
-  content.append(caseControls, controls, list, summaryRow);
+  content.append(controls, caseControls, list, summaryRow);
   box.append(title, content, foot);
   root.appendChild(box);
 
@@ -3046,6 +3048,7 @@ function syncComponentCheckboxes() {
       typeof onCancel === 'function' ? onCancel : null;
 
       renderList();
+      syncCaseControls();
       updateSummary();
 
       root.classList.add('is-open');

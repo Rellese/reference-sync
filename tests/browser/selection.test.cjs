@@ -251,7 +251,7 @@ test('design: panel resizing and switch hover settle without a layout error', as
   await page.mouse.up();
   const width = await page.locator('.rs-work').evaluate(el => getComputedStyle(el).gridTemplateColumns);
   assert.match(width, /^463px/);
-  const sw = page.locator('.rs-switch').first();
+  const sw = page.locator('.rs-switch:visible').first();
   await sw.hover();
   assert.equal(await sw.locator('.rs-switch__knob').evaluate(el => getComputedStyle(el).animationDuration), '0.3s');
   await page.waitForTimeout(350);
@@ -886,7 +886,15 @@ test('Behance whole case and blocks are independent, including already imported 
  await page.locator('.rs-carousel-button').click();
  await page.getByText('Скачать кейс целиком',{exact:true}).click();
  await page.getByText('Скачать каждый блок отдельно',{exact:true}).click();
- assert.equal(await page.locator('.rs-carousel-modal__list').evaluate(node=>node.inert),true);
+ assert.equal(await page.locator('.rs-carousel-modal__list').evaluate(node=>node.inert),false);
+ assert.equal(await page.locator('.rs-carousel-modal__row').first().evaluate(node=>node.inert),true);
+ assert.equal(Math.round((await page.locator('.rs-carousel-modal__box').boundingBox()).width),576);
+ const switches=await page.locator('.rs-case-modes .rs-switch-row').all();
+ assert.equal(Math.round((await switches[0].boundingBox()).y),Math.round((await switches[1].boundingBox()).y));
+ await page.locator('.rs-carousel-modal__list').evaluate(node=>node.style.height='24px');
+ await page.locator('.rs-carousel-modal__list').hover();await page.mouse.wheel(0,160);
+ await page.waitForFunction(()=>document.querySelector('.rs-carousel-modal__list').scrollTop>0);
+ await page.locator('.rs-carousel-modal__list').evaluate(node=>node.style.height='');
  assert.match(await page.locator('.rs-carousel-modal__summary').textContent(),/Кейс: 1; отдельных файлов: 0/);
  await page.locator('.rs-carousel-modal__foot').getByRole('button',{name:'OK',exact:true}).click();
  assert.deepEqual(await page.evaluate(()=>window.__rs.state.posts[0].caseSelection),{whole:true,blocks:false});

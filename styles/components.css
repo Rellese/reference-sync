@@ -3106,14 +3106,23 @@ html:not([lang='ru']) .rs-carousel-modal .rs-carousel-modal__controls > * {
   margin-top: 5px;
 }
 
-.rs-case-modes { display: flex; flex-direction: column; gap: 12px; }
-.rs-case-modes[hidden] { display: none; }
-.rs-case-modes__note { color: var(--text-muted); font-size: 11px; line-height: 16px; }
-.rs-carousel-modal__list.is-case-only { opacity: 0.45; }
-.rs-carousel-modal.is-case .rs-carousel-modal__box {
-  height: auto;
-  max-height: calc(100vh - 40px);
-  overflow-y: auto;
+
+/* M7-T06A/C: bounded dialog, independent of intrinsic text width. */
+.rs-carousel-modal .rs-carousel-modal__box {
+  width: 576px; min-width: 0; max-width: calc(100vw - 32px);
+  height: auto; max-height: calc(100vh - 32px); overflow-y: auto;
 }
-.rs-carousel-modal.is-case .rs-carousel-modal__content { height: auto; }
-.rs-case-modes { flex: none; width: 100%; }
+.rs-carousel-modal .rs-carousel-modal__content,
+.rs-carousel-modal .rs-carousel-modal__title,
+.rs-carousel-modal .rs-carousel-modal__controls,
+.rs-carousel-modal .rs-carousel-modal__list,
+.rs-carousel-modal .rs-carousel-modal__summary-row,
+.rs-carousel-modal .rs-carousel-modal__foot { width: 100%; min-width: 0; max-width: 100%; }
+.rs-carousel-modal .rs-carousel-modal__content { height: auto; }
+.rs-carousel-modal .rs-carousel-modal__controls { flex-wrap: wrap; height: auto; }
+.rs-carousel-modal .rs-carousel-modal__controls > * { flex: 1 1 auto !important; width: auto !important; }
+.rs-case-modes { display: flex; justify-content: space-between; flex: none; width: 100%; gap: 16px; flex-wrap: wrap; }
+.rs-case-modes[hidden] { display: none; }
+.rs-case-modes .rs-switch-row { width: auto; flex: none; flex-direction: row-reverse; gap: 10px; }
+.rs-case-modes .rs-switch-row__label { font: 400 12px/16px var(--font-mono); letter-spacing: .1em; }
+.rs-carousel-modal__list.is-case-only .rs-check { opacity: .4; }
