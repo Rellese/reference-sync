@@ -28,3 +28,13 @@ export function behancePreview(record = {}) {
   }
   return imageUrl(record.thumbnail_url) || imageUrl(record.preview_url) || imageUrl(record._galleryUrl);
 }
+
+// A saved case needs the project cover, not a module preview or a tiny table thumbnail.
+export function behanceCover(record={}) {
+  const items=(record.covers?.allAvailable || []).filter(item=>imageUrl(item));
+  for(const size of ['max_808','808','max_632','404','original','202']) {
+    const item=items.find(item=>new URL(imageUrl(item)).pathname.split('/').at(-2)===size);
+    if(item)return imageUrl(item);
+  }
+  return imageUrl(items[0]);
+}

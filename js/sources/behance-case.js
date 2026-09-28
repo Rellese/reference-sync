@@ -1,5 +1,5 @@
 // Portable data only: no HTML, scripts, browser session, or executable embeds.
-import { behancePreview } from './behance-preview.js';
+import { behancePreview, behanceCover } from './behance-preview.js';
 
 const entities = {amp:'&',lt:'<',gt:'>',quot:'"',apos:"'",nbsp:' '};
 function decodeEntities(value) {
@@ -71,7 +71,7 @@ export function buildBehanceCase(post, records = []) {
     format:'reference-sync-case', version:1,
     source:{platform:'behance',id:String(post.externalId || post.postId.replace(/^behance:/,'')),url:caseUrl(post.url),
       title:caseText(project.name || project.title || ''),author:post.plainUsername || post.username || ''},
-    coverUrl:post.previewUrl || '', canvasWidth:positive(project.canvasWidth) || 1400,
+    coverUrl:behanceCover(project) || post.previewUrl || '', canvasWidth:positive(project.canvasWidth) || 1400,
     blocks,
   };
 }

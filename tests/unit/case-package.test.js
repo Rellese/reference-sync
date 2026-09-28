@@ -78,3 +78,21 @@ test('cancellation during streamed media writing leaves neither a published case
  assert.equal(fs.existsSync(output),false);
  assert.deepEqual(fs.readdirSync(root),['large.mp4']);
 });
+test('project cover is embedded separately without changing media positions or requiring network on open',async t=>{
+ const root=setup(t),input=entry(root);input.post.caseDocument.coverUrl='https://mir-s3-cdn-cf.behance.net/cover.jpg';
+ const bytes=fs.readFileSync(input.files[0]);
+ const result=await packageBehanceCase(input,path.join(root,'cover.rscase'),{coverLoader:async url=>{assert.equal(url,input.post.caseDocument.coverUrl);return {data:bytes,extension:'png'};}});
+ assert.equal(result.manifest.coverOrigin,'behance');assert.equal(result.manifest.cover,'assets/2.png');
+ assert.equal(result.manifest.blocks[0].asset,'assets/1.png');
+ await extractZip(result.path,path.join(root,'cover-output'));
+ assert.deepEqual(fs.readFileSync(path.join(root,'cover-output/assets/2.png')),bytes);
+ assert.equal(JSON.stringify(result.manifest).includes('behance.net/cover'),false);
+});
+test('cover failure preserves the case and cancellation does not publish it',async t=>{
+ const root=setup(t),input=entry(root);input.post.caseDocument.coverUrl='https://mir-s3-cdn-cf.behance.net/cover.jpg';
+ const result=await packageBehanceCase(input,path.join(root,'fallback.rscase'),{coverLoader:async()=>{throw new Error('Offline');}});
+ assert.equal(result.manifest.cover,'assets/1.png');assert.equal(result.manifest.coverOrigin,'fallback');
+ const abort=new AbortController();
+ await assert.rejects(packageBehanceCase(input,path.join(root,'cancel.rscase'),{signal:abort.signal,coverLoader:async()=>{abort.abort();throw new Error('CANCELLED');}}),/CANCELLED/);
+ assert.equal(fs.existsSync(path.join(root,'cancel.rscase')),false);
+});
