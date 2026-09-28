@@ -10,3 +10,21 @@ test('ReferenceCanvas reads producer ZIP, extracts local media and cleans its te
 test('ReferenceCanvas rejects invalid versions, remote assets and manifest traversal',async t=>{const root=setup(t);for(const mutate of [d=>d.version=9,d=>d.blocks[0].asset='../outside.png',d=>d.blocks[0].asset='https://example.test/1.png',d=>d.blocks[1].id='a',d=>d.blocks[0].kind='text']){const doc=manifest();mutate(doc);await assert.rejects(openCase(await archive(root,doc)));}});
 test('ReferenceCanvas rejects CRC damage and cancellation',async t=>{const root=setup(t),file=await archive(root);const data=fs.readFileSync(file);const index=data.indexOf(Buffer.from('Case'));data[index]=88;fs.writeFileSync(file,data);await assert.rejects(openCase(file),/INVALID_CASE/);const signal=AbortSignal.abort();await assert.rejects(openCase(await archive(root),{signal}),/CANCELLED/);});
 test('thumbnail entry point produces PNG and returns Eagle dimensions',async t=>{const root=setup(t),file=await archive(root),dest=path.join(root,'thumb.png');const item=await thumbnail({src:file,dest,item:{id:'fixture'}});assert.equal(fs.readFileSync(dest).subarray(1,4).toString(),'PNG');assert.ok(item.width>0&&item.height>0);});
+
+test('lazy case opens without extracting assets and deduplicates requested media',async t=>{
+ const root=setup(t),opened=await openCase(await archive(root),{lazy:true});
+ assert.deepEqual(fs.readdirSync(opened.root),[]);assert.equal(opened.assets.size,0);
+ const [a,b]=await Promise.all([opened.loadAsset('assets/1.png'),opened.loadAsset('assets/1.png')]);
+ assert.equal(a.path,b.path);assert.equal(opened.assets.size,1);
+ await assert.rejects(opened.loadAsset('../other'),/INVALID_CASE/);
+ opened.dispose();assert.equal(fs.existsSync(opened.root),false);
+ await assert.rejects(opened.loadAsset('assets/1.png'),/CANCELLED/);
+});
+
+test('lazy case cancels queued extraction and cleans temporary media',async t=>{
+ const root=setup(t),opened=await openCase(await archive(root),{lazy:true});
+ const pending=opened.loadAsset('assets/1.png');opened.dispose();
+ await assert.rejects(pending,/CANCELLED/);
+ await new Promise(resolve=>setImmediate(resolve));
+ assert.equal(fs.existsSync(opened.root),false);
+});

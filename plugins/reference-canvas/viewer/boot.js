@@ -11,8 +11,8 @@
   const {openCase,safeUrl}=require(path.join(base,'../lib/case.js'));
   const file=params.get('path');if(!file)throw new Error('NO_FILE');
   status.textContent=words[0]+'…';
-  opened=await openCase(file,{signal:abort.signal,onProgress:({current,total})=>{status.textContent=`${words[0]}: ${current}/${total}`;}});
+  opened=await openCase(file,{lazy:true,signal:abort.signal,onProgress:({current,total})=>{status.textContent=`${words[0]}: ${current}/${total}`;}});
   if(abort.signal.aborted){opened.dispose();return;}
-  window.renderReferenceCase(opened.manifest,opened.assets,url=>{const clean=safeUrl(url);if(clean)require('electron').shell.openExternal(clean).catch(()=>{status.textContent=words[2];});});
+  window.renderReferenceCase(opened.manifest,opened.assets,url=>{const clean=safeUrl(url);if(clean)require('electron').shell.openExternal(clean).catch(()=>{status.textContent=words[2];});},opened.loadAsset);
  }catch(error){status.textContent=words[1];}
 })();

@@ -1,17 +1,28 @@
 {
   "id": "reference-canvas",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "platform": "all",
   "arch": "all",
   "name": "ReferenceCanvas",
   "description": "Open ReferenceSync cases on one continuous canvas",
   "logo": "assets/logo.png",
-  "keywords": ["rscase", "references", "behance", "canvas"],
+  "keywords": [
+    "rscase",
+    "references",
+    "behance",
+    "canvas"
+  ],
   "devTools": false,
   "preview": {
     "rscase": {
-      "thumbnail": {"path": "thumbnail/rscase.js", "size": 400, "allowZoom": true},
-      "viewer": {"path": "viewer/index.html"}
+      "thumbnail": {
+        "path": "thumbnail/rscase.js",
+        "size": 400,
+        "allowZoom": true
+      },
+      "viewer": {
+        "path": "viewer/index.html"
+      }
     }
   }
 }
