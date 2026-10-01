@@ -970,3 +970,16 @@ test('Behance imported whole case stays disabled after selection reset while blo
  await page.locator('.rs-carousel-modal__foot').getByRole('button',{name:'OK',exact:true}).click();
  assert.equal(await page.locator('.rs-row .rs-check').first().getAttribute('aria-disabled'),'false');
 });
+test('Behance structure labels describe all three modes and the column fits the widest button',async t=>{
+ const page=await setup(t);
+ await page.evaluate(()=>{
+  const {state,setPosts}=window.__rs;state.settings.folderSearch=false;
+  setPosts([{whole:true,blocks:false},{whole:false,blocks:true},{whole:true,blocks:true}].map((caseSelection,i)=>({source:'behance',postId:`behance:label${i}`,username:'designer',type:'carousel',componentCount:2,url:'https://www.behance.net/gallery/12/a',components:[{index:1,type:'image'},{index:2,type:'image'}],caseSelection,caseDocument:{blocks:[]}})));
+ });
+ assert.deepEqual(await page.locator('.rs-carousel-button__label').allTextContents(),['Кейс целиком','Блоков','Кейс + блоков']);
+ assert.equal(await page.locator('.rs-carousel-button__count').first().isVisible(),false);
+ for(const language of ['EN','FR','ES','中文']){
+  await page.getByRole('button',{name:language,exact:true}).click();
+  const fits=await page.locator('.rs-carousel-button').evaluateAll(buttons=>buttons.every(b=>b.scrollWidth<=b.parentElement.clientWidth));assert.equal(fits,true,language+JSON.stringify(await page.locator('.rs-carousel-button').evaluateAll(bs=>bs.map(b=>({text:b.textContent,width:b.scrollWidth,cell:b.parentElement.clientWidth,style:getComputedStyle(b.closest('.rs-results')||b).getPropertyValue('--rs-table-structure-content-width')})))));
+ }
+});

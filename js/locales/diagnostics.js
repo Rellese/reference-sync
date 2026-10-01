@@ -1,5 +1,7 @@
 // Internal status and diagnostic messages. External engine output remains verbatim.
 export const diagnostics = [
+  ['Кейс целиком', 'Whole case', 'Projet complet', 'Proyecto completo', '完整项目'],
+  ['Кейс + блоков', 'Case + blocks', 'Projet + blocs', 'Proyecto + bloques', '项目 + 内容块'],
   ['Скачиваемый блок: {0}', 'Downloading block: {0}', 'Bloc en téléchargement : {0}', 'Bloque en descarga: {0}', '正在下载内容块：{0}'],
   ['Общее количество блоков: {0}', 'Total blocks: {0}', 'Nombre total de blocs : {0}', 'Total de bloques: {0}', '内容块总数：{0}'],
   ['Установите Python 3.10 или новее с python.org и повторите подготовку движка.', 'Install Python 3.10 or newer from python.org, then prepare the engine again.', 'Installez Python 3.10 ou ultérieur depuis python.org, puis préparez à nouveau le moteur.', 'Instala Python 3.10 o posterior desde python.org y vuelve a preparar el motor.', '请从 python.org 安装 Python 3.10 或更新版本，然后重新准备引擎。'],

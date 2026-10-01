@@ -571,7 +571,7 @@ html.is-resizing-table-column * {
     )
     minmax(
       0,
-      var(--rs-table-structure-width)
+      max(var(--rs-table-structure-width), var(--rs-table-structure-content-width, 0px))
     )
     minmax(
       0,

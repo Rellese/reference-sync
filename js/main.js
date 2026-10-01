@@ -1,3 +1,4 @@
+import {caseStructure,fitCaseStructureColumn} from './case/structure.js';
 import {caseProgressInfo} from './case/progress.js';
 import { isPostImported, caseModes, caseRegistryId, caseImportItem, pendingCase } from './case/download.js';
 import { searchSettings } from './source-link.js';
@@ -699,6 +700,7 @@ async function boot() {
   ui.header = buildHeader({
     onLanguage: (code) => {
       setSetting('language', setLanguage(code));
+      fitCaseStructureColumn(ui.results.node,visiblePosts(),currentCarouselState);
     },
   });
 
@@ -5117,6 +5119,7 @@ function renderCollectionGroups({
 }
 
 function renderTable() {
+  fitCaseStructureColumn(ui.results.node,visiblePosts(),currentCarouselState);
   syncTableThumbnailVisibility();
 
   stopTableSelectionSync();
@@ -5435,18 +5438,20 @@ if (isKnown) {
       String(carouselDisabled),
     );
 
+    const structureValue=post.caseDocument ? caseStructure(post,carouselState.selectedCount,carouselState.total) : {label:post.source==='behance'?'Блоков':post.type,count:`${carouselState.selectedCount}/${carouselState.total}`};
     const carouselLabel = el(
       'span',
       'rs-carousel-button__label',
-      L(post.source === 'behance' ? 'Блоков' : post.type),
+      L(structureValue.label),
     );
 
     const carouselCount = el(
       'span',
       'rs-carousel-button__count',
-      `${carouselState.selectedCount}/${carouselState.total}`,
+      structureValue.count,
     );
 
+    carouselCount.hidden=!structureValue.count;
     carouselButton.append(
       carouselLabel,
       carouselCount,
