@@ -957,3 +957,16 @@ test('Behance import submits a case plus only selected blocks and records their 
  assert.deepEqual(await page.evaluate(()=>window.requestedModes),{whole:false,blocks:true});
  assert.equal(await page.evaluate(()=>window.__rs.state.knownPostIds.has('behance:123')),true);
 });
+test('Behance imported whole case stays disabled after selection reset while blocks remain accessible',async t=>{
+ const page=await setup(t);
+ await page.evaluate(async()=>{
+  const {state,setPosts}=window.__rs;state.settings.folderSearch=false;
+  const post={source:'behance',postId:'behance:done',username:'designer',type:'carousel',componentCount:2,url:'https://www.behance.net/gallery/12/a',components:[{index:1,type:'image'},{index:2,type:'image'}],caseSelection:{whole:true,blocks:false},caseDocument:{blocks:[]}};
+  state.knownPostIds.add('case:v1:behance:done');
+  const {resetSelectionsAfterImport}=await import('/js/carousel-selection.js');resetSelectionsAfterImport([post],state.selected);setPosts([post]);
+ });
+ assert.equal(await page.locator('.rs-row .rs-check').first().getAttribute('aria-disabled'),'true');
+ await page.locator('.rs-carousel-button').click();await page.getByText('Скачать каждый блок отдельно',{exact:true}).click();
+ await page.locator('.rs-carousel-modal__foot').getByRole('button',{name:'OK',exact:true}).click();
+ assert.equal(await page.locator('.rs-row .rs-check').first().getAttribute('aria-disabled'),'false');
+});

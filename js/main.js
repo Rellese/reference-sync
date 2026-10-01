@@ -1,5 +1,5 @@
 import {caseProgressInfo} from './case/progress.js';
-import { caseModes, caseRegistryId, caseImportItem, pendingCase } from './case/download.js';
+import { isPostImported, caseModes, caseRegistryId, caseImportItem, pendingCase } from './case/download.js';
 import { searchSettings } from './source-link.js';
 import { sessionErrorTitle } from './session-account.js';
 import { summarizeImportOutcome } from './download-outcome.js';
@@ -3780,7 +3780,7 @@ function stopTableAutoScroll() {
 function visitTablePostDuringDrag(post) {
   if (
     !post ||
-    state.knownPostIds.has(post.postId) ||
+    isPostImported(post,state.knownPostIds) ||
     !tableSelectionGesture.isDragging()
   ) {
     return false;
@@ -3963,7 +3963,7 @@ function updateTableDragPointer(event) {
 
 function tablePostVisualState(post) {
   const isKnown =
-    state.knownPostIds.has(post.postId) && !pendingCase(post,state.knownPostIds);
+    isPostImported(post,state.knownPostIds);
 
   const carouselState =
     currentCarouselState(post);
@@ -4020,7 +4020,7 @@ function setTablePostChecked(
 ) {
   if (
     !post ||
-    (state.knownPostIds.has(post.postId) && !pendingCase(post,state.knownPostIds))
+    (isPostImported(post,state.knownPostIds))
   ) {
     return;
   }
@@ -4038,7 +4038,7 @@ function setTablePostChecked(
   const before =
     tablePostSelectionSnapshot(post);
 
-  if (post.caseSelection) post.caseSelection=checked ? {...post.caseSelection,blocks:true} : {...post.caseSelection,whole:false};
+  if(post.caseDocument && checked && !caseModes(post).whole && !caseModes(post).blocks)post.caseSelection={whole:true,blocks:false};
   const carouselState =
     currentCarouselState(post);
 
@@ -4052,7 +4052,7 @@ function setTablePostChecked(
 
     if (
       checked &&
-      carouselState.availableCount > 0
+      (carouselState.availableCount > 0 || pendingCase(post,state.knownPostIds))
     ) {
       state.selected.add(postId);
 
@@ -4150,7 +4150,7 @@ function syncTablePostCheckbox(post) {
           );
 
     const selected =
-      (!state.knownPostIds.has(post.postId) || pendingCase(post,state.knownPostIds)) &&
+      !isPostImported(post,state.knownPostIds) &&
       occurrenceIsSelected &&
       (
         !carouselState ||
@@ -4172,7 +4172,7 @@ function syncTablePostCheckbox(post) {
         carouselState.mixed,
       );
 
-    const isKnown = state.knownPostIds.has(post.postId) && !pendingCase(post,state.knownPostIds);
+    const isKnown = isPostImported(post,state.knownPostIds);
     entry.checkbox.setDisabled(isKnown);
     entry.row.classList.toggle('is-imported', isKnown);
     if (isKnown) setLocalizedProperty(entry.row, 'title', L('Эта публикация уже добавлена в Eagle'));
@@ -5186,7 +5186,7 @@ function renderRow(
   occurrence = null,
 ) {
   const row = el('div', 'rs-row');
-  const isKnown = state.knownPostIds.has(post.postId) && !pendingCase(post,state.knownPostIds);
+  const isKnown = isPostImported(post,state.knownPostIds);
 
   const rowOccurrenceId =
     String(

@@ -10,6 +10,13 @@ export function caseModes(post) {
   if(!post?.caseSelection && post?.source==='behance' && post.caseDocument)return {whole:true,blocks:false};
   return {whole:post?.caseSelection?.whole === true, blocks:post?.caseSelection?.blocks !== false};
 }
+export function isPostImported(post,known=new Set()) {
+  if(post?.source!=='behance'||!post.caseDocument)return known.has(post?.postId);
+  const mode=caseModes(post),wholeKnown=known.has(caseRegistryId(post)),blocksKnown=known.has(post.postId);
+  if(mode.whole)return wholeKnown && (!mode.blocks || blocksKnown);
+  return mode.blocks ? blocksKnown : wholeKnown && blocksKnown;
+}
+
 export function pendingCase(post, known = new Set()) {
   return post?.source === 'behance' && caseModes(post).whole && !known.has(caseRegistryId(post));
 }

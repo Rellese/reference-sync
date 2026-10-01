@@ -297,7 +297,6 @@ export function resetSelectionsAfterImport(
   }
 
   (posts || []).forEach((post) => {
-    if (post.caseSelection) post.caseSelection={...post.caseSelection,whole:false};
     if (Number(post?.componentCount) > 1) {
       post.selectedComponents = [];
     }

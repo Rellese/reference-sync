@@ -85,3 +85,11 @@ test('new Behance cases default to whole case while explicit modes survive',asyn
  assert.deepEqual(caseModes(post()),{whole:false,blocks:true});
  assert.deepEqual(caseModes({source:'instagram'}),{whole:false,blocks:true});
 });
+test('a whole imported case is disabled without marking separate blocks imported',async()=>{
+ const {isPostImported,caseRegistryId}=await import('../../js/case/download.js');
+ const original={...post(),caseSelection:{whole:true,blocks:false}};
+ const known=new Set([caseRegistryId(original)]);
+ assert.equal(isPostImported(original,known),true);
+ assert.equal(isPostImported({...original,caseSelection:{whole:false,blocks:true}},known),false);
+ assert.equal(isPostImported({...original,caseSelection:{whole:true,blocks:true}},known),false);
+});
