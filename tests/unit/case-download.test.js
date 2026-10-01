@@ -5,7 +5,7 @@ import crypto from 'node:crypto';
 import {nodeApi} from '../../js/node-bridge.js';
 import {downloadWithCases,caseImportItem,caseRegistryId} from '../../js/case/download.js';
 import {recordCreatedEagleItems,reconcileImportRecords} from '../../js/import-registry.js';
-const post=()=>({source:'behance',postId:'behance:12',url:'https://www.behance.net/gallery/12/a',components:[{index:1},{index:3}],selectedComponents:[3],caseDocument:{source:{title:'Case'}}});
+const post=()=>({source:'behance',postId:'behance:12',url:'https://www.behance.net/gallery/12/a',components:[{index:1},{index:3}],selectedComponents:[3],caseSelection:{whole:false,blocks:true},caseDocument:{source:{title:'Case'}}});
 function setup(t){const previous={...nodeApi};Object.assign(nodeApi,{path,crypto});t.after(()=>Object.assign(nodeApi,previous));}
 const pack=async(entry,destination)=>({path:destination,manifest:{complete:entry.files.length===2}});
 function downloader(inspect=()=>{}) {return async options=>{
@@ -77,4 +77,11 @@ test('recovery keeps the independent mode, packaged file and original block choi
  assert.deepEqual(recovery.posts[0].selectedComponents,[3]);
  assert.equal(recovery.downloaded[0].caseFile,'/tmp/case.rscase');
  assert.equal(recovery.downloaded[0].caseComplete,false);
+});
+
+test('new Behance cases default to whole case while explicit modes survive',async()=>{
+ const {caseModes}=await import('../../js/case/download.js');const fresh=post();delete fresh.caseSelection;
+ assert.deepEqual(caseModes(fresh),{whole:true,blocks:false});
+ assert.deepEqual(caseModes(post()),{whole:false,blocks:true});
+ assert.deepEqual(caseModes({source:'instagram'}),{whole:false,blocks:true});
 });

@@ -855,7 +855,7 @@ test('Behance case blocks preserve order, safe text and downloadable selection i
  for(const [code,label] of Object.entries(labels)) {
   await page.getByRole('button',{name:({RU:'РУ',ZH:'中文'}[code] || code),exact:true}).click();
   await page.evaluate(()=>window.__rs.ui.carouselModal.open({
-   post:{source:'behance',postId:'behance:case',components:[{index:1,extension:'jpg'},{index:2,extension:'mp4',mediaType:'video'}],
+   post:{source:'behance',postId:'behance:case',caseSelection:{whole:false,blocks:true},components:[{index:1,extension:'jpg'},{index:2,extension:'mp4',mediaType:'video'}],
     caseDocument:{blocks:[
      {kind:'image',status:'downloadable',componentNumber:1},
      {kind:'text',status:'text',componentNumber:null,text:'<img src=x onerror="window.injected=true">'},
@@ -884,8 +884,8 @@ test('Behance whole case and blocks are independent, including already imported 
    components:[{index:1,type:'image',extension:'jpg'},{index:2,type:'video',extension:'mp4'}],caseDocument:{format:'reference-sync-case',version:1,blocks:[]}}]);
  });
  await page.locator('.rs-carousel-button').click();
- await page.getByText('Скачать кейс целиком',{exact:true}).click();
- await page.getByText('Скачать каждый блок отдельно',{exact:true}).click();
+ // A new case starts with whole=true, blocks=false.
+
  assert.equal(await page.locator('.rs-carousel-modal__list').evaluate(node=>node.inert),false);
  assert.equal(await page.locator('.rs-carousel-modal__row').first().evaluate(node=>node.inert),true);
  assert.equal(Math.round((await page.locator('.rs-carousel-modal__box').boundingBox()).width),576);

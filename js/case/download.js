@@ -7,6 +7,7 @@ export function caseRegistryId(post) {
   return `case:v1:${post.postId}`;
 }
 export function caseModes(post) {
+  if(!post?.caseSelection && post?.source==='behance' && post.caseDocument)return {whole:true,blocks:false};
   return {whole:post?.caseSelection?.whole === true, blocks:post?.caseSelection?.blocks !== false};
 }
 export function pendingCase(post, known = new Set()) {
