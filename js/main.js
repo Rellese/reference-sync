@@ -1,3 +1,4 @@
+import {caseProgressInfo} from './case/progress.js';
 import { caseModes, caseRegistryId, caseImportItem, pendingCase } from './case/download.js';
 import { searchSettings } from './source-link.js';
 import { sessionErrorTitle } from './session-account.js';
@@ -2335,8 +2336,9 @@ async function runImport() {
           mode: 'downloading',
           lead: lastProgressLead,
           trail: lastProgressTrail,
-          progress: (progress.current / progress.total) * DOWNLOAD_SHARE,
+          progress: (caseProgressInfo(progress)?.fraction ?? ((progress.current-(progress.post.source==='behance' && caseModes(progress.post).whole ? 1 : 0)) / progress.total)) * DOWNLOAD_SHARE,
           ...publicationInfo(),
+          ...(caseProgressInfo(progress) || {}),
         });
       },
       /* Обрыв связи — состояние 5 с отсчётом до попытки */

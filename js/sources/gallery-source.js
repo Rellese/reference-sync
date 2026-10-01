@@ -1,3 +1,4 @@
+import {watchCaseProgress} from '../case/progress.js';
 import { sourceLinkTarget } from '../source-link.js';
 import { downloadIssue } from '../download-outcome.js';
 /* ============================================================
@@ -1162,6 +1163,8 @@ export function createGallerySource(spec) {
         });
       }
 
+      const stopCaseProgress=watchCaseProgress({post,postDir,current:index+1,total:posts.length,onProgress});
+      try {
       const args = [
         '--config-ignore',
         '--no-input',
@@ -1294,6 +1297,7 @@ export function createGallerySource(spec) {
           `Ошибка: ${post.url} — ${error}`,
         );
       }
+      } finally { stopCaseProgress(); }
     }
 
     return { stagingRoot, results };
