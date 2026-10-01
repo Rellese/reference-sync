@@ -93,3 +93,8 @@ test('a whole imported case is disabled without marking separate blocks imported
  assert.equal(isPostImported({...original,caseSelection:{whole:false,blocks:true}},known),false);
  assert.equal(isPostImported({...original,caseSelection:{whole:true,blocks:true}},known),false);
 });
+test('failed or missing downloadable media cannot produce a falsely complete case',async t=>{
+ setup(t);let packed=0;const original={...post(),caseSelection:{whole:true,blocks:true}};
+ const output=await downloadWithCases({posts:[original]},async options=>({stagingRoot:'/tmp/staging',results:[{post:options.posts[0],files:['/tmp/3.mp4'],error:'Incomplete MP4'}]}),async()=>{packed++;return pack();});
+ assert.equal(packed,0);assert.equal(output.results[0].caseFile,undefined);assert.equal(output.results[0].caseError,'Incomplete MP4');assert.deepEqual(output.results[0].blockFiles,['/tmp/3.mp4']);
+});

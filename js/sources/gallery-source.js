@@ -1,3 +1,4 @@
+import {validateCaseVideo} from '../case/video-retry.js';
 import {watchCaseProgress} from '../case/progress.js';
 import { sourceLinkTarget } from '../source-link.js';
 import { downloadIssue } from '../download-outcome.js';
@@ -1260,7 +1261,8 @@ export function createGallerySource(spec) {
       const verifiedFiles = [];
       for (const file of files) {
         try {
-          await validateVideo(file, { ffmpeg: toolchain.ffmpeg, signal });
+          if(code==='behance')await validateCaseVideo(file,{args,postDir,ffmpeg:toolchain.ffmpeg,signal,control,onLog});
+          else await validateVideo(file, { ffmpeg: toolchain.ffmpeg, signal });
           verifiedFiles.push(file);
         } catch (validationError) {
           if (signal?.aborted) throw validationError;

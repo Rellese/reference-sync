@@ -1,5 +1,8 @@
 // Internal status and diagnostic messages. External engine output remains verbatim.
 export const diagnostics = [
+  ['Повторная загрузка видеоблока: {0}', 'Retrying video block: {0}', 'Nouvel essai du bloc vidéo : {0}', 'Reintentando bloque de vídeo: {0}', '重试视频块：{0}'],
+  ['Не удалось повторно скачать видеоблок: {0}', 'Could not retry video block: {0}', 'Échec du nouvel essai du bloc vidéo : {0}', 'No se pudo volver a descargar el bloque de vídeo: {0}', '无法重新下载视频块：{0}'],
+  ['Кейс не собран: не все блоки скачаны. Повторите загрузку.', 'Case not built: some blocks are missing. Retry the download.', 'Projet non assemblé : certains blocs manquent. Réessayez le téléchargement.', 'Proyecto no creado: faltan bloques. Reintenta la descarga.', '项目未生成：部分内容块缺失。请重试下载。'],
   ['Кейс целиком', 'Whole case', 'Projet complet', 'Proyecto completo', '完整项目'],
   ['Кейс + блоков', 'Case + blocks', 'Projet + blocs', 'Proyecto + bloques', '项目 + 内容块'],
   ['Скачиваемый блок: {0}', 'Downloading block: {0}', 'Bloc en téléchargement : {0}', 'Bloque en descarga: {0}', '正在下载内容块：{0}'],

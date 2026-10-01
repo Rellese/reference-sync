@@ -50,6 +50,8 @@ export async function downloadWithCases(options, download, pack=packageBehanceCa
     if (mode.whole) {
       try {
         await options.control?.checkpoint();
+        const available=new Set(entry.files.map(file=>Number(path.basename(file).match(/^(\d+)\./)?.[1])));
+        if(entry.error || original.components?.some(component=>!available.has(Number(component.index))))throw new Error(entry.error || 'Кейс не собран: не все блоки скачаны. Повторите загрузку.');
         if (!stagingRoot) throw new Error('Missing case staging directory');
         const destination=path.join(stagingRoot,`case-${crypto.randomBytes(12).toString('hex')}.rscase`);
         const packed=await pack(result,destination,{signal:options.signal});
