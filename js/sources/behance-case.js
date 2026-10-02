@@ -1,5 +1,5 @@
 // Portable data only: no HTML, scripts, browser session, or executable embeds.
-import { behancePreview, behanceCover } from './behance-preview.js';
+import { behancePreview, behanceCoverCandidates } from './behance-preview.js';
 
 const entities = {amp:'&',lt:'<',gt:'>',quot:'"',apos:"'",nbsp:' '};
 function decodeEntities(value) {
@@ -67,11 +67,14 @@ export function buildBehanceCase(post, records = []) {
   }
   // Older extractors may omit the module tree; retain their download records.
   for (const record of media) if(!matched.has(record)) add(record.module || {__typename:/^(mp4|webm|mov)$/.test(record.extension)?'VideoModule':'ImageModule'},record);
+  // Covers are project metadata, independent of the module tree. A post preview
+  // can depict the first block and must never be substituted for a project cover.
+  const coverUrls=[...new Set([project,...records].flatMap(behanceCoverCandidates))];
   return {
     format:'reference-sync-case', version:1,
     source:{platform:'behance',id:String(post.externalId || post.postId.replace(/^behance:/,'')),url:caseUrl(post.url),
       title:caseText(project.name || project.title || ''),author:post.plainUsername || post.username || ''},
-    coverUrl:behanceCover(project) || post.previewUrl || '', canvasWidth:positive(project.canvasWidth) || 1400,
+    coverUrl:coverUrls[0] || '', coverUrls, canvasWidth:positive(project.canvasWidth) || 1400,
     blocks,
   };
 }

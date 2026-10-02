@@ -11,6 +11,13 @@ A `.rscase` is a ZIP (STORE, UTF-8 names, CRC32, no ZIP64) with:
 - a `cover` manifest path pointing to an image asset, or a fixed generated
   `cover.svg` when no image was downloaded.
 
+The Behance project cover may be uploaded independently of its modules. It is
+embedded as a separate image asset and referenced by `cover`, without adding a
+block or changing component numbers. Known project cover renditions are retried
+with bounded time/attempts. If they all fail, packaging reports an error rather
+than silently publishing a different block as the cover. Legacy extractor data
+without project cover metadata retains the local image/generated fallback.
+
 The manifest contains source platform/id/project URL/title/author, canvas width,
 cover, ordered blocks, and `complete`. Each block has an id, position, kind,
 status, local asset path, plain text, explicit HTTP(S) links, dimensions,

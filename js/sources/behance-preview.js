@@ -30,11 +30,16 @@ export function behancePreview(record = {}) {
 }
 
 // A saved case needs the project cover, not a module preview or a tiny table thumbnail.
+export function behanceCoverCandidates(record={}) {
+  const covers=record.covers;
+  const items=(Array.isArray(covers?.allAvailable) ? covers.allAvailable : [])
+    .concat(covers && typeof covers === 'object' ? Object.values(covers).filter(value=>!Array.isArray(value)) : [])
+    .filter(item=>imageUrl(item));
+  const urls=[...new Set(items.map(imageUrl))];
+  const sizes=['max_808','max_808_webp','808','808_webp','max_632','max_632_webp','404','404_webp','202','202_webp','original','original_webp'];
+  const rank=url=>{const index=sizes.indexOf(new URL(url).pathname.split('/').at(-2));return index<0?sizes.length:index;};
+  return urls.sort((a,b)=>rank(a)-rank(b));
+}
 export function behanceCover(record={}) {
-  const items=(record.covers?.allAvailable || []).filter(item=>imageUrl(item));
-  for(const size of ['max_808','808','max_632','404','original','202']) {
-    const item=items.find(item=>new URL(imageUrl(item)).pathname.split('/').at(-2)===size);
-    if(item)return imageUrl(item);
-  }
-  return imageUrl(items[0]);
+  return behanceCoverCandidates(record)[0] || '';
 }

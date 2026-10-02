@@ -88,11 +88,36 @@ test('project cover is embedded separately without changing media positions or r
  assert.deepEqual(fs.readFileSync(path.join(root,'cover-output/assets/2.png')),bytes);
  assert.equal(JSON.stringify(result.manifest).includes('behance.net/cover'),false);
 });
-test('cover failure preserves the case and cancellation does not publish it',async t=>{
+test('an unavailable project cover never publishes a case with an unrelated block cover',async t=>{
  const root=setup(t),input=entry(root);input.post.caseDocument.coverUrl='https://mir-s3-cdn-cf.behance.net/cover.jpg';
- const result=await packageBehanceCase(input,path.join(root,'fallback.rscase'),{coverLoader:async()=>{throw new Error('Offline');}});
- assert.equal(result.manifest.cover,'assets/1.png');assert.equal(result.manifest.coverOrigin,'fallback');
+ await assert.rejects(packageBehanceCase(input,path.join(root,'fallback.rscase'),{coverLoader:async()=>{throw new Error('Offline');}}),{code:'CASE_COVER_UNAVAILABLE'});
+ assert.equal(fs.existsSync(path.join(root,'fallback.rscase')),false);
+ assert.equal(fs.existsSync(input.files[0]),true);
  const abort=new AbortController();
  await assert.rejects(packageBehanceCase(input,path.join(root,'cancel.rscase'),{signal:abort.signal,coverLoader:async()=>{abort.abort();throw new Error('CANCELLED');}}),/CANCELLED/);
  assert.equal(fs.existsSync(path.join(root,'cancel.rscase')),false);
+});
+test('a failed cover rendition retries the same Behance cover and keeps it out of the blocks',async t=>{
+ const root=setup(t),input=entry(root),base='https://mir-s3-cdn-cf.behance.net/projects/';
+ input.post.caseDocument.coverUrl=base+'max_808/cover.png';
+ input.post.caseDocument.coverUrls=[input.post.caseDocument.coverUrl,base+'max_808_webp/cover.png',base+'404/cover.png'];
+ const calls=[],bytes=Buffer.from('RIFFfixture WEBP');
+ const result=await packageBehanceCase(input,path.join(root,'retry.rscase'),{coverLoader:async(url,options)=>{
+  calls.push(url);assert.ok(options.timeout>0&&options.timeout<=15000);
+  if(calls.length===1)throw Error('503');return {data:bytes,extension:'webp'};
+ }});
+ assert.deepEqual(calls,input.post.caseDocument.coverUrls.slice(0,2));
+ assert.equal(result.manifest.coverOrigin,'behance');
+ assert.equal(result.manifest.blocks.some(block=>block.asset===result.manifest.cover),false);
+ await extractZip(result.path,path.join(root,'read'));
+ assert.deepEqual(fs.readFileSync(path.join(root,'read',result.manifest.cover)),bytes);
+});
+test('cover retries are bounded and abort prevents trying the next rendition',async t=>{
+ const root=setup(t),input=entry(root),urls=Array.from({length:10},(_,i)=>`https://mir-s3-cdn-cf.behance.net/${i}.png`);
+ Object.assign(input.post.caseDocument,{coverUrl:urls[0],coverUrls:urls});let calls=0;
+ await assert.rejects(packageBehanceCase(input,path.join(root,'failed.rscase'),{coverLoader:async()=>{calls++;throw Error('503');}}),{code:'CASE_COVER_UNAVAILABLE'});
+ assert.equal(calls,4);
+ const abort=new AbortController();calls=0;
+ await assert.rejects(packageBehanceCase(input,path.join(root,'abort.rscase'),{signal:abort.signal,coverLoader:async()=>{calls++;abort.abort();throw Error('cancelled');}}),/cancelled/);
+ assert.equal(calls,1);assert.equal(fs.existsSync(path.join(root,'abort.rscase')),false);
 });

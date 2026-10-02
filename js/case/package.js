@@ -9,6 +9,26 @@ const text = value => String(value || '').slice(0, 200000);
 const dimension = value => Number.isFinite(Number(value)) && Number(value)>0 ? Math.min(Number(value),100000) : null;
 const fallbackCover = '<svg xmlns="http://www.w3.org/2000/svg" width="640" height="480" viewBox="0 0 640 480"><rect width="640" height="480" fill="#161616"/><rect x="180" y="120" width="280" height="240" rx="20" fill="#292929"/><path d="M280 180L380 240L280 300Z" fill="#e85935"/></svg>';
 
+async function projectCover(document,options) {
+  const urls=[...new Set([document.coverUrl,...(Array.isArray(document.coverUrls)?document.coverUrls:[])])]
+    .filter(url=>typeof url==='string'&&url).slice(0,4);
+  if(!urls.length)return null; // Legacy extractor without project cover metadata.
+  const deadline=Date.now()+30000;
+  let lastError;
+  // Retry only variants returned by Behance for this same project cover. The
+  // normal loader validates HTTPS/CDN hosts and never sends browser cookies.
+  for(const url of urls) {
+    try {
+      const remaining=deadline-Date.now();if(remaining<=0)break;
+      const image=await (options.coverLoader || downloadCaseCover)(url,{signal:options.signal,timeout:Math.min(15000,remaining)});
+      if(!images.has(image.extension) || !nodeApi.Buffer.isBuffer(image.data) || !image.data.length)throw new Error('Invalid cover');
+      return image;
+    }catch(error){if(options.signal?.aborted)throw error;lastError=error;}
+  }
+  const error=new Error('Не удалось скачать обложку Behance. Повторите загрузку кейса.');
+  error.code='CASE_COVER_UNAVAILABLE';error.cause=lastError;throw error;
+}
+
 // Uses the ordinary download result but never changes its files or import IDs.
 // Callers must supply verified downloads; packaging is not a media decoder.
 export async function packageBehanceCase(entry, destination, options={}) {
@@ -45,14 +65,11 @@ export async function packageBehanceCase(entry, destination, options={}) {
   });
   // Original source/CDN/iframe URLs, cookies and local paths are not copied.
   let cover, coverOrigin='fallback';
-  if(document.coverUrl) {
-    try {
-      const image=await (options.coverLoader || downloadCaseCover)(document.coverUrl,{signal:options.signal});
-      if(!images.has(image.extension) || !nodeApi.Buffer.isBuffer(image.data) || !image.data.length) throw new Error('Invalid cover');
-      let number=1;while(assets.has(number))number++;
-      cover=`assets/${number}.${image.extension}`;
-      entries.push({name:cover,data:image.data});coverOrigin='behance';
-    }catch(error){if(options.signal?.aborted)throw error;}
+  const image=await projectCover(document,options);
+  if(image) {
+    let number=1;while(assets.has(number))number++;
+    cover=`assets/${number}.${image.extension}`;
+    entries.push({name:cover,data:image.data});coverOrigin='behance';
   }
   if(!cover)cover = entries.find(asset=>images.has(asset.extension))?.name;
   if (!cover) { cover='cover.svg'; entries.push({name:cover,data:fallbackCover}); }

@@ -47,3 +47,22 @@ test('media collections keep their group, ordering and missing members',()=>{
  assert.equal(doc.blocks.length,3);assert.deepEqual(doc.blocks.map(b=>b.groupId),['10','10','10']);
  assert.equal(doc.blocks[2].status,'unavailable');assert.equal(new Set(doc.blocks.map(b=>b.id)).size,3);
 });
+test('a separate project cover survives discovery and recovery without becoming a media block',()=>{
+ const base='https://mir-s3-cdn-cf.behance.net/projects/';
+ const records=[{id:123,_galleryType:2,modules:[{id:1,__typename:'ImageModule'}],covers:{allAvailable:[{url:base+'202/cover.png'},{url:base+'max_808/cover.png'},{url:base+'max_808_webp/cover.png'}]}},
+  {id:123,_galleryType:3,num:1,module:{id:1,__typename:'ImageModule'},extension:'png',_galleryUrl:'https://cdn.example/block.png'}];
+ const [assembled]=behanceMediaSource.assemble(records,{target:{id:'board',name:'Board'}});
+ const recovered=normalizeRecoveryState({jobId:'cover',phase:'ready',posts:[assembled]}).posts[0];
+ assert.equal(recovered.caseDocument.coverUrl,base+'max_808/cover.png');
+ assert.equal(recovered.caseDocument.coverUrls[1],base+'max_808_webp/cover.png');
+ assert.equal(recovered.componentCount,1);
+ assert.deepEqual(recovered.caseDocument.blocks.map(block=>block.sourceUrl),['https://cdn.example/block.png']);
+ const legacy=buildBehanceCase({...post,previewUrl:'https://cdn.example/first-block.png'},records.map(({covers,...record})=>record));
+ assert.equal(legacy.coverUrl,''); // A post preview is not evidence of the project cover.
+});
+test('project cover metadata can be separate from the record containing the module tree',()=>{
+ const cover='https://mir-s3-cdn-cf.behance.net/projects/max_808/cover.png';
+ const document=buildBehanceCase(post,[{modules:[{id:1,__typename:'TextModule',text:'Hello'}]},
+  {covers:{size_808:{url:cover}}}]);
+ assert.equal(document.coverUrl,cover);assert.equal(document.blocks.length,1);
+});
