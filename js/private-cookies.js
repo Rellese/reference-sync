@@ -48,7 +48,11 @@ export function verifyPrivateCookieFile(file){
  const {fs}=nodeApi,stat=fs.lstatSync(file);
  if(!stat.isFile()||stat.isSymbolicLink()||stat.nlink!==1)throw Error('Unsafe cookie file');
  // Recheck after external exporters: do not consume a file with widened access.
- if(process.platform!=='win32'&&(stat.mode&0o777)!==0o600)throw Error('Unsafe cookie permissions');
+ if(process.platform==='win32'){
+  const encodedPath=nodeApi.Buffer.from(file,'utf8').toString('base64');
+  const script=`$ErrorActionPreference='Stop'; $p=[Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('${encodedPath}')); $me=[Security.Principal.WindowsIdentity]::GetCurrent().User.Value; foreach($r in (Get-Acl -LiteralPath $p).Access){if($r.AccessControlType -eq 'Allow' -and $r.IdentityReference.Translate([Security.Principal.SecurityIdentifier]).Value -ne $me){throw 'Unsafe cookie ACL'}}`;
+  nodeApi.childProcess.execFileSync('powershell.exe',['-NoProfile','-NonInteractive','-EncodedCommand',nodeApi.Buffer.from(script,'utf16le').toString('base64')],{windowsHide:true,stdio:'pipe'});
+ }else if((stat.mode&0o777)!==0o600||stat.uid!==process.getuid())throw Error('Unsafe cookie permissions');
  return file;
 }
 export function copyPrivateCookieFile(source,destination){
