@@ -496,6 +496,8 @@
   flex-direction: column;
   align-items: stretch;
   width: 100%;
+  /* Match the inset of the naming panel; keep header and body aligned. */
+  padding-right: 4px;
   min-height: 0;
   flex: 1 1 auto;
 }
