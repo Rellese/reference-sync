@@ -1,3 +1,4 @@
+import {createPrivateCookieFile,verifyPrivateCookieFile} from './private-cookies.js';
 import { sourceLinkTarget } from './source-link.js';
 import { downloadMediaPlan } from './media-download.js';
 /* ============================================================
@@ -362,16 +363,7 @@ async function createBrowserCookieSnapshot({
     browserProfile,
   );
 
-  const snapshotRoot = ensureDir(
-    nodeApi.path.join(workRoot(), 'cookie-snapshots'),
-  );
-
-  const cookieFile = nodeApi.path.join(
-    snapshotRoot,
-    `cookies-${Date.now()}-${Math.random()
-      .toString(16)
-      .slice(2)}.txt`,
-  );
+  const cookieFile = createPrivateCookieFile('instagram');
 
   try {
     throwIfAborted(signal);
@@ -402,11 +394,7 @@ async function createBrowserCookieSnapshot({
       );
     }
 
-    try {
-      nodeApi.fs.chmodSync(cookieFile, 0o600);
-    } catch (_) {
-      /* chmod может быть недоступен на некоторых системах. */
-    }
+    verifyPrivateCookieFile(cookieFile);
 
     return cookieFile;
   } catch (error) {
@@ -437,16 +425,7 @@ export async function verifyInstagramSession({
     browserProfile,
   );
 
-  const sessionRoot = ensureDir(
-    nodeApi.path.join(workRoot(), 'session-check'),
-  );
-
-  const cookieFile = nodeApi.path.join(
-    sessionRoot,
-    `cookies-${Date.now()}-${Math.random()
-      .toString(16)
-      .slice(2)}.txt`,
-  );
+  const cookieFile = createPrivateCookieFile('instagram');
 
   let preserveCookieFile = false;
 
@@ -486,11 +465,7 @@ export async function verifyInstagramSession({
     }
 
     /* Ограничиваем доступ к временному файлу текущим пользователем. */
-    try {
-      nodeApi.fs.chmodSync(cookieFile, 0o600);
-    } catch (_) {
-      /* На некоторых системах chmod для этого файла недоступен. */
-    }
+    verifyPrivateCookieFile(cookieFile);
 
     const cookieText = nodeApi.fs.readFileSync(
       cookieFile,

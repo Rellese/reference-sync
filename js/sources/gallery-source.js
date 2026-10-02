@@ -1,3 +1,4 @@
+import {createPrivateCookieFile,copyPrivateCookieFile} from '../private-cookies.js';
 import {validateCaseVideo} from '../case/video-retry.js';
 import {watchCaseProgress} from '../case/progress.js';
 import { sourceLinkTarget } from '../source-link.js';
@@ -84,12 +85,11 @@ function stageCookieDb(browser, profile) {
       const src = path.join(root, rel);
       try {
         if (!fs.existsSync(src)) continue;
-        const dstDir = ensureDir(path.join(workRoot(), 'cookie-cache'));
-        const dst = path.join(dstDir, `Cookies-${Date.now()}`);
-        fs.copyFileSync(src, dst);
+        const dst = createPrivateCookieFile('Cookies');
+        copyPrivateCookieFile(src, dst);
         /* WAL-файл: без него часть свежих кук может отсутствовать в копии */
         for (const suf of ['-wal', '-shm']) {
-          try { if (fs.existsSync(src + suf)) fs.copyFileSync(src + suf, dst + suf); }
+          try { if (fs.existsSync(src + suf)) {const fd=fs.openSync(dst+suf,'wx',0o600);fs.closeSync(fd);copyPrivateCookieFile(src+suf,dst+suf);} }
           catch (_) { /* необязательно */ }
         }
         return dst;

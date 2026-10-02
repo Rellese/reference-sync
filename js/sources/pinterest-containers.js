@@ -1,3 +1,4 @@
+import {createPrivateCookieFile,verifyPrivateCookieFile} from '../private-cookies.js';
 import { assertMatchingAccount } from '../session-account.js';
 import { probePinterestAccount, pinterestCookieHeaderForHost } from '../pinterest-session.js';
 export { pinterestSessionFromHtml } from '../pinterest-session.js';
@@ -32,22 +33,7 @@ function pinterestCookieSnapshotPath() {
     return '';
   }
 
-  const directory =
-    ensureDir(
-      nodeApi.path.join(
-        workRoot(),
-        'cookie-cache',
-      ),
-    );
-
-  return nodeApi.path.join(
-    directory,
-    `pinterest-${Date.now()}-${
-      Math.random()
-        .toString(16)
-        .slice(2)
-    }.txt`,
-  );
+  return createPrivateCookieFile('pinterest');
 }
 
 export function removePinterestCookieSnapshot(
@@ -179,6 +165,7 @@ export async function createPinterestCookieSnapshot({
     );
   }
 
+  try { verifyPrivateCookieFile(cookieFile); } catch(error) { removePinterestCookieSnapshot(cookieFile); throw error; }
   return cookieFile;
 }
 
@@ -1101,7 +1088,7 @@ export async function verifyPinterestSession({ browser, browserProfile, signal, 
       '--cookies-export', cookieFile, '--no-download', 'http://0/file.jpg',
     ], { signal, timeout: 45000 });
     if (result.code !== 0 || !nodeApi.fs.existsSync(cookieFile)) return { authenticated: false, status: 'browser-error' };
-    nodeApi.fs.chmodSync(cookieFile, 0o600);
+    verifyPrivateCookieFile(cookieFile);
     const cookieText = nodeApi.fs.readFileSync(cookieFile, 'utf8');
     try {
       const session = await probePinterestAccount({ cookieText, request: requestText, userAgent: browserUserAgent(), signal });

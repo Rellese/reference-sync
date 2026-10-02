@@ -1,3 +1,5 @@
+import {cleanupCookieSnapshots} from './private-cookies.js';
+try { cleanupCookieSnapshots(); } catch { console.warn('ReferenceSync: cookie cleanup unavailable'); }
 import {caseStructure,fitCaseStructureColumn} from './case/structure.js';
 import {caseProgressInfo} from './case/progress.js';
 import { isPostImported, caseModes, caseRegistryId, caseImportItem, pendingCase } from './case/download.js';

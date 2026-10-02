@@ -1,3 +1,4 @@
+import {createPrivateCookieFile,verifyPrivateCookieFile,copyPrivateCookieFile} from '../private-cookies.js';
 // Behance's public-page check sets one literal cookie then reloads. Never eval
 // page scripts. Keep the browser snapshot and challenge cookie local to one job.
 import { nodeApi } from '../node-bridge.js';
@@ -68,10 +69,9 @@ async function challengeFor(url, signal, redirects = 0) {
 export async function withBehanceSession(options, url, action) {
   throwIfAborted(options.signal);
   const {fs,path,os} = nodeApi;
-  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'reference-sync-behance-'));
-  const cookieFile = path.join(directory, 'cookies.txt');
+  const cookieFile = createPrivateCookieFile('behance');
   try {
-    if (options.cookieFile) fs.copyFileSync(options.cookieFile, cookieFile);
+    if (options.cookieFile) copyPrivateCookieFile(options.cookieFile, cookieFile);
     else {
       const result = await runGallery(['--config-ignore','--no-input','--cookies-from-browser',
         browserCookieSpecForProfile(options.browser || 'chrome', options.browserProfile || ''),
@@ -79,7 +79,7 @@ export async function withBehanceSession(options, url, action) {
       {signal:options.signal,timeout:45000});
       if (result.code !== 0 || !fs.existsSync(cookieFile)) throw failure();
     }
-    fs.chmodSync(cookieFile, 0o600);
+    verifyPrivateCookieFile(cookieFile);
     const scoped = behanceCookieText(fs.readFileSync(cookieFile, 'utf8'));
     fs.writeFileSync(cookieFile, scoped);
     const token = await challengeFor(url, options.signal);
@@ -87,7 +87,7 @@ export async function withBehanceSession(options, url, action) {
     fs.writeFileSync(cookieFile, behanceCookieText(scoped, token));
     return await action({...options,cookieFile});
   } finally {
-    fs.rmSync(directory, {recursive:true,force:true});
+    fs.rmSync(cookieFile, {force:true});
   }
 }
 
