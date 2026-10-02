@@ -6,7 +6,7 @@ No review credentials or personal data are included.
 ## Dependencies and behavior
 
 Eagle window plugin using its JavaScript API, with a localhost:41595 fallback
-for library operations. Python 3 and gallery-dl are required for online
+for library operations. Python 3.10+ (installed separately by the user) and gallery-dl are required for online
 sources. The Download/Update action runs pip against the configured package
 index (normally PyPI) and installs gallery-dl into the user's plugin runtime.
 No downloaded executable is bundled. Python's ensurepip may be used if pip
@@ -45,3 +45,14 @@ Pinterest account identification for one profile and removal of the column
 cursor crash. Complete live online import/recovery and installed-package
 checks on both operating systems remain pending. Do not describe untested
 sources or platforms as verified in the store listing.
+
+## M12 resubmission
+
+ReferenceSync does not install Python. The corrected English and Simplified Chinese
+listing text is in `marketplace/INTRODUCTION-EN.md` and `marketplace/INTRODUCTION-ZH-CN.md`.
+Copy it to the corresponding store fields before resubmitting.
+Cookie snapshots are precreated with private permissions, verified after export,
+and removed on completion; dead-process snapshots are cleaned on a later start.
+Authenticated archive publication URLs are canonical platform HTTPS URLs, with
+an additional check at the gallery-dl launch boundary. Windows ACL and live
+browser export still require validation on the release machines.
