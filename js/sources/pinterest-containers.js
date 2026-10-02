@@ -1,4 +1,4 @@
-import {createPrivateCookieFile,verifyPrivateCookieFile} from '../private-cookies.js';
+import {createPrivateCookieFile,verifyPrivateCookieFile,removePrivateCookieFile} from '../private-cookies.js';
 import { assertMatchingAccount } from '../session-account.js';
 import { probePinterestAccount, pinterestCookieHeaderForHost } from '../pinterest-session.js';
 export { pinterestSessionFromHtml } from '../pinterest-session.js';
@@ -46,11 +46,7 @@ export function removePinterestCookieSnapshot(
     return;
   }
 
-  try {
-    nodeApi.fs.unlinkSync(cookieFile);
-  } catch (_) {
-    /* Файл уже удалён или не был создан. */
-  }
+  removePrivateCookieFile(cookieFile);
 }
 
 export function pinterestCookieExportArgs({

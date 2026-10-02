@@ -1,4 +1,4 @@
-import {createPrivateCookieFile,verifyPrivateCookieFile} from './private-cookies.js';
+import {createPrivateCookieFile,verifyPrivateCookieFile,removePrivateCookieFile} from './private-cookies.js';
 import { sourceLinkTarget } from './source-link.js';
 import { downloadMediaPlan } from './media-download.js';
 /* ============================================================
@@ -349,7 +349,7 @@ function removeTemporaryFile(file) {
 }
 
 export function removeInstagramCookieSnapshot(file) {
-  removeTemporaryFile(file);
+  removePrivateCookieFile(file);
 }
 
 async function createBrowserCookieSnapshot({
@@ -398,7 +398,7 @@ async function createBrowserCookieSnapshot({
 
     return cookieFile;
   } catch (error) {
-    removeTemporaryFile(cookieFile);
+    removePrivateCookieFile(cookieFile);
     throw error;
   }
 }
@@ -543,7 +543,7 @@ export async function verifyInstagramSession({
     };
   } finally {
     if (!preserveCookieFile) {
-      removeTemporaryFile(cookieFile);
+      removePrivateCookieFile(cookieFile);
     }
   }
 }

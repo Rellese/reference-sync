@@ -42,7 +42,22 @@ export function createPrivateCookieFile(prefix='cookies'){
   process.once('exit',cleanup);
  }
  const file=path.join(directory,`${prefix}-${crypto.randomBytes(12).toString('hex')}.txt`);
- const fd=fs.openSync(file,'wx',0o600);fs.closeSync(fd);verifyPrivateCookieFile(file);return file;
+ // gallery-dl writes <destination>.tmp, then atomically replaces destination.
+ // Reserve both paths before Python opens either one: its default umask can
+ // otherwise make the replacement file readable by other local users.
+ try {
+  for(const name of [file,file+'.tmp']){
+   const fd=fs.openSync(name,'wx',0o600);fs.closeSync(fd);
+   verifyPrivateCookieFile(name);
+  }
+  return file;
+ }catch(error){removePrivateCookieFile(file);throw error;}
+}
+export function removePrivateCookieFile(file){
+ if(!nodeApi.available||!file)return;
+ for(const name of [file,file+'.tmp']){
+  try{nodeApi.fs.unlinkSync(name);}catch(error){if(error.code!=='ENOENT')throw error;}
+ }
 }
 export function verifyPrivateCookieFile(file){
  const {fs}=nodeApi,stat=fs.lstatSync(file);

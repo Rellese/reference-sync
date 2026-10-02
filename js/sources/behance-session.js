@@ -1,4 +1,4 @@
-import {createPrivateCookieFile,verifyPrivateCookieFile,copyPrivateCookieFile} from '../private-cookies.js';
+import {createPrivateCookieFile,verifyPrivateCookieFile,copyPrivateCookieFile,removePrivateCookieFile} from '../private-cookies.js';
 // Behance's public-page check sets one literal cookie then reloads. Never eval
 // page scripts. Keep the browser snapshot and challenge cookie local to one job.
 import { nodeApi } from '../node-bridge.js';
@@ -87,7 +87,7 @@ export async function withBehanceSession(options, url, action) {
     fs.writeFileSync(cookieFile, behanceCookieText(scoped, token));
     return await action({...options,cookieFile});
   } finally {
-    fs.rmSync(cookieFile, {force:true});
+    removePrivateCookieFile(cookieFile);
   }
 }
 

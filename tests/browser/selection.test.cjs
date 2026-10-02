@@ -983,3 +983,22 @@ test('Behance structure labels describe all three modes and the column fits the 
   const fits=await page.locator('.rs-carousel-button').evaluateAll(buttons=>buttons.every(b=>b.scrollWidth<=b.parentElement.clientWidth));assert.equal(fits,true,language+JSON.stringify(await page.locator('.rs-carousel-button').evaluateAll(bs=>bs.map(b=>({text:b.textContent,width:b.scrollWidth,cell:b.parentElement.clientWidth,style:getComputedStyle(b.closest('.rs-results')||b).getPropertyValue('--rs-table-structure-content-width')})))));
  }
 });
+
+test('technical log aligns with its button after changing settings panel width', async t => {
+  const page = await setup(t);
+  await page.locator('.rs-footer__left button').click();
+  const position = async () => {
+    const button = await page.locator('.rs-footer__left button').boundingBox();
+    const log = await page.locator('.rs-log').boundingBox();
+    return {button,log};
+  };
+  let before = await position();
+  assert.ok(Math.abs(before.button.x - before.log.x) <= 1);
+  const resize = page.locator('.rs-panel-resizer--width');
+  await resize.focus();await page.keyboard.press('ArrowRight');
+  await page.waitForTimeout(50);
+  const after = await position();
+  assert.ok(after.button.x > before.button.x);
+  assert.ok(Math.abs(after.button.x - after.log.x) <= 1);
+  assert.ok(after.log.x >= 0);
+});

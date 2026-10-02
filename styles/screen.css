@@ -1716,7 +1716,7 @@ M1-T09J(a) — дерево коллекций в таблице результ�
 
 /* Технический журнал ограничен шириной правой рабочей колонки. */
 .rs-log {
-  left: calc(30px + 403px + 5px);
+  left: calc(var(--rs-settings-width, 403px) + 35px);
   right: 30px;
   width: auto;
 }
