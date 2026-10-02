@@ -45,3 +45,12 @@ test('Behance video preflight detects missing browser compatibility without bloc
  assert.equal(await hasVideoDownloader({requireBrowserCompatibility:true}),false);
  assert.ok(probes.some(script=>script.includes('sys.version_info >= (3, 10)')));
 });
+test('normal engine jobs cannot rewrite cookie snapshots but explicit export stays enabled',async t=>{
+ const calls=[];mock(t,(_,args)=>{calls.push(args);return {code:0};});
+ Object.assign(toolchain,{ready:true,ffmpeg:null,ffprobe:null,command:'fixture',args:[]});
+ await runGallery(['--config-ignore','--cookies','/fixture/private.txt','https://www.pinterest.com/pin/1/']);
+ assert.ok(calls[0].includes('extractor.cookies-update=false'));
+ await runGallery(['--config-ignore','--cookies-from-browser','chrome','--cookies-export','/fixture/private.txt','--no-download','https://0/file.jpg']);
+ assert.ok(!calls[1].includes('extractor.cookies-update=false'));
+ assert.ok(calls[1].includes('--cookies-export'));
+});

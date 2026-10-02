@@ -121,14 +121,14 @@ test('Pinterest exports cookies from selected browser profile', () => {
     });
 
   assert.deepEqual(args, [
+    '--config-ignore',
+    '--no-input',
     '--cookies-from-browser',
     'chrome:Profile 2',
     '--cookies-export',
     '/tmp/pinterest-cookies.txt',
-    '--simulate',
-    '--range',
-    '1',
-    'https://www.pinterest.com/designer/pins/',
+    '--no-download',
+    'https://0/file.jpg',
   ]);
 });
 

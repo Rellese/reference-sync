@@ -50,29 +50,22 @@ export function removePinterestCookieSnapshot(
 }
 
 export function pinterestCookieExportArgs({
-  username,
   browserCookieSpec,
   cookieFile,
 }) {
-  const cleanUsername =
-    String(username ?? '')
-      .trim()
-      .replace(/^@+/, '');
-
   return [
+    '--config-ignore',
+    '--no-input',
     '--cookies-from-browser',
     browserCookieSpec,
 
     '--cookies-export',
     cookieFile,
 
-    '--simulate',
-    '--range',
-    '1',
-
-    `https://www.pinterest.com/${
-      cleanUsername
-    }/pins/`,
+    // One no-download job exports exactly once into the reserved .tmp file.
+    // Crawling a profile can spawn child jobs and rewrite it with default mode.
+    '--no-download',
+    'https://0/file.jpg',
   ];
 }
 

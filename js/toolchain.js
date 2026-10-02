@@ -577,7 +577,12 @@ export function runGallery(extra = [], options = {}) {
   requireToolchain();
   const location=toolchain.ffprobe ? nodeApi.path.dirname(toolchain.ffmpeg) : toolchain.ffmpeg;
   const videoArgs = location ? ['-o', `downloader.ytdl.raw-options=${JSON.stringify({ ffmpeg_location: location, merge_output_format: 'mp4' })}`] : [];
-  return runCommand(toolchain.command, galleryArgs([...videoArgs, ...extra]), {
+  // A loaded snapshot is read-only. gallery-dl otherwise rewrites it via a new
+  // .tmp file on every job, losing the permissions of the precreated export.
+  // Only our explicit export operation may write the reserved private paths.
+  const cookieArgs=extra.some(arg=>/^--cookies-export(?:=|$)/.test(arg))
+    ? [] : ['-o','extractor.cookies-update=false'];
+  return runCommand(toolchain.command, galleryArgs([...videoArgs, ...cookieArgs, ...extra]), {
     ...options,
     env: { ...toolchainEnv(), ...(options.env || {}) },
   });
