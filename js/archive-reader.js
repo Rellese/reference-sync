@@ -1,3 +1,4 @@
+import {archiveHttpsUrl} from './authenticated-links.js';
 import { nodeApi, ensureDir, workRoot } from './node-bridge.js';
 import { extractZip, safeArchiveName } from './archive-zip.js';
 import { parseStopLink } from './stop-link.js';
@@ -11,7 +12,8 @@ export function parseArchiveMetadata(text, extension, source) {
   const groups = [], links = new Map();
   function link(value) {
     if (typeof value !== 'string' || !/^(?:https?:\/\/)?(?:[\w-]+\.)*(?:instagram|pinterest)\.com\//i.test(value.trim())) return;
-    const parsed = parseStopLink(value, source);
+    let secure;try { secure=archiveHttpsUrl(value,source); } catch { return; }
+    const parsed = parseStopLink(secure, source);
     if (parsed.ok) links.set(parsed.publicationId, parsed);
   }
   if (/html?/i.test(extension)) {

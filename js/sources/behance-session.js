@@ -75,7 +75,7 @@ export async function withBehanceSession(options, url, action) {
     else {
       const result = await runGallery(['--config-ignore','--no-input','--cookies-from-browser',
         browserCookieSpecForProfile(options.browser || 'chrome', options.browserProfile || ''),
-        '--cookies-export',cookieFile,'--no-download','http://0/file.jpg'],
+        '--cookies-export',cookieFile,'--no-download','https://0/file.jpg'],
       {signal:options.signal,timeout:45000});
       if (result.code !== 0 || !fs.existsSync(cookieFile)) throw failure();
     }

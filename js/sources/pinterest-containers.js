@@ -1085,7 +1085,7 @@ export async function verifyPinterestSession({ browser, browserProfile, signal, 
     const result = await runGallery([
       '--config-ignore', '--no-input', '--cookies-from-browser',
       browserCookieSpecForProfile(browser, browserProfile),
-      '--cookies-export', cookieFile, '--no-download', 'http://0/file.jpg',
+      '--cookies-export', cookieFile, '--no-download', 'https://0/file.jpg',
     ], { signal, timeout: 45000 });
     if (result.code !== 0 || !nodeApi.fs.existsSync(cookieFile)) return { authenticated: false, status: 'browser-error' };
     verifyPrivateCookieFile(cookieFile);

@@ -374,7 +374,7 @@ async function createBrowserCookieSnapshot({
       '--cookies-from-browser', cookieSpec,
       '--cookies-export', cookieFile,
       '--no-download',
-      'http://0/file.jpg',
+      'https://0/file.jpg',
     ], {
       signal,
       onStderr: (chunk) => {
@@ -440,7 +440,7 @@ export async function verifyInstagramSession({
       '--cookies-from-browser', cookieSpec,
       '--cookies-export', cookieFile,
       '--no-download',
-      'http://0/file.jpg',
+      'https://0/file.jpg',
     ], {
       signal,
       onStderr: (chunk) => {

@@ -1,3 +1,4 @@
+import {archiveHttpsUrl} from './authenticated-links.js';
 import { nodeApi, ensureDir } from './node-bridge.js';
 import { throwIfAborted, looksInstagramRateLimited, makeInstagramRateLimitError } from './job-control.js';
 import { runGallery } from './toolchain.js';
@@ -8,7 +9,7 @@ import { parseStopLink } from './stop-link.js';
 
 export async function resolveArchiveLinks(links, { settings, signal, onProgress, onResolved, run = runGallery }) {
   const posts = [], failed = [];
-  const unique = [...new Map(links.map(link => [link.publicationId, link])).values()];
+  const unique = [...new Map(links.map(link => [link.publicationId, {...link,url:archiveHttpsUrl(link.url,settings.platform)}])).values()];
   const pause = settings.speed === 'lightning' ? '0' : settings.speed === 'balanced' ? '1-2' : '3-5';
   // Reuse one process/browser session for up to 20 publications. Requests stay
   // sequential and retain the selected pacing; successful batches are checkpointed.
@@ -66,7 +67,7 @@ export async function downloadArchivePosts(options, remoteDownload) {
     await control?.checkpoint();
     onProgress?.({ current: index + 1, total: posts.length, post });
     if (!post.archiveLocal) {
-      const remote = await remoteDownload({ ...options, posts: [post], onProgress: null });
+      const remote = await remoteDownload({ ...options, posts: [{...post,url:archiveHttpsUrl(post.url,options.settings?.platform||post.source)}], onProgress: null });
       results.push(...remote.results);
       if (remote.stopReason) return { results, stopReason: remote.stopReason };
       continue;

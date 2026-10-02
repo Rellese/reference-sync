@@ -1,3 +1,4 @@
+import {requireAuthenticatedHttps} from './authenticated-links.js';
 /* ============================================================
    ReferenceSync — toolchain: поиск и автоматическая установка
    движка добычи данных (gallery-dl).
@@ -570,6 +571,7 @@ export function requireToolchain() {
    аргументы модуля и переменные окружения (PYTHONPATH).
    Все места плагина обращаются к gallery-dl только так. */
 export function runGallery(extra = [], options = {}) {
+  requireAuthenticatedHttps(extra);
   requireToolchain();
   const videoArgs = toolchain.ffmpeg ? ['-o', `downloader.ytdl.raw-options=${JSON.stringify({ ffmpeg_location: toolchain.ffmpeg, merge_output_format: 'mp4' })}`] : [];
   return runCommand(toolchain.command, galleryArgs([...videoArgs, ...extra]), {
