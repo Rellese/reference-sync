@@ -25,7 +25,8 @@ async function projectCover(document,options) {
       return image;
     }catch(error){if(options.signal?.aborted)throw error;lastError=error;}
   }
-  const error=new Error('Не удалось скачать обложку Behance. Повторите загрузку кейса.');
+  const detail=String(lastError?.code || lastError?.message || 'Cover timeout').slice(0,160);
+  const error=new Error(`Не удалось скачать обложку Behance: ${detail}. Повторите загрузку кейса.`);
   error.code='CASE_COVER_UNAVAILABLE';error.cause=lastError;throw error;
 }
 

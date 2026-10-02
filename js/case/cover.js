@@ -1,4 +1,6 @@
 import {nodeApi} from '../node-bridge.js';
+import {runEnginePython} from '../toolchain.js';
+import {COVER_FETCH_SCRIPT} from './cover-python.js';
 
 const MAX_BYTES = 8 * 1024 * 1024;
 export function coverExtension(data) {
@@ -14,8 +16,9 @@ function coverUrl(value) {
   return url;
 }
 // Only public Behance image hosts; no cookies, local files or arbitrary redirects.
-export async function downloadCaseCover(value, {signal, timeout=15000, https=nodeApi.https}={}) {
-  const deadline = Date.now() + timeout;
+export async function downloadCaseCover(value, {signal, timeout=15000, https=nodeApi.https, run}={}) {
+  const url=coverUrl(value); // Validate before either transport can run.
+  const deadline = Date.now() + Math.min(timeout,4000);
   async function request(value, redirects=0) {
     if(signal?.aborted) throw new Error('CANCELLED');
     const url = coverUrl(value);
@@ -28,7 +31,11 @@ export async function downloadCaseCover(value, {signal, timeout=15000, https=nod
         if(error){response?.destroy();req.destroy();reject(error);}else resolve(result);
       };
       const abort = () => finish(new Error('CANCELLED'));
-      const req = https.get(url,{headers:{Accept:'image/png,image/jpeg,image/webp,image/gif',Referer:'https://www.behance.net/'}},res => {
+      // Chromium's URL belongs to a different realm than Node's URL. Passing
+      // it as the first of three arguments makes Node 16 mistake the headers
+      // object for a listener. Plain request options work in Eagle and Node.
+      const req = https.get({protocol:'https:',hostname:url.hostname,port:url.port || undefined,
+        path:url.pathname+url.search,headers:{Accept:'image/png,image/jpeg,image/webp,image/gif',Referer:'https://www.behance.net/'}},res => {
         response=res;
         if([301,302,303,307,308].includes(res.statusCode)) {
           const next=res.headers.location;res.destroy();
@@ -49,5 +56,24 @@ export async function downloadCaseCover(value, {signal, timeout=15000, https=nod
       req.on('error',finish);signal?.addEventListener('abort',abort,{once:true});if(signal?.aborted)abort();
     });
   }
-  return request(value);
+  try{return await request(url.href);}
+  catch(error){
+    if(signal?.aborted || (!run && !nodeApi.available) || /Invalid Behance|Invalid cover image|too large/.test(error.message))throw error;
+    const remaining=timeout-Math.min(timeout,4000)+Math.max(0,deadline-Date.now());
+    if(remaining<=0)throw error;
+    return downloadCoverWithEngine(url.href,{signal,timeout:remaining,run:run || runEnginePython});
+  }
+}
+
+// Reuse the media engine's network/proxy support when Node's direct request
+// fails inside Eagle. This invocation has no browser cookie arguments/config.
+async function downloadCoverWithEngine(url,{signal,timeout,run}) {
+  const result=await run(COVER_FETCH_SCRIPT,[url,String(MAX_BYTES),String(timeout/1000)],{signal,timeout});
+  if(signal?.aborted)throw new Error('CANCELLED');
+  if(result.code!==0)throw new Error('Cover engine download failed');
+  const encoded=String(result.stdout || '').trim();
+  if(encoded.length>Math.ceil(MAX_BYTES/3)*4 || !/^[A-Za-z0-9+/]+={0,2}$/.test(encoded))throw new Error('Invalid cover image');
+  const data=nodeApi.Buffer.from(encoded,'base64'),extension=coverExtension(data);
+  if(data.length>MAX_BYTES || !extension)throw new Error('Invalid cover image');
+  return {data,extension};
 }

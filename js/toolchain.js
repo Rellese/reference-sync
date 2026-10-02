@@ -1,4 +1,5 @@
 import {requireAuthenticatedHttps} from './authenticated-links.js';
+import {findFFmpegPair} from './ffmpeg-tools.js';
 /* ============================================================
    ReferenceSync — toolchain: поиск и автоматическая установка
    движка добычи данных (gallery-dl).
@@ -37,6 +38,7 @@ const MIN_VERSION = [1, 26, 0];
 export const toolchain = {
   ready: false,
   ffmpeg: null,
+  ffprobe: null,
   /* 'binary' — исполняемый файл, 'module' — python -m gallery_dl */
   kind: null,
   command: null,
@@ -573,11 +575,20 @@ export function requireToolchain() {
 export function runGallery(extra = [], options = {}) {
   requireAuthenticatedHttps(extra);
   requireToolchain();
-  const videoArgs = toolchain.ffmpeg ? ['-o', `downloader.ytdl.raw-options=${JSON.stringify({ ffmpeg_location: toolchain.ffmpeg, merge_output_format: 'mp4' })}`] : [];
+  const location=toolchain.ffprobe ? nodeApi.path.dirname(toolchain.ffmpeg) : toolchain.ffmpeg;
+  const videoArgs = location ? ['-o', `downloader.ytdl.raw-options=${JSON.stringify({ ffmpeg_location: location, merge_output_format: 'mp4' })}`] : [];
   return runCommand(toolchain.command, galleryArgs([...videoArgs, ...extra]), {
     ...options,
     env: { ...toolchainEnv(), ...(options.env || {}) },
   });
+}
+
+// Fixed local helpers use the same installed Python/dependencies as the engine.
+export async function runEnginePython(script,args=[],options={}) {
+  requireToolchain();
+  const python=toolchain.kind==='module' ? toolchain.command : toolchain.python || await findPython({minimumMinor:10});
+  if(!python)throw new Error('NO_PYTHON');
+  return runCommand(python,['-c',script,...args],{...options,env:toolchainEnv()});
 }
 
 /* ------------------------------------------------------------
@@ -655,12 +666,15 @@ export async function hasVideoDownloader({ requireHls = true, requireBrowserComp
   return result?.code === 0;
 }
 export async function findFFmpeg() {
-  if (toolchain.ffmpeg) return toolchain.ffmpeg;
+  if (toolchain.ffmpeg && toolchain.ffprobe) return toolchain.ffmpeg;
   if (!nodeApi.available) return null;
   const { path, fs } = nodeApi;
   const executable = process.platform === 'win32' ? 'ffmpeg.exe' : 'ffmpeg';
   const directories = [...(process.env.PATH || '').split(path.delimiter), '/usr/local/bin', '/opt/homebrew/bin'];
-  const candidates = directories.filter(Boolean).map(dir => path.join(dir, executable));
+  const candidates = [toolchain.ffmpeg,...directories.filter(Boolean).map(dir => path.join(dir, executable))].filter(Boolean);
+  const pair=await findFFmpegPair(candidates);
+  if(pair){Object.assign(toolchain,pair);return pair.ffmpeg;}
+  if(toolchain.ffmpeg)return toolchain.ffmpeg;
   if (toolchain.kind === 'module') {
     const probe = await runCommand(toolchain.command, ['-c', 'import imageio_ffmpeg; print(imageio_ffmpeg.get_ffmpeg_exe())'],
       { env: toolchainEnv(), timeout: 15000 }).catch(() => null);

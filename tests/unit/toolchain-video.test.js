@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {EventEmitter} from 'node:events';
 import path from 'node:path';
 import {nodeApi} from '../../js/node-bridge.js';
-import {findPython,hasVideoDownloader,toolchain} from '../../js/toolchain.js';
+import {findPython,findFFmpeg,runGallery,hasVideoDownloader,toolchain} from '../../js/toolchain.js';
 function mock(t,execute){
  const before={...nodeApi},oldTool={...toolchain};t.after(()=>{Object.assign(nodeApi,before);Object.assign(toolchain,oldTool);});
  Object.assign(nodeApi,{available:true,path,os:{homedir:()=>'/fixture'},fs:{existsSync:p=>p==='/usr/local/bin/python3'},childProcess:{spawn(command,args){
@@ -20,6 +20,22 @@ test('engine preparation skips Python 3.9 when modern video dependencies are req
  });
  assert.equal(await findPython(),'/usr/bin/python3');
  assert.equal(await findPython({minimumMinor:10}),'/usr/local/bin/python3');
+});
+test('video tools prefer a verified FFmpeg/FFprobe pair over a cached standalone binary',async t=>{
+ const calls=[];
+ mock(t,(command,args)=>{calls.push({command,args});return {code:0};});
+ const folder=path.join('/fixture','video-tools');
+ const ffmpeg=path.join(folder,process.platform==='win32'?'ffmpeg.exe':'ffmpeg');
+ const ffprobe=path.join(folder,process.platform==='win32'?'ffprobe.exe':'ffprobe');
+ nodeApi.fs.existsSync=p=>[ffmpeg,ffprobe].includes(p);
+ const oldPath=process.env.PATH;process.env.PATH=folder;t.after(()=>process.env.PATH=oldPath);
+ Object.assign(toolchain,{ready:true,ffmpeg:'/fixture/standalone',ffprobe:null,command:'fixture',args:[]});
+ assert.equal(await findFFmpeg(),ffmpeg);
+ assert.equal(toolchain.ffprobe,ffprobe);
+ assert.deepEqual(calls.map(call=>call.command).sort(),[ffmpeg,ffprobe].sort());
+ await runGallery(['--config-ignore','https://www.behance.net/gallery/1/a']);
+ const option=calls.at(-1).args.find(arg=>arg.startsWith('downloader.ytdl.raw-options='));
+ assert.equal(JSON.parse(option.split('=').slice(1).join('=')).ffmpeg_location,folder);
 });
 test('Behance video preflight detects missing browser compatibility without blocking existing ordinary video checks',async t=>{
  const probes=[];

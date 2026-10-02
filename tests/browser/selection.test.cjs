@@ -957,6 +957,25 @@ test('Behance import submits a case plus only selected blocks and records their 
  assert.deepEqual(await page.evaluate(()=>window.requestedModes),{whole:false,blocks:true});
  assert.equal(await page.evaluate(()=>window.__rs.state.knownPostIds.has('behance:123')),true);
 });
+test('Behance whole-case download failures report the cause without importing loose files or confirming the case',async t=>{
+ const page=await setup(t);
+ await page.evaluate(async()=>{
+  const {getSource}=await import('/js/sources/registry.js');
+  const {state,setPosts,toolchain}=window.__rs;
+  state.settings.platform='behance';state.settings.downloadMode='link';state.settings.folderSearch=false;toolchain.ready=true;
+  getSource('behance').download=async options=>({results:[{post:options.posts[0],files:['/tmp/1.jpg'],blockFiles:[],caseError:'Не удалось скачать обложку Behance: Cover timeout.',error:null}]});
+  setPosts([{source:'behance',postId:'behance:123',username:'designer',url:'https://www.behance.net/gallery/123/a',type:'carousel',componentCount:1,
+   components:[{index:1,type:'image'}],caseSelection:{whole:true,blocks:false},caseDocument:{format:'reference-sync-case',version:1,blocks:[]}}]);
+  await window.__testRunImport();
+ });
+ const text=await page.locator('.rs-log').textContent();
+ assert.ok(text.includes('Не удалось скачать обложку Behance: Cover timeout.'));
+ assert.ok(text.includes('Причины ошибок указаны в техническом журнале'));
+ assert.ok(!text.includes('нет компонентов для импорта'));
+ assert.equal(await page.evaluate(()=>window.__rs.state.knownPostIds.size),0);
+ assert.equal(await page.evaluate(()=>window.__rs.state.importRecords.size),0);
+ assert.equal(await page.evaluate(()=>window.__rs.state.posts[0].downloadIssue.detail),'Не удалось скачать обложку Behance: Cover timeout.');
+});
 test('Behance imported whole case stays disabled after selection reset while blocks remain accessible',async t=>{
  const page=await setup(t);
  await page.evaluate(async()=>{
