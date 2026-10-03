@@ -31,6 +31,7 @@ test('case round trips local assets, ordered text and missing blocks without rem
  const root=setup(t), input=entry(root), output=path.join(root,'case.rscase');
  const result=await packageBehanceCase(input,output);
  assert.equal(result.manifest.complete,false);
+ assert.equal('layout' in result.manifest,false);
  assert.deepEqual(result.manifest.blocks.map(b=>b.status),['local','text','unavailable','unsupported']);
  assert.equal(result.manifest.cover,'assets/1.png');
  assert.deepEqual(listZip(output).map(e=>e.name),['manifest.json','assets/1.png']);
@@ -41,6 +42,16 @@ test('case round trips local assets, ordered text and missing blocks without rem
  assert.equal(/secret|cdn.example|player.example/.test(saved),false);assert.equal(saved.includes(root),false);
  assert.deepEqual(result.manifest.blocks[1].links,[{url:'https://example.test/',text:'Source'}]);
  assert.equal(fs.existsSync(input.files[0]),true);
+});
+test('portable layout is sanitized inside version 1 without adding assets or changing blocks',async t=>{
+ const root=setup(t),input=entry(root);
+ input.post.caseDocument.layout={backgroundColor:'#f5f6fc',topSpacing:12,blockSpacing:'24px',css:'url(secret)',cookie:'secret'};
+ const result=await packageBehanceCase(input,path.join(root,'layout.rscase'));
+ assert.equal(result.manifest.version,1);
+ assert.deepEqual(result.manifest.layout,{backgroundColor:'#F5F6FC',topSpacing:12,blockSpacing:24});
+ assert.equal(result.manifest.blocks.length,4);
+ assert.deepEqual(listZip(result.path).map(e=>e.name),['manifest.json','assets/1.png']);
+ assert.equal(JSON.stringify(result.manifest).includes('secret'),false);
 });
 test('text-only case has a local generated cover and no dependency on remote thumbnails',async t=>{
  const root=setup(t),input=entry(root);input.files=[];input.post.caseDocument.blocks=[{kind:'text',text:'Hello'}];

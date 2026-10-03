@@ -2,6 +2,7 @@ import { nodeApi } from '../node-bridge.js';
 import { caseUrl } from '../sources/behance-case.js';
 import { writeCaseZip } from './zip-writer.js';
 import { downloadCaseCover } from './cover.js';
+import {caseLayout} from './layout.js';
 
 const images = new Set(['jpg','jpeg','png','gif','webp','avif']);
 const videos = new Set(['mp4','webm','mov','m4v','mkv']);
@@ -74,10 +75,12 @@ export async function packageBehanceCase(entry, destination, options={}) {
   }
   if(!cover)cover = entries.find(asset=>images.has(asset.extension))?.name;
   if (!cover) { cover='cover.svg'; entries.push({name:cover,data:fallbackCover}); }
+  const layout=caseLayout(document.layout);
   const manifest = {
     format:'reference-sync-case',version:1,
     source:{platform:'behance',id:text(document.source?.id),url:caseUrl(document.source?.url),title:text(document.source?.title),author:text(document.source?.author)},
-    canvasWidth:dimension(document.canvasWidth) || 1400, cover, coverOrigin, blocks,
+    canvasWidth:dimension(document.canvasWidth) || 1400, cover, coverOrigin,
+    ...(layout ? {layout} : {}),blocks,
     complete:!blocks.some(block=>['unavailable','unsupported'].includes(block.status)),
   };
   const data = JSON.stringify(manifest);

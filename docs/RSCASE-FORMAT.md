@@ -25,6 +25,20 @@ alignment, fullBleed and groupId. Status is `local`, `text`, `unavailable` or
 `unsupported`. The latter two make `complete` false. Text does not count as a
 separate downloadable media file. Missing media is never reported as present.
 
+Optional `layout` keeps the Behance project background and generated module
+spacing: `{backgroundColor: "#F5F6FC", topSpacing: 0, blockSpacing: 0}`.
+The color is a normalized six/eight-digit HEX literal (empty means no override),
+and spacing is finite, nonnegative, at most 10,000 pixels in `canvasWidth`
+coordinates. Readers scale it to their native case width. Apply background only
+inside the case and gaps between modules, not between adjacent members with the
+same nonempty `groupId` or after the last module. Empty text modules are retained.
+No extra download or ZIP entry is created. Older version-1 documents omit layout;
+older readers can ignore it. Existing archives cannot recover discarded styles.
+
+The adapter reads only known selectors and properties from Behance's exported
+project styles; raw CSS is never stored or applied. Behance documents background
+color and module spacing in its [Styles & Layout guide](https://help.behance.net/hc/en-us/articles/360034537613-Guide-Editing-Styles-Layout).
+
 No session data, local source paths, iframe HTML, original media/CDN URLs or
 arbitrary metadata fields are copied into the manifest. Text must be rendered
 with `textContent`, never `innerHTML`: literal angle brackets are valid text.
