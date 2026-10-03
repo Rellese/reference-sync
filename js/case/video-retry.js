@@ -26,6 +26,8 @@ export function isVimeoHttp401(raw) {
 }
 
 // Vimeo can reject one player request and accept the same HTTPS request later.
+// Each attempt permits one extraction pass, including with a restored job's
+// older arguments. Do not multiply this budget by gallery-dl's retry loop.
 // Do not retry other extraction errors, change cookies/TLS or loop indefinitely.
 async function retryVideo(number,options) {
  for(let attempt=1;attempt<=3;attempt++) {
@@ -56,7 +58,7 @@ async function retryVideoAttempt(number,{args,postDir,ffmpeg,signal,control,onLo
   const retryArgs=[...args];
   const range=retryArgs.indexOf('--range');if(range>=0)retryArgs.splice(range,2);
   retryArgs[retryArgs.indexOf('--dest')+1]=temporary;
-  retryArgs.splice(retryArgs.length-1,0,'--range',String(number));
+  retryArgs.splice(retryArgs.length-1,0,'--range',String(number),'-o','downloader.ytdl.retries=0');
   onLog?.(`Повторная загрузка видеоблока: ${number}`);
   const result=await run(retryArgs,{signal,onStderr:line=>onLog?.(line.trim())});throwIfAborted(signal);
   if(result.code!==0) {

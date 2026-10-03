@@ -22,7 +22,9 @@ function fixture(t) {
   args:['--dest',root,'--range','1,7','https://www.behance.net/gallery/123/a'],postDir:root,ffmpeg:'ffmpeg',
   validate:async file=>assert.equal(fs.readFileSync(file,'utf8'),'valid'),
   wait:async ms=>waits.push(ms),onLog:s=>logs.push(s),
-  run:async args=>{assert.equal(args[args.indexOf('--range')+1],'7');const dest=args[args.indexOf('--dest')+1];seen.push(dest);
+  run:async args=>{assert.equal(args[args.indexOf('--range')+1],'7');
+   assert.equal(args.filter(arg=>arg.startsWith('downloader.ytdl.retries=')).at(-1),'downloader.ytdl.retries=0');
+   const dest=args[args.indexOf('--dest')+1];seen.push(dest);
    fs.writeFileSync(path.join(dest,'7.mp4.part'),'unfinished');return {code:4,stderr:refused};}}};
 }
 test('transient 401 recovers in a fresh directory, validates once, and leaves no partial files',async t=>{
@@ -40,6 +42,12 @@ test('persistent 401 stops after three fresh attempts and leaves the case incomp
  const f=fixture(t),result=await retryMissingCaseVideos(f.options);
  assert.equal(f.seen.length,3);assert.deepEqual(f.waits,[2000,4000]);assert.equal(result.recovered,0);
  assert.match(result.failures[0],/Видеоблок 7.*401/);assert.deepEqual(result.files,[]);assert.deepEqual(fs.readdirSync(f.root),[]);
+});
+test('a restored job cannot multiply recovery attempts by its previous downloader retry setting',async t=>{
+ const f=fixture(t);f.options.args.splice(f.options.args.length-1,0,'-o','downloader.ytdl.retries=3');
+ const result=await retryMissingCaseVideos(f.options);
+ assert.equal(f.seen.length,3);assert.deepEqual(f.waits,[2000,4000]);assert.equal(result.recovered,0);
+ assert.deepEqual(fs.readdirSync(f.root),[]);
 });
 test('403 is not repeatedly retried as a transient player rejection',async t=>{
  const f=fixture(t),run=f.options.run;

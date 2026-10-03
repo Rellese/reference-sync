@@ -54,6 +54,7 @@ test('Behance passes selected block numbers to downloader and keeps only importa
   t.after(()=>{Object.assign(nodeApi,oldNode);Object.assign(toolchain,oldTool);fs.rmSync(root,{recursive:true,force:true});});
   Object.assign(nodeApi,{available:true,fs,path,os:{homedir:()=>root},childProcess:{spawn(command,args){
     assert.equal(args[args.indexOf('--range')+1],'4');
+    assert.ok(args.includes('downloader.ytdl.retries=0'));
     const playerArgs=args.find(arg=>arg.startsWith('downloader.ytdl.cmdline-args='));
     assert.deepEqual(JSON.parse(playerArgs.slice(playerArgs.indexOf('=')+1)),['--referer','https://www.behance.net/gallery/123/a','--no-playlist']);
     assert.equal(args.at(-1),'https://www.behance.net/gallery/123/a');

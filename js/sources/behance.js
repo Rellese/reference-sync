@@ -54,6 +54,9 @@ export const behanceMediaSource = createGallerySource({
   // A second --dump-json resolves collection projects; a JSON document keeps errors.
   extraDiscoverArgs: ['--dump-json', '-o', 'output.jsonl=false', '-o', 'extractor.behance.tls12=true', '-o', `extractor.behance.user-agent=${BEHANCE_USER_AGENT}`],
   extraDownloadArgs: post => ['-o', 'extractor.behance.tls12=true', '-o', `extractor.behance.user-agent=${BEHANCE_USER_AGENT}`,
+    // Fresh video recovery owns the retry budget. gallery-dl otherwise repeats
+    // each rejected player request before our delayed retry can run.
+    '-o', 'downloader.ytdl.retries=0',
     '-o', `downloader.ytdl.cmdline-args=${JSON.stringify(['--referer', behanceTarget(post.url).url, '--no-playlist'])}`],
   validateDiscovery: validateBehanceDiscovery,
   discoveryJsonDocument: true,
