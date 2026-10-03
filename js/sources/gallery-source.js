@@ -1265,7 +1265,7 @@ export function createGallerySource(spec) {
       let validationFailed=false;
       for (const file of files) {
         try {
-          if(code==='behance')await validateCaseVideo(file,{args,postDir,ffmpeg:toolchain.ffmpeg,signal,control,onLog:line=>onLog?.(redactCommon(line))});
+          if(code==='behance')await validateCaseVideo(file,{post,args,postDir,ffmpeg:toolchain.ffmpeg,signal,control,onLog:line=>onLog?.(redactCommon(line))});
           else await validateVideo(file, { ffmpeg: toolchain.ffmpeg, signal });
           verifiedFiles.push(file);
         } catch (validationError) {

@@ -43,6 +43,31 @@ test('persistent 401 stops after three fresh attempts and leaves the case incomp
  assert.equal(f.seen.length,3);assert.deepEqual(f.waits,[2000,4000]);assert.equal(result.recovered,0);
  assert.match(result.failures[0],/Видеоблок 7.*401/);assert.deepEqual(result.files,[]);assert.deepEqual(fs.readdirSync(f.root),[]);
 });
+test('Eagle player recovery replaces a Vimeo 401 without more metadata requests and validates before publication',async t=>{
+ const f=fixture(t);let players=0,decoded=0;
+ const result=await retryMissingCaseVideos({...f.options,recover:async(number,options)=>{
+  players++;assert.equal(number,7);assert.equal(options.post,f.options.post);assert.notEqual(options.postDir,f.root);
+  const file=path.join(options.postDir,'7.mp4');fs.writeFileSync(file,'valid');return file;
+ },validate:async file=>{decoded++;await f.options.validate(file);}});
+ assert.equal(f.seen.length,1);assert.equal(players,1);assert.equal(decoded,1);assert.deepEqual(f.waits,[]);
+ assert.equal(result.recovered,1);assert.deepEqual(result.failures,[]);assert.deepEqual(fs.readdirSync(f.root),['7.mp4']);
+});
+for(const failure of ['player','corrupt','foreign'])test(`failed Eagle player (${failure}) is tried once, retains no fragments and cannot complete a case`,async t=>{
+ const f=fixture(t);let players=0;
+ const result=await retryMissingCaseVideos({...f.options,recover:async(number,options)=>{
+  players++;if(failure==='player')throw Error('player unavailable');
+  const file=path.join(options.postDir,failure==='foreign'?'8.mp4':'7.mp4');fs.writeFileSync(file,'broken');return file;
+ }});
+ assert.equal(players,1);assert.equal(f.seen.length,1);assert.equal(result.recovered,0);assert.deepEqual(result.files,[]);
+ assert.deepEqual(f.waits,[]);assert.deepEqual(fs.readdirSync(f.root),[]);
+});
+test('Stop inside the Eagle player recovery is propagated and cleans its directory',async t=>{
+ const f=fixture(t);
+ await assert.rejects(retryMissingCaseVideos({...f.options,recover:async(number,options)=>{
+  fs.writeFileSync(path.join(options.postDir,'7.mp4.part'),'partial');throw makeStopError();
+ }}),{code:'JOB_STOPPED'});
+ assert.equal(f.seen.length,1);assert.deepEqual(fs.readdirSync(f.root),[]);
+});
 test('a restored job cannot multiply recovery attempts by its previous downloader retry setting',async t=>{
  const f=fixture(t);f.options.args.splice(f.options.args.length-1,0,'-o','downloader.ytdl.retries=3');
  const result=await retryMissingCaseVideos(f.options);

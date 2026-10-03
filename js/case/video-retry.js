@@ -3,6 +3,7 @@ import {runGallery} from '../toolchain.js';
 import {validateVideo} from '../downloaded-media.js';
 import {throwIfAborted} from '../job-control.js';
 import {downloadIssue} from '../download-outcome.js';
+import {recoverEmbeddedVideo} from './vimeo-stream.js';
 
 export function isRetryableVideoFailure(raw) {
  const errors=String(raw).split(/\r?\n/).filter(line=>/\[error\]/i.test(line));
@@ -12,12 +13,12 @@ export function isRetryableVideoFailure(raw) {
 
 // Retry one rejected final video in a fresh directory. A broken staging file
 // must not cause gallery-dl to skip the second attempt as "already downloaded".
-export async function validateCaseVideo(file,{args,postDir,ffmpeg,signal,control,onLog,run=runGallery,validate=validateVideo,wait=waitForVideoRetry}={}) {
+export async function validateCaseVideo(file,{post,args,postDir,ffmpeg,signal,control,onLog,run=runGallery,validate=validateVideo,wait=waitForVideoRetry,recover=recoverEmbeddedVideo}={}) {
  try{await validate(file,{ffmpeg,signal});return;}
  catch(error){throwIfAborted(signal);if(!ffmpeg)throw error;onLog?.(error.message);}
  const {path}=nodeApi,number=path.basename(file).match(/^(\d+)\./)?.[1];
  if(!number)throw Error('Invalid video component');
- await retryVideo(number,{args,postDir,ffmpeg,signal,control,onLog,run,validate,wait,name:path.basename(file)});
+ await retryVideo(number,{post,args,postDir,ffmpeg,signal,control,onLog,run,validate,wait,recover,name:path.basename(file)});
 }
 
 export function isVimeoHttp401(raw) {
@@ -34,11 +35,32 @@ async function retryVideo(number,options) {
   try{return await retryVideoAttempt(number,options);}
   catch(error) {
    throwIfAborted(options.signal);
-   if(error.code!=='VIMEO_HTTP_401'||attempt===3)throw error;
+   if(error.code!=='VIMEO_HTTP_401')throw error;
+   if(attempt===1) {
+    try{const file=await retryEmbeddedVideo(number,options);if(file)return file;}
+    catch(playerError){throwIfAborted(options.signal);if(playerError.code==='JOB_STOPPED')throw playerError;
+     throw Error(`${error.message} ${playerError.message}`);}
+   }
+   if(attempt===3)throw error;
    options.onLog?.(`Видеоблок ${number}: Vimeo ответил 401. Повтор ${attempt+1}/3 через ${attempt*2} с.`);
    await options.wait(attempt*2000,{signal:options.signal,control:options.control});
   }
  }
+}
+
+async function retryEmbeddedVideo(number,options) {
+ const {fs,path}=nodeApi,temporary=fs.mkdtempSync(path.join(options.postDir,'retry-player-'));
+ try {
+  const file=await options.recover(number,{...options,postDir:temporary});
+  if(!file)return null;
+  // A returned path is still untrusted until its identity, location, container
+  // and complete decode pass. Never import fragments or a different component.
+  if(path.dirname(file)!==temporary||!new RegExp(`^${number}\\.(mp4|mov|webm|mkv)$`,'i').test(path.basename(file))||!fs.lstatSync(file).isFile()||fs.lstatSync(file).isSymbolicLink())throw Error('Плеер вернул неверный видеофайл.');
+  await options.validate(file,{ffmpeg:options.ffmpeg,signal:options.signal});
+  await options.control?.checkpoint();throwIfAborted(options.signal);
+  const destination=path.join(options.postDir,options.name || path.basename(file));
+  fs.renameSync(file,destination);return destination;
+ }finally{fs.rmSync(temporary,{recursive:true,force:true});}
 }
 
 export async function waitForVideoRetry(milliseconds,{signal,control}={}) {
@@ -80,7 +102,7 @@ async function retryVideoAttempt(number,{args,postDir,ffmpeg,signal,control,onLo
 
 // A failed downloader may leave no final file at all. Existing invalid videos
 // already receive recovery above; do not start another recovery for those.
-export async function retryMissingCaseVideos({post,files,existingFiles,args,postDir,ffmpeg,signal,control,onLog,run=runGallery,validate=validateVideo,wait=waitForVideoRetry}) {
+export async function retryMissingCaseVideos({post,files,existingFiles,args,postDir,ffmpeg,signal,control,onLog,run=runGallery,validate=validateVideo,wait=waitForVideoRetry,recover=recoverEmbeddedVideo}) {
  const selected=new Set((post.selectedComponents || post.components?.map(c=>c.index) || []).map(Number));
  const present=new Set(existingFiles.map(file=>Number(nodeApi.path.basename(file).match(/^(\d+)\./)?.[1])));
  const missing=(post.components || []).filter(c=>c.mediaType==='video'&&selected.has(Number(c.index))&&!present.has(Number(c.index)));
@@ -88,7 +110,7 @@ export async function retryMissingCaseVideos({post,files,existingFiles,args,post
  for(const component of missing) {
   try {
    if(!ffmpeg)throw Error(`Видеоблок ${component.index}: требуется FFmpeg`);
-   output.push(await retryVideo(component.index,{args,postDir,ffmpeg,signal,control,onLog,run,validate,wait}));recovered++;
+   output.push(await retryVideo(component.index,{post,args,postDir,ffmpeg,signal,control,onLog,run,validate,wait,recover}));recovered++;
   }catch(error){throwIfAborted(signal);if(error.code==='JOB_STOPPED')throw error;failures.push(error.message);onLog?.(error.message);}
  }
  return {files:output,recovered,failures};

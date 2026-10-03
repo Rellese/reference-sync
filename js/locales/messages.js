@@ -1,6 +1,14 @@
 import { diagnostics } from './diagnostics.js';
 // Columns: Russian source, English, French, Spanish, Simplified Chinese.
 export const messages = [
+  ["Получение видео Behance", "Loading Behance video", "Chargement de la vidéo Behance", "Cargando vídeo de Behance", "正在加载 Behance 视频"],
+  ["Ожидайте загрузки плеера. Если видео недоступно, его можно пропустить.", "Wait for the player to load. You can skip the video if it is unavailable.", "Attendez le chargement du lecteur. Vous pouvez ignorer la vidéo si elle est indisponible.", "Espera a que cargue el reproductor. Puedes omitir el vídeo si no está disponible.", "请等待播放器加载。如果视频不可用，可以跳过。"],
+  ["Пропустить видео", "Skip video", "Ignorer la vidéo", "Omitir vídeo", "跳过视频"],
+  ["Видеоблок {0}: получение потока через встроенный плеер Eagle.", "Video block {0}: loading the stream through Eagle’s embedded player.", "Bloc vidéo {0} : chargement du flux via le lecteur intégré d’Eagle.", "Bloque de vídeo {0}: cargando el flujo con el reproductor integrado de Eagle.", "视频块 {0}：通过 Eagle 内置播放器获取视频流。"],
+  ["Видеоблок пропущен пользователем.", "Video block skipped by the user.", "Bloc vidéo ignoré par l’utilisateur.", "El usuario omitió el bloque de vídeo.", "用户已跳过此视频块。"],
+  ["Встроенный плеер не вернул видео за отведённое время.", "The embedded player did not return a video in time.", "Le lecteur intégré n’a pas renvoyé la vidéo à temps.", "El reproductor integrado no devolvió el vídeo a tiempo.", "内置播放器未在限定时间内返回视频。"],
+  ["Не удалось сохранить полный видеопоток из плеера.", "Could not save the complete video stream from the player.", "Impossible d’enregistrer le flux vidéo complet du lecteur.", "No se pudo guardar el flujo de vídeo completo del reproductor.", "无法保存播放器中的完整视频流。"],
+  ["Длительность файла не совпадает с полным видео.", "The file duration does not match the complete video.", "La durée du fichier ne correspond pas à la vidéo complète.", "La duración del archivo no coincide con la del vídeo completo.", "文件时长与完整视频不符。"],
   ...diagnostics,
   ["Скачать кейс целиком", "Download the whole case", "Télécharger le projet complet", "Descargar el proyecto completo", "下载完整项目"],
   ["Скачать каждый блок отдельно", "Download blocks separately", "Télécharger les blocs séparément", "Descargar los bloques por separado", "分别下载各内容块"],
