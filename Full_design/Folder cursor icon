@@ -1,0 +1,20 @@
+<svg width="13" height="7" viewBox="0 0 13 7" fill="none" xmlns="http://www.w3.org/2000/svg">
+<path d="M6.99908 6.42381C6.62205 6.75371 6.0591 6.75371 5.68207 6.42381L0.343519 1.75257C-0.351384 1.14453 0.0786616 -1.24682e-06 1.00203 -1.16609e-06L11.6791 -2.32671e-07C12.6025 -1.51948e-07 13.0325 1.14454 12.3376 1.75258L6.99908 6.42381Z" fill="#333333"/>
+</svg>
+
+
+
+
+/* chevron */
+
+width: 16px;
+height: 7px;
+
+background: #333333;
+border-radius: 1px;
+transform: rotate(-180deg);
+
+/* Inside auto layout */
+flex: none;
+order: 1;
+flex-grow: 0;

@@ -1,3 +1,6 @@
+import { guardedEagleWrite } from './eagle-write-guard.js';
+import { composeNaming } from './naming-compose.js';
+import {caseNamingPlan,orderCaseNamingUnits} from './case/naming.js';
 /* ============================================================
    ReferenceSync — импорт в Eagle
 
@@ -109,30 +112,107 @@ export async function findEagleItemsByIds(itemIds) {
     }
   }
 
-  const results = await Promise.all(
-    ids.map(async (id) => {
-      try {
-        const response = await fetch(
-          `${API_URL}/api/item/info?id=${encodeURIComponent(id)}`,
-        );
+  const results = [];
+  // Bound fallback traffic; an unavailable API is not evidence of deletion.
+  for (let offset = 0; offset < ids.length; offset += 16) {
+    const batch = await Promise.all(ids.slice(offset, offset + 16).map(async id => {
+      const response = await fetch(`${API_URL}/api/item/info?id=${encodeURIComponent(id)}`);
+      if (response.status === 404) return null;
+      if (!response.ok) throw new Error(`Eagle: проверка библиотеки не выполнена (${response.status})`);
+      const payload = await response.json();
+      if (payload?.status !== 'success') throw new Error('Eagle: проверка библиотеки не выполнена');
+      return compactEagleItem(payload.data);
+    }));
+    results.push(...batch.filter(Boolean));
+  }
+  return results;
+}
 
-        if (!response.ok) return null;
+/* ------------------------------------------------------------
+   Список папок библиотеки
+   ------------------------------------------------------------ */
+function cleanFolderValue(value) {
+  return String(value ?? '').trim();
+}
 
-        const payload = await response.json();
-        const item = payload?.data;
-
-        if (payload?.status !== 'success') {
-          return null;
-        }
-
-        return compactEagleItem(item);
-      } catch (_) {
-        return null;
-      }
-    }),
+function normalizeFolderName(value) {
+  return (
+    cleanFolderValue(value)
+      .replace(/[\\/]/g, '／')
+      .replace(/\s+/g, ' ')
+      .slice(0, 200) ||
+    'Без названия'
   );
+}
 
-  return results.filter(Boolean);
+function folderParentId(folder, fallback = '') {
+  const parent =
+    folder?.parent ??
+    folder?.parentId ??
+    fallback;
+
+  if (
+    parent &&
+    typeof parent === 'object'
+  ) {
+    return cleanFolderValue(
+      parent.id,
+    );
+  }
+
+  return cleanFolderValue(parent);
+}
+
+function flattenFolders(
+  nodes,
+  output = [],
+  inheritedParentId = '',
+  seen = new Set(),
+) {
+  for (
+    const node
+    of Array.isArray(nodes) ? nodes : []
+  ) {
+    const id =
+      cleanFolderValue(node?.id);
+
+    if (!id) {
+      continue;
+    }
+
+    const parentId =
+      folderParentId(
+        node,
+        inheritedParentId,
+      );
+
+    if (!seen.has(id)) {
+      seen.add(id);
+
+      output.push({
+        id,
+
+        name:
+          cleanFolderValue(node?.name),
+
+        parentId,
+      });
+    }
+
+    if (
+      Array.isArray(node?.children) &&
+      node.children.length
+    ) {
+      flattenFolders(
+        node.children,
+        output,
+        id,
+        seen,
+      );
+    }
+  }
+
+  return output;
 }
 
 /* ------------------------------------------------------------
@@ -141,24 +221,320 @@ export async function findEagleItemsByIds(itemIds) {
 export async function listFolders() {
   if (eagleApi?.folder?.getAll) {
     try {
-      const folders = await eagleApi.folder.getAll();
-      return folders.map((folder) => ({ id: folder.id, name: folder.name }));
-    } catch (_) { /* пробуем HTTP */ }
+      const folders =
+        await eagleApi.folder.getAll();
+
+      return flattenFolders(
+        folders,
+      );
+    } catch (_) {
+      /* Пробуем HTTP API. */
+    }
   }
+
   try {
-    const response = await fetch(`${API_URL}/api/v2/folder/list`);
-    const payload = await response.json();
-    const flatten = (nodes, output = []) => {
-      (nodes || []).forEach((node) => {
-        output.push({ id: node.id, name: node.name });
-        if (node.children) flatten(node.children, output);
-      });
-      return output;
-    };
-    return flatten(payload?.data);
+    const response =
+      await fetch(
+        `${API_URL}/api/v2/folder/list`,
+      );
+
+    if (!response.ok) {
+      throw new Error(
+        `Eagle ответил кодом ${response.status}`,
+      );
+    }
+
+    const payload =
+      await response.json();
+
+    return flattenFolders(
+      payload?.data,
+    );
   } catch (_) {
     return [];
   }
+}
+
+async function createEagleFolder({
+  name,
+  parentId = '',
+} = {}) {
+  const folderName =
+    normalizeFolderName(name);
+
+  const cleanParentId =
+    cleanFolderValue(parentId);
+
+  if (eagleApi?.folder?.create) {
+    const options = {
+      name: folderName,
+    };
+
+    if (cleanParentId) {
+      options.parent =
+        cleanParentId;
+    }
+
+    const folder =
+      await eagleApi.folder.create(
+        options,
+      );
+
+    const id =
+      cleanFolderValue(
+        typeof folder === 'string'
+          ? folder
+          : folder?.id,
+      );
+
+    if (!id) {
+      throw new Error(
+        `Eagle не вернул ID папки «${folderName}»`,
+      );
+    }
+
+    return {
+      id,
+      name: folderName,
+      parentId: cleanParentId,
+    };
+  }
+
+  const response =
+    await fetch(
+      `${API_URL}/api/folder/create`,
+      {
+        method: 'POST',
+
+        headers: {
+          'Content-Type':
+            'application/json',
+        },
+
+        body: JSON.stringify({
+          folderName,
+
+          ...(cleanParentId
+            ? {
+                parent:
+                  cleanParentId,
+              }
+            : {}),
+        }),
+      },
+    );
+
+  if (!response.ok) {
+    throw new Error(
+      `Eagle не создал папку «${folderName}»: ` +
+      `код ${response.status}`,
+    );
+  }
+
+  const payload =
+    await response.json();
+
+  if (payload?.status !== 'success') {
+    throw new Error(
+      `Eagle отклонил создание папки ` +
+      `«${folderName}»`,
+    );
+  }
+
+  const id =
+    cleanFolderValue(
+      payload?.data?.id,
+    );
+
+  if (!id) {
+    throw new Error(
+      `Eagle создал папку «${folderName}», ` +
+      'но не вернул её ID',
+    );
+  }
+
+  return {
+    id,
+    name: folderName,
+    parentId: cleanParentId,
+  };
+}
+
+function folderLookupKey(
+  parentId,
+  name,
+) {
+  return `${
+    cleanFolderValue(parentId)
+  }\u0000${
+    normalizeFolderName(name)
+      .toLocaleLowerCase()
+  }`;
+}
+
+function createFolderLookup(folders) {
+  const lookup =
+    new Map();
+
+  for (
+    const folder
+    of Array.isArray(folders)
+      ? folders
+      : []
+  ) {
+    const id =
+      cleanFolderValue(folder?.id);
+
+    const name =
+      cleanFolderValue(folder?.name);
+
+    if (!id || !name) {
+      continue;
+    }
+
+    lookup.set(
+      folderLookupKey(
+        folderParentId(folder),
+        name,
+      ),
+
+      {
+        id,
+        name,
+        parentId:
+          folderParentId(folder),
+      },
+    );
+  }
+
+  return lookup;
+}
+
+async function ensureFolder({
+  name,
+  parentId = '',
+  lookup,
+  onLog,
+} = {}) {
+  const folderName =
+    normalizeFolderName(name);
+
+  const cleanParentId =
+    cleanFolderValue(parentId);
+
+  const key =
+    folderLookupKey(
+      cleanParentId,
+      folderName,
+    );
+
+  const existing =
+    lookup.get(key);
+
+  if (existing) {
+    return existing;
+  }
+
+  const created =
+    await createEagleFolder({
+      name: folderName,
+      parentId: cleanParentId,
+    });
+
+  lookup.set(
+    key,
+    created,
+  );
+
+  if (onLog) {
+    onLog(
+      cleanParentId
+        ? `Создана вложенная папка Eagle: ${folderName}`
+        : `Создана папка Eagle: ${folderName}`,
+    );
+  }
+
+  return created;
+}
+
+export async function ensureEagleFolderRoute({
+  platformFolderName,
+  route = [],
+  onLog,
+} = {}) {
+  const folders =
+    await listFolders();
+
+  const lookup =
+    createFolderLookup(folders);
+
+  const platformFolder =
+    await ensureFolder({
+      name:
+        platformFolderName ||
+        'ReferenceSync',
+
+      parentId: '',
+
+      lookup,
+      onLog,
+    });
+
+  let parentId =
+    platformFolder.id;
+
+  let destinationFolder =
+    platformFolder;
+
+  for (
+    const routePart
+    of Array.isArray(route)
+      ? route
+      : []
+  ) {
+    const name =
+      cleanFolderValue(
+        routePart?.name,
+      );
+
+    if (!name) {
+      continue;
+    }
+
+    destinationFolder =
+      await ensureFolder({
+        name,
+        parentId,
+        lookup,
+        onLog,
+      });
+
+    parentId =
+      destinationFolder.id;
+  }
+
+  return {
+    platformFolderId:
+      platformFolder.id,
+
+    destinationFolderId:
+      destinationFolder.id,
+
+    folderIds:
+      [
+        platformFolder.id,
+
+        destinationFolder.id,
+      ]
+        .map((id) =>
+          cleanFolderValue(id))
+        .filter(
+          (id, index, values) =>
+            id &&
+            values.indexOf(id) ===
+              index,
+        ),
+  };
 }
 
 /* ------------------------------------------------------------
@@ -238,11 +614,11 @@ export function orderImportItemsOldestFirst(
   return [...(items || [])].sort(
     (left, right) => {
       const leftOrder = publicationOrder.get(
-        String(left?.postId || ''),
+        String(left?.sourcePostId || left?.postId || ''),
       );
 
       const rightOrder = publicationOrder.get(
-        String(right?.postId || ''),
+        String(right?.sourcePostId || right?.postId || ''),
       );
 
       const normalizedLeft =
@@ -266,7 +642,9 @@ export async function importToEagle({
   onProgress,
   onLog,
   onCreated,
+  onLateCreated = onCreated,
   signal,
+  writeTimeoutMs = 120000,
 } = {}) {
   const created = [];
   const failed = [];
@@ -280,10 +658,35 @@ export async function importToEagle({
 
     const item = items[index];
 
+    const itemFolderIds =
+      Array.isArray(item?.folderIds)
+        ? item.folderIds
+        : [];
+
+    const folders =
+      [
+        ...(
+          Array.isArray(folderIds)
+            ? folderIds
+            : []
+        ),
+
+        ...itemFolderIds,
+      ]
+        .map((id) =>
+          String(id ?? '').trim())
+        .filter(Boolean)
+        .filter(
+          (id, position, values) =>
+            values.indexOf(id) ===
+              position,
+        );
+
     if (onProgress) {
       onProgress({
         stage: 'import',
         current: index + 1,
+        completed: created.length,
         total: items.length,
         item,
       });
@@ -296,20 +699,22 @@ export async function importToEagle({
     }
 
     try {
-      const id = await addItem({
+      onLog?.(`Eagle: начало добавления ${index + 1}/${items.length}; публикация ${item.postId}; компонент ${item.component}; файл ${nodeApi.available ? nodeApi.path.basename(item.path) : item.path}`);
+      const id = await guardedEagleWrite(() => addItem({
         path: item.path,
         name: item.name,
         website: item.website,
         annotation: item.annotation,
         tags: item.tags,
-        folders: folderIds,
+        folders,
+      }), { item, signal, timeoutMs: writeTimeoutMs, onLateCreated, onLog,
+        onConfirmed: async entry => {
+          created.push(entry);
+          await onCreated?.(entry, created.length);
+        },
       });
-      const createdEntry = { item, id };
-      created.push(createdEntry);
-
-      if (onCreated) {
-        await onCreated(createdEntry, created.length);
-      }
+      onLog?.(`Eagle: получен ID ${id}; публикация ${item.postId}; компонент ${item.component}`);
+      onProgress?.({ stage: 'import', current: index + 1, completed: created.length, total: items.length, item });
       if (onLog) onLog(`Добавлено в Eagle: ${item.name}`);
     } catch (error) {
       /* Неоднозначная ошибка записи: останавливаемся, чтобы не
@@ -422,6 +827,7 @@ export function normalizeNumberingCounters(
       !VALID_NUMBERING_COUNTER_MODES.has(mode) ||
       mode === NUMBERING_COUNTER_MODES.NONE
     ) {
+      if (counter.independent) continue;
       break;
     }
 
@@ -430,6 +836,7 @@ export function normalizeNumberingCounters(
         counter.id || `counter-${index + 1}`,
       ),
       mode,
+      ...(counter.independent ? { independent: true, destination: counter.destination || 'name', marker: String(counter.marker ?? ''), direction: counter.direction === 'start' ? 'start' : 'end' } : {}),
       start: normalizeCounterStart(
         counter.start,
       ),
@@ -511,6 +918,7 @@ function buildPublicationCounterValues(
 
   counters.forEach((counter) => {
     const counterValues = new Map();
+    const orderedPosts = orderCaseNamingUnits(counter.direction === 'start' ? [...selectedPosts].reverse() : selectedPosts,counter);
 
     if (
       counter.mode ===
@@ -522,7 +930,7 @@ function buildPublicationCounterValues(
           counter,
         );
 
-      selectedPosts.forEach(
+      orderedPosts.forEach(
         (post, index) => {
           counterValues.set(
             post.postId,
@@ -534,7 +942,7 @@ function buildPublicationCounterValues(
       counter.mode ===
       NUMBERING_COUNTER_MODES.BATCH
     ) {
-      selectedPosts.forEach(
+      orderedPosts.forEach(
         (post, index) => {
           counterValues.set(
             post.postId,
@@ -552,7 +960,7 @@ function buildPublicationCounterValues(
           counter,
         );
 
-      selectedPosts.forEach((post) => {
+      orderedPosts.forEach((post) => {
         const author =
           normalizeAuthorKey(post);
 
@@ -574,9 +982,9 @@ function buildPublicationCounterValues(
       counter.mode ===
       NUMBERING_COUNTER_MODES.TYPE
     ) {
-      const nextByType = new Map();
+      const nextByType = new Map(Object.entries(counterSeeds?.[counter.id]?.types || {}));
 
-      selectedPosts.forEach((post) => {
+      orderedPosts.forEach((post) => {
         const type =
           normalizePublicationType(post);
 
@@ -621,8 +1029,7 @@ function counterValueForComponent({
 
     return (
       counter.start +
-      componentNumber -
-      1
+      (counter.direction === 'end' && counter.independent ? post.componentCount - componentNumber : componentNumber - 1)
     );
   }
 
@@ -656,7 +1063,12 @@ function placeAdditionalText(
     .join('\n\n');
 }
 
-export function buildNames({
+export function buildNames(options={}) {
+  const plan=caseNamingPlan(options);
+  return plan.collapse(buildPostNames({...options,posts:plan.posts,selected:plan.selected}));
+}
+
+function buildPostNames({
   posts,
   selected,
   numberingEnabled = true,
@@ -669,6 +1081,7 @@ export function buildNames({
   descriptionDestination = 'description',
   counters,
   counterSeeds = {},
+  descriptions,
 } = {}) {
   const result = new Map();
   const safePosts = Array.isArray(posts)
@@ -678,7 +1091,7 @@ export function buildNames({
   const safeSelected =
     selected instanceof Set
       ? selected
-      : new Set();
+      : new Set(Array.isArray(selected) ? selected : []);
 
   /*
    * Входной список хранится от новых публикаций
@@ -803,7 +1216,7 @@ export function buildNames({
       ).trim();
 
     const additionalDescription =
-      descriptionEnabled
+      descriptionEnabled && !Array.isArray(descriptions)
         ? String(
           extraDescription || '',
         ).trim()
@@ -930,6 +1343,21 @@ export function buildNames({
               : baseDescription;
         },
       );
+    }
+
+    if (activeCounters.some(counter => counter.independent) || Array.isArray(descriptions)) {
+      const independent = activeCounters.some(counter => counter.independent);
+      const rules = descriptionEnabled ? (descriptions ?? [{ text: extraDescription, destination: descriptionDestination, placement: descriptionPlacement }]) : [];
+      const numbers = post.componentCount <= 1 ? [1] : componentNumbers;
+      for (const number of numbers) {
+        const composed = composeNaming({ name: independent ? originalName : componentNames[number - 1], description: independent ? originalDescription : componentDescriptions[number - 1],
+          counters: independent ? activeCounters : [], values: counterValuesByComponent[number - 1], descriptions: rules });
+        componentNames[number - 1] = composed.name;
+        componentDescriptions[number - 1] = composed.description;
+      }
+      const base = composeNaming({name:originalName,description:originalDescription,counters:[],descriptions:rules});
+      name = numbers.length ? numbers.map(number => componentNames[number - 1]).join('\n') : base.name;
+      description = numbers.length ? [...new Set(numbers.map(number => componentDescriptions[number - 1]))].join('\n\n') : base.description;
     }
 
     /*

@@ -1,3 +1,8 @@
+import {createPrivateCookieFile,copyPrivateCookieFile} from '../private-cookies.js';
+import {validateCaseVideo,retryMissingCaseVideos,isRetryableVideoFailure} from '../case/video-retry.js';
+import {watchCaseProgress} from '../case/progress.js';
+import { sourceLinkTarget } from '../source-link.js';
+import { downloadIssue } from '../download-outcome.js';
 /* ============================================================
    Универсальный источник на базе gallery-dl
 
@@ -18,11 +23,14 @@
    соцсетей добавляются модулями, ничего не ломая.
    ============================================================ */
 
+import { finalMediaName, validateVideo } from '../downloaded-media.js';
+import { pinterestMedia, pinterestDownloadPlan } from '../pinterest-media.js';
+import { downloadMediaPlan } from '../media-download.js';
 import { createDiscoveryCounter, } from '../discovery-counter.js';
 import { runDiscoveryWithStop } from '../discovery-stop.js';
 import { postMatchesStopLink } from '../stop-link.js';
 import { nodeApi, ensureDir, workRoot } from '../node-bridge.js';
-import { runGallery, requireToolchain } from '../toolchain.js';
+import { runGallery, requireToolchain, toolchain } from '../toolchain.js';
 import { looksOffline, RETRY_STEPS } from '../job-control.js';
 
 /* Копируем базу кук Chrome во временную папку.
@@ -77,12 +85,11 @@ function stageCookieDb(browser, profile) {
       const src = path.join(root, rel);
       try {
         if (!fs.existsSync(src)) continue;
-        const dstDir = ensureDir(path.join(workRoot(), 'cookie-cache'));
-        const dst = path.join(dstDir, `Cookies-${Date.now()}`);
-        fs.copyFileSync(src, dst);
+        const dst = createPrivateCookieFile('Cookies');
+        copyPrivateCookieFile(src, dst);
         /* WAL-файл: без него часть свежих кук может отсутствовать в копии */
         for (const suf of ['-wal', '-shm']) {
-          try { if (fs.existsSync(src + suf)) fs.copyFileSync(src + suf, dst + suf); }
+          try { if (fs.existsSync(src + suf)) {const fd=fs.openSync(dst+suf,'wx',0o600);fs.closeSync(fd);copyPrivateCookieFile(src+suf,dst+suf);} }
           catch (_) { /* необязательно */ }
         }
         return dst;
@@ -107,13 +114,13 @@ const VIDEO_EXTENSIONS = new Set(['mp4', 'mov', 'webm', 'mkv', 'm4v', 'avi']);
 
 /* Профили скорости — те же три режима, что в блоке 1 */
 const SPEED_PROFILES = {
-  safe: { sleepRequest: '2.0-4.0', retries: 3 },
+  safe: { sleepRequest: '3-5', retries: 3 },
   balanced: { sleepRequest: '1.0-2.0', retries: 2 },
   lightning: { sleepRequest: null, retries: 1 },
 };
 
 function paceArgs(profile) {
-  return profile.sleepRequest ? ['--sleep-request', profile.sleepRequest] : [];
+  return profile.sleepRequest ? ['--sleep-request', profile.sleepRequest, '--sleep', profile.sleepRequest] : [];
 }
 
 export function chooseGalleryStagingRoot(
@@ -241,6 +248,8 @@ export function findPreview(record = {}) {
     record.preview,
     record.preview_url,
     record.display_url,
+    record.module?.imageSizes?.allAvailable,
+    record.module?.thumbnail,
   ];
 
   for (const value of explicit) {
@@ -334,8 +343,8 @@ export function parseDumpJson(text) {
       const galleryUrl = item.find(
         (value) =>
           typeof value === 'string' &&
-          /^https?:\/\//i.test(value),
-      );
+          /^(?:ytdl:)?https?:\/\//i.test(value),
+      )?.replace(/^ytdl:/i, '');
 
       const record = { ...metadata };
       record._galleryType = item[0];
@@ -458,6 +467,10 @@ export function createGallerySource(spec) {
     groupBy = 'post',
     extraDiscoverArgs = [],
     extraDownloadArgs = [],
+    previewResolver = findPreview,
+    decoratePost = null,
+    validateDiscovery = null,
+    discoveryJsonDocument = false,
   } = spec;
 
   /* -------- Нормализация одной записи -------- */
@@ -490,7 +503,7 @@ export function createGallerySource(spec) {
         record.url);
 
     const mediaType = guessMediaType(record);
-    const preview = findPreview(record);
+    const preview = previewResolver(record);
     const num = Number(record.num ?? record.number ?? 1) || 1;
 
     return {
@@ -637,10 +650,19 @@ export function createGallerySource(spec) {
      * некоторые источники не используют формат
      * сообщений [type, url, metadata].
      */
-    const usableParts =
-      urlParts.length
-        ? urlParts
-        : untypedParts;
+    const seenMedia = new Set();
+    const usableParts = (urlParts.length ? urlParts : untypedParts).filter(entry => {
+      const raw = entry.raw || {};
+      const url = String(raw._galleryUrl || raw.url || '');
+      const extension = String(raw.extension || raw.ext || url.split(/[?#]/)[0].match(/\.([a-z0-9]+)$/i)?.[1] || '').toLowerCase();
+      // Pinterest stories also emit text: paragraphs and audio blocks. They
+      // are not visual references and must not masquerade as image components.
+      if (url.startsWith('text:') || (extension && !IMAGE_EXTENSIONS.has(extension) && !VIDEO_EXTENSIONS.has(extension) && extension !== 'm3u8')) return false;
+      const key = raw.num != null ? `num:${raw.num}` : url || `position:${seenMedia.size}`;
+      if (seenMedia.has(key)) return false;
+      seenMedia.add(key);
+      return true;
+    });
 
     if (!usableParts.length) {
       return null;
@@ -648,8 +670,9 @@ export function createGallerySource(spec) {
 
     const components = usableParts.map(
       (entry, index) => ({
-        index: index + 1,
+        index: Number(entry.raw?.num) > 0 ? Number(entry.raw.num) : index + 1,
         mediaType: entry.mediaType,
+        directMedia: code === 'pinterest' ? pinterestMedia(entry.raw || {}) : null,
         previewUrl: entry.previewUrl,
         /*
          * Для компонента нужен URL файла, а не страница пина.
@@ -689,7 +712,7 @@ export function createGallerySource(spec) {
       )?.previewUrl ||
       '';
 
-    return {
+    const post = {
       postId: head.postId,
       externalId: head.externalId,
       shortcode: head.externalId,
@@ -757,11 +780,13 @@ export function createGallerySource(spec) {
           head.collectionParentName || '',
       }],
     };
+    return decoratePost ? decoratePost(post, parts.map(entry => entry.raw)) : post;
   }
 
   /* -------- Поиск -------- */
   async function discover({
     username,
+    targetUrl = '',
     browser = 'chrome',
     browserProfile = '',
     cookieFile = '',
@@ -803,12 +828,12 @@ export function createGallerySource(spec) {
     try {
 
     const cleanUser = String(username || '').trim().replace(/^@/, '');
-    if (needsAccount && !cleanUser) {
+    if (needsAccount && !cleanUser && !targetUrl) {
       throw new Error(`Не указан аккаунт для ${title}`);
     }
 
     const profile = SPEED_PROFILES[speedProfile] || SPEED_PROFILES.safe;
-    const targets = buildTargets({ username: cleanUser, collections });
+    const targets = targetUrl ? [{id:'link', name:title, url:sourceLinkTarget(code, targetUrl)}] : buildTargets({ username: cleanUser, collections });
     if (!targets.length) {
       throw new Error(`${title}: не удалось определить, где искать`);
     }
@@ -872,7 +897,10 @@ export function createGallerySource(spec) {
       let buffer = '';
 
       const result = await runDiscoveryWithStop(runGallery, args, {
+        jsonDocument: discoveryJsonDocument,
         stopLink,
+        knownPostIds,
+        stopAtKnown: searchMode === 'smart' || searchMode === 'recent',
         recordToPost: (record) => normalize(record, { target, accountUsername: cleanUser }),
         signal,
         onStdout: (chunk) => {
@@ -888,17 +916,22 @@ export function createGallerySource(spec) {
         },
       });
 
+      if (result.knownPostReached) stoppedEarly = true;
+
+      if (result.knownPostReached) stoppedEarly = true;
       if (result.stopLinkReached) {
         stoppedEarly = true;
         stopLinkTargets.push(String(target.id));
         onLog?.(`Stop Link: достигнута граница в «${target.name}».`);
       }
 
-      if (result.code !== 0 && !buffer.trim() && !result.stopLinkReached) {
+      if (result.code !== 0 && !buffer.trim() && !result.stopLinkReached && !result.knownPostReached) {
         throw new Error(describeFailure(result, browser, title));
       }
 
-      const found = assemble(parseDumpJson(buffer), {
+      const records = parseDumpJson(buffer);
+      if (!signal?.aborted && !result.stopLinkReached && !result.knownPostReached) validateDiscovery?.(records);
+      const found = assemble(records, {
         target,
         accountUsername: cleanUser,
       });
@@ -1057,6 +1090,7 @@ export function createGallerySource(spec) {
     onOffline = null,
     onStagingReady = null,
     onCompleted = null,
+    preparePost = null,
   } = {}) {
     if (!nodeApi.available) {
       throw new Error('Скачивание доступно только внутри Eagle');
@@ -1130,17 +1164,24 @@ export function createGallerySource(spec) {
         });
       }
 
+      const stopCaseProgress=watchCaseProgress({post,postDir,current:index+1,total:posts.length,onProgress});
+      try {
       const args = [
         '--config-ignore',
         '--no-input',
         '--retries', String(profile.retries),
         '--http-timeout', '60',
         ...paceArgs(profile),
-        ...extraDownloadArgs,
+        ...(typeof extraDownloadArgs === 'function' ? extraDownloadArgs(post) : extraDownloadArgs),
         '--dest', postDir,
         '--filename', '{num}.{extension}',
         '--directory', '',
       ];
+      if (code === 'behance' && Array.isArray(post.selectedComponents)) {
+        const numbers = post.selectedComponents.map(Number).filter(number => Number.isInteger(number) && number > 0);
+        if (!numbers.length) continue;
+        args.push('--range', [...new Set(numbers)].join(','));
+      }
       if (cookies) {
         if (cookieFile) {
           args.push(
@@ -1161,14 +1202,21 @@ export function createGallerySource(spec) {
       args.push(post.url);
 
       let error = null;
+      let retryableVideoError = false;
       let attempts = 0;
+      let issue = null;
 
       for (;;) {
         attempts += 1;
         error = null;
+        retryableVideoError = false;
+        issue = null;
         let raw = '';
         try {
-          const result = await runGallery(args, {
+          await preparePost?.(post, {cookieFile, signal});
+          const plan = code === 'pinterest' ? pinterestDownloadPlan(post) : [];
+          let result = plan.length ? await downloadMediaPlan({ plan, postDir, signal, control, profile }) : null;
+          if (!result || result.code !== 0) result = await runGallery(args, {
             signal,
             onStderr: (chunk) => {
               raw += chunk;
@@ -1178,11 +1226,16 @@ export function createGallerySource(spec) {
           });
           raw += `\n${result.stdout || ''}\n${result.stderr || ''}`;
           if (result.code !== 0) error = describeFailure(result, browser, title);
+          retryableVideoError=Boolean(error && code==='behance' && isRetryableVideoFailure(raw));
         } catch (runError) {
           raw += `\n${runError.message}`;
           error = runError.message;
         }
 
+        if (error) {
+          issue = downloadIssue(redactCommon(raw));
+          error = `${error} ${issue.detail}`.trim();
+        }
         if (!error) {
           if (control) control.resetRetries();
           break;
@@ -1200,22 +1253,51 @@ export function createGallerySource(spec) {
       let files = [];
       try {
         files = fs.readdirSync(postDir)
-          .filter((name) => !name.startsWith('.'))
+          .filter(finalMediaName)
           .map((name) => path.join(postDir, name))
           .filter((file) => {
-            try { return fs.statSync(file).size > 0; } catch (_) { return false; }
+            try { const stat = fs.statSync(file); return stat.isFile() && stat.size > 0; } catch (_) { return false; }
           })
           .sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
       } catch (_) { /* пусто */ }
 
-      if (!files.length && !error) {
-        error = `${title}: файлы не получены для этой публикации`;
+      const verifiedFiles = [];
+      let validationFailed=false;
+      for (const file of files) {
+        try {
+          if(code==='behance')await validateCaseVideo(file,{post,args,postDir,ffmpeg:toolchain.ffmpeg,signal,control,onLog:line=>onLog?.(redactCommon(line))});
+          else await validateVideo(file, { ffmpeg: toolchain.ffmpeg, signal });
+          verifiedFiles.push(file);
+        } catch (validationError) {
+          if (signal?.aborted) throw validationError;
+          validationFailed=true;
+          error = redactCommon(validationError.message);
+          issue = downloadIssue(error);
+          onLog?.(error);
+        }
+      }
+      const retry=code==='behance' ? await retryMissingCaseVideos({post,files:verifiedFiles,existingFiles:files,args,postDir,
+        ffmpeg:toolchain.ffmpeg,signal,control,onLog:line=>onLog?.(redactCommon(line))}) : {files:verifiedFiles,recovered:0,failures:[]};
+      files = retry.files.sort((a,b)=>a.localeCompare(b,undefined,{numeric:true}));
+      const expectedNumbers = Array.isArray(post.selectedComponents) && post.selectedComponents.length
+        ? post.selectedComponents
+        : post.components?.map(component => component.index) || [1];
+      const actualNumbers = new Set(files.map(file => Number(path.basename(file).match(/^(\d+)\./)?.[1])));
+      const allReceived=files.length>0 && expectedNumbers.every(number=>actualNumbers.has(Number(number)));
+      if(retry.recovered && allReceived && !validationFailed && !retry.failures.length && retryableVideoError) {
+        error=null;issue=null;control?.resetRetries();
+        onLog?.('Видеоблоки восстановлены; все выбранные файлы получены и проверены.');
+      }
+      if(retry.failures.length){error=redactCommon(retry.failures.join(' '));issue=downloadIssue(error);}
+      if (!error && (!files.length || expectedNumbers.some(number => !actualNumbers.has(Number(number))))) {
+        error = `${title}: не все выбранные фото и видео получены для этой публикации`;
       }
 
       const completedEntry = {
         post,
         files,
         error,
+        issue,
       };
 
       results.push(completedEntry);
@@ -1230,6 +1312,7 @@ export function createGallerySource(spec) {
           `Ошибка: ${post.url} — ${error}`,
         );
       }
+      } finally { stopCaseProgress(); }
     }
 
     return { stagingRoot, results };
@@ -1289,6 +1372,9 @@ export function describeFailure(result, browser, title) {
   }
   if (text.includes('database is locked') || text.includes('permissionerror')) {
     return `Файл cookies занят браузером «${browser}». Закройте браузер и повторите.`;
+  }
+  if (title === 'Behance' && /\[downloader\.ytdl\]\[error\]/.test(text)) {
+    return 'Не удалось скачать встроенное видео. Проверьте доступ к нему в плеере; остальные выбранные файлы сохраняются.';
   }
   if (text.includes('login required') || text.includes('checkpoint') ||
       text.includes('challenge') || text.includes('unauthorized')) {

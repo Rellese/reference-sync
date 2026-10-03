@@ -1,3 +1,21 @@
+import {cleanupCookieSnapshots} from './private-cookies.js';
+try { cleanupCookieSnapshots(); } catch { console.warn('ReferenceSync: cookie cleanup unavailable'); }
+import {caseStructure,fitCaseStructureColumn} from './case/structure.js';
+import {caseProgressInfo} from './case/progress.js';
+import { isPostImported, caseModes, caseRegistryId, caseImportItem, pendingCase } from './case/download.js';
+import {caseOutputName,caseNamingHistory} from './case/naming.js';
+import { searchSettings } from './source-link.js';
+import { sessionErrorTitle } from './session-account.js';
+import { summarizeImportOutcome } from './download-outcome.js';
+import { pinterestDownloadPlan } from './pinterest-media.js';
+import { pendingEagleWrite, recoverAcknowledgedEagleWrite, retireIntermediateEagleWrite } from './eagle-write-guard.js';
+import { createNumberingProgress } from './numbering-progress.js';
+import { joinText, L, setText, setUiText, setLocalizedProperty, setLanguage } from './i18n.js';
+import { startPickerDrag } from './picker-drag.js';
+import { readArchive } from './archive-reader.js';
+import { resolveArchiveLinks, downloadArchivePosts } from './archive-transfer.js';
+import { installPanelResizers } from './panel-resize.js';
+import { attachThumbnail } from './thumbnail.js';
 /* ============================================================
    ReferenceSync — точка входа плагина Eagle
 
@@ -23,6 +41,9 @@ import {
   groupPostsByCollection,
   collectionSelectionState,
   collectionSelectionChanges,
+  ensureDefaultOccurrences,
+  occurrenceIdOf,
+  occurrenceSelected,
 } from './collection-table.js';
 
 import {
@@ -43,6 +64,8 @@ import {
 import {
   state,
   loadSettings,
+  settingsForPlatform,
+  setPlatformNaming,
   setSetting,
   numberingCounters,
   visiblePosts,
@@ -67,15 +90,18 @@ import {
 } from './instagram.js';
 
 import {
-  createPinterestCookieSnapshot,
+  requireMatchingPinterestSession,
   removePinterestCookieSnapshot,
 } from './sources/pinterest-containers.js';
 
 import {
   getSource,
+  listSources,
   getSourceForPosts,
 } from './sources/index.js';
 import { stopLinkFromSettings } from './stop-link.js';
+import { discoverInstalledBrowsers } from './browser-installations.js';
+import { createProfileSessionController } from './profile-session.js';
 
 import {
   checkEagle,
@@ -87,9 +113,16 @@ import {
   orderImportItemsOldestFirst,
   orderPostsOldestFirst,
   resolveComponentName,
+  ensureEagleFolderRoute,
 } from './eagle-import.js';
 
 import {
+  buildPostFolderRoute,
+  platformFolderName,
+} from './folder-routing.js';
+
+import {
+  alignPinterestRecordCounts,
   applyDiscoveryBoundary,
   loadImportRecords,
   reconcileImportRecords,
@@ -118,7 +151,7 @@ import {
 } from './browser-profiles.js';
 
 import {
-  toolchain, detectToolchain, installToolchain, updateToolchain,
+  toolchain, detectToolchain, installToolchain, updateToolchain, hasVideoDownloader,
   versionString, describeToolchainError,
 } from './toolchain.js';
 
@@ -140,6 +173,7 @@ import {
 
 /* Текущая фаза: idle | searching | ready | importing */
 let phase = 'idle';
+let archiveData = null;
 
 let ui = {};
 
@@ -172,6 +206,8 @@ let counterHistoryRecords = new Map();
  * Это состояние интерфейса, поэтому в настройки не записывается.
  */
 const collapsedCollectionIds = new Set();
+const collectionHeaderCheckboxes = new Map();
+const tablePostCopies = new Map();
 
 /*
  * Свёрнутые доски на первом этапе,
@@ -257,10 +293,12 @@ function rememberImportedCounterHistory(
   settings,
   importedPostIds,
   counters,
+  created = [],
 ) {
+  const caseHistory=settings.platform==='behance' ? caseNamingHistory(created,state.posts) : null;
   if (
     settings.numberingEnabled !== true ||
-    !importedPostIds?.size ||
+    !(caseHistory?.importedPostIds.size || importedPostIds?.size) ||
     !counters?.length
   ) {
     return false;
@@ -274,10 +312,10 @@ function rememberImportedCounterHistory(
         settings.platform,
       counters,
       posts:
-        state.posts,
+        caseHistory?.posts || state.posts,
       generated:
-        state.generated,
-      importedPostIds,
+        caseHistory?.generated || state.generated,
+      importedPostIds: caseHistory?.importedPostIds || importedPostIds,
     });
 
   return saveCounterHistoryRecords(
@@ -285,7 +323,46 @@ function rememberImportedCounterHistory(
   );
 }
 
-async function refreshImportRegistry() {
+function finishImportSelection() {
+  resetSelectionsAfterImport(state.posts, state.selected);
+  state.selectedOccurrences.clear();
+  renderTable();
+  syncFooterActionAvailability();
+  if (recoveryState) checkpointRecovery('ready');
+}
+
+function alignCurrentImportCounts() {
+  const records = alignPinterestRecordCounts(state.importRecords, state.posts);
+  const reconciled = reconcileImportRecords(records,
+    [...records.values()].flatMap(record => [...record.components.values()].map(id => ({ id }))));
+  state.importRecords = reconciled.records;
+  state.knownPostIds = reconciled.knownPostIds;
+  state.missingComponents = reconciled.missingComponents;
+  saveImportRecords(state.importRecords);
+}
+
+function recordConfirmedImport(createdEntry) {
+  state.importRecords = recordCreatedEagleItems(state.importRecords, [createdEntry]);
+  saveImportRecords(state.importRecords);
+  const postId = String(createdEntry.item.postId);
+  const record = state.importRecords.get(postId);
+  if (!record) return;
+  const confirmed = reconcileImportRecords(new Map([[postId, record]]),
+    [...record.components.values()].map(id => ({ id })));
+  if (confirmed.knownPostIds.has(postId)) {
+    state.knownPostIds.add(postId);
+    state.missingComponents.delete(postId);
+    state.selected.delete(postId);
+    state.selectedOccurrences.delete(postId);
+  } else {
+    state.missingComponents.set(postId, confirmed.missingComponents.get(postId));
+  }
+  const post = state.posts.find(post => post.postId === postId);
+  if (post) syncTablePostCheckbox(post);
+  scheduleTableSelectionTitleUpdate();
+}
+
+async function refreshImportRegistry(confirmed = []) {
   const eagleIds = [];
 
   for (const record of state.importRecords.values()) {
@@ -301,7 +378,17 @@ async function refreshImportRegistry() {
     return;
   }
 
-  const eagleItems = await findEagleItemsByIds(eagleIds);
+  let eagleItems;
+  try {
+    const confirmedIds = new Set(confirmed.map(entry => String(entry.id)));
+    eagleItems = [...await findEagleItemsByIds(eagleIds.filter(id => !confirmedIds.has(String(id)))),
+      ...confirmed.map(entry => ({ id: entry.id }))];
+  } catch (error) {
+    // Retain durable acknowledgements if Eagle is unavailable. A subsequent
+    // successful read can still detect files genuinely removed by the user.
+    ui.log?.add(error.message, 'warn');
+    eagleItems = eagleIds.map(id => ({ id }));
+  }
 
   const reconciled = reconcileImportRecords(
     state.importRecords,
@@ -332,9 +419,10 @@ async function refreshImportRegistry() {
 }
 
 function recoveryDownloadSnapshot(downloaded) {
-  return (downloaded || []).map((entry) => ({
+  return (downloaded || []).filter(entry => !entry.error && !entry.caseError && (entry.files?.length || entry.caseFile)).map((entry) => ({
     postId: entry.post.postId,
     files: [...entry.files],
+    caseFile: entry.caseFile, caseComplete: entry.caseComplete, blockFiles: entry.blockFiles,
   }));
 }
 
@@ -361,7 +449,8 @@ function restoreDownloadedEntries(snapshot) {
 
     if (
       !post ||
-      !files.length ||
+      (!files.length && !entry.caseFile) ||
+      (entry.caseFile && !nodeApi.fs.existsSync(entry.caseFile)) ||
       files.some((file) => !nodeApi.fs.existsSync(file))
     ) {
       return null;
@@ -370,6 +459,7 @@ function restoreDownloadedEntries(snapshot) {
     restored.push({
       post,
       files,
+      caseFile:entry.caseFile, caseComplete:entry.caseComplete, blockFiles:entry.blockFiles,
       error: null,
     });
   }
@@ -394,6 +484,9 @@ function checkpointRecovery(phaseName, extra = {}) {
     settings: { ...state.settings },
     posts: state.posts,
     selectedPostIds: [...state.selected],
+    selectedOccurrences: [
+      ...state.selectedOccurrences.entries(),
+    ],
     completedPostIds: [...state.knownPostIds],
     stagingRoot:
       extra.stagingRoot ??
@@ -457,6 +550,12 @@ async function restoreInterruptedJob() {
   }
 
   recoveryState = stored;
+  if (stored.settings?.source === 'meta') {
+    archiveData = { source: stored.settings.platform, posts: stored.posts || [], collections: stored.archiveCollections || [], links: stored.archiveLinks || [], stagingRoot: stored.stagingRoot };
+    state.collections = archiveData.collections;
+    ui.settings.setArchiveStatus(`Восстановлено публикаций: ${archiveData.posts.length}. Ссылок: ${archiveData.links.length}.`, archiveData.links.length);
+    ui.results.showArchive();
+  }
 
   if (
     stored.settings &&
@@ -476,6 +575,27 @@ async function restoreInterruptedJob() {
     stored.selectedPostIds || [],
   );
 
+  const recoveredOccurrences =
+    new Map(
+      Array.isArray(
+        stored.selectedOccurrences,
+      )
+        ? stored.selectedOccurrences.filter(
+            (entry) =>
+              Array.isArray(entry) &&
+              entry.length >= 2 &&
+              state.selected.has(entry[0]) &&
+              entry[1],
+          )
+        : [],
+    );
+
+  state.selectedOccurrences =
+    ensureDefaultOccurrences(
+      state.posts,
+      state.selected,
+      recoveredOccurrences,
+    );
 
   if (state.posts.length) {
     resetAllEdits();
@@ -569,6 +689,10 @@ function bindCloseLifecycle() {
 async function boot() {
   bindCloseLifecycle();
   loadSettings();
+  if (!listSources().some(source => source.code === state.settings.platform && source.ready)) {
+    setSetting('platform', 'instagram');
+  }
+  setLanguage(state.settings.language);
   state.importRecords = loadImportRecords();
 
   counterHistoryRecords =
@@ -580,24 +704,31 @@ async function boot() {
 
   ui.header = buildHeader({
     onLanguage: (code) => {
-      setSetting('language', code);
-      ui.log.add(`Язык интерфейса: ${code}. Перевод строк подключим позже.`, 'warn');
+      setSetting('language', setLanguage(code));
+      fitCaseStructureColumn(ui.results.node,visiblePosts(),currentCarouselState);
     },
   });
 
   ui.social = buildSocial({
     onSelect: (platform) => {
       setSetting('platform', platform);
+      ui.naming?.sync();
+      refreshNames();
+      renderTable();
       ui.settings?.sync();
+      refreshProfileSession();
       ui.log.add(`Выбрана платформа: ${platform}`);
     },
   });
 
   ui.settings = buildSettings({
+    canChangeScenario: () => !['searching', 'importing'].includes(phase),
+    onArchive: readSelectedArchive,
+    onArchiveResolve: resolveSelectedArchive,
     onChange: (key) => {
-      if (key === 'browser') {
-        refreshBrowserProfiles();
-      }
+      if (key === 'downloadMode') { clearResults(); ui.settings.sync(); refreshProfileSession(); }
+      if (key === 'browser') refreshBrowserProfiles();
+      else if (key === 'browserProfile') refreshProfileSession();
 
       if (key === 'extraFilters' || key.startsWith('filter') ||
           key.startsWith('author')) {
@@ -605,6 +736,8 @@ async function boot() {
       }
     },
   });
+
+  ui.settings.sync();
 
   ui.status = buildStatus({
     onCommand: (name) =>
@@ -673,6 +806,7 @@ async function boot() {
   );
 
   document.body.appendChild(app);
+  installPanelResizers({ app, work, right, settings: ui.settings.node, results: ui.results.node, naming: ui.naming.node });
 
   renderTable();
   bindShortcuts();
@@ -690,6 +824,11 @@ async function boot() {
    Профили выбранного браузера
    ------------------------------------------------------------ */
 function refreshBrowserProfiles() {
+  const installed = discoverInstalledBrowsers();
+  if (!installed.some(entry => entry.value === state.settings.browser)) {
+    setSetting('browser', installed[0]?.value || '');
+  }
+  ui.settings.setBrowsers(installed, state.settings.browser);
   const browser = state.settings.browser;
   const profiles = discoverBrowserProfiles(browser);
 
@@ -701,6 +840,7 @@ function refreshBrowserProfiles() {
 
   setSetting('browserProfile', selectedId);
   ui.settings.setBrowserProfiles(profiles, selectedId);
+  refreshProfileSession();
 
   if (!profiles.length) {
     ui.log?.add(
@@ -772,6 +912,7 @@ async function checkToolchain() {
   });
 
   if (toolchain.ready) {
+    refreshProfileSession();
     ui.results.engine.setState('ready',
       `Движок загрузки готов · gallery-dl ${versionString(toolchain.version)}`,
       { button: 'Обновить' });
@@ -813,6 +954,7 @@ async function prepareToolchain() {
       },
     });
 
+    refreshProfileSession();
     ui.results.engine.setState('ready',
       `Движок загрузки готов · gallery-dl ${versionString(toolchain.version)}`,
       { button: 'Обновить', progress: 100 });
@@ -956,6 +1098,33 @@ let lastProgressLead = '';
 let lastProgressTrail = '';
 
 /* Подписи блока Publication info — общие для состояний 1, 3, 4, 5 */
+let importResult = null;
+let importResultVisible = false;
+
+function showImportResult(outcome, hasErrors) {
+  importResult = outcome;
+  importResultVisible = true;
+  ui.status.progress.update({
+    mode: hasErrors ? 'stopped' : 'complete',
+    summary: true,
+    lead: hasErrors ? 'Импорт завершён с ошибками' : 'Импорт завершён',
+    trail: `Полностью добавленных публикаций: ${outcome.complete}/${outcome.total}`,
+    found: `Частично: ${outcome.partial}`,
+    displayed: `Не импортировано: ${outcome.notImported}`,
+    selected: `Файлов добавлено: ${outcome.files}`,
+  });
+}
+
+function syncImportResultSelection() {
+  if (!importResult || phase !== 'ready') return;
+  if (selectedImportablePostCount() > 0) importResultVisible = false;
+  if (!importResultVisible) ui.status.progress.update({
+    mode: 'stopped', summary: false,
+    lead: 'Готово к импорту', trail: `0 из ${selectedImportablePostCount()}`,
+    ...publicationInfo(),
+  });
+}
+
 function publicationInfo() {
   const visible = visiblePosts();
 
@@ -965,6 +1134,36 @@ function publicationInfo() {
     selected:
       `Выбрано: ${state.selected.size}/${state.posts.length} публикаций`,
   };
+}
+
+const profileSession = createProfileSessionController({
+  async probe(settings, signal) {
+    if (!nodeApi.available || !toolchain.ready) return { status: 'unavailable' };
+    const probe = getSource(settings.platform).probe;
+    if (probe) return probe({ ...settings, signal });
+    return { status: 'unavailable' };
+  },
+  onState(result) {
+    const settings = result.settings;
+    const source = getSource(settings.platform).title;
+    const profiles = discoverBrowserProfiles(settings.browser);
+    const profile = profiles.find(p => p.id === settings.browserProfile);
+    const name = profile ? `${profile.name} (${profile.id})` : L('Стандартный профиль');
+    const status = result.status === 'authenticated' ? `В ${source} авторизован **@${result.username}**.`
+      : result.status === 'checking' ? 'Проверяем аккаунт…'
+      : result.status === 'signed-out' ? `Вход в ${source} не выполнен.`
+      : result.status === 'unavailable' ? 'Аккаунт будет проверен после подготовки движка.'
+      : result.status === 'network-error' ? `Не удалось связаться с ${source}. Проверьте соединение и VPN.`
+      : result.status === 'browser-error' ? 'Не удалось прочитать выбранный профиль браузера. Проверьте доступ к нему.'
+      : result.status === 'access-denied' ? `${source} отклонил проверку. Откройте сайт в выбранном профиле браузера.`
+      : result.status === 'rate-limited' ? `${source} временно ограничил запросы. Повторите проверку позже.`
+      : 'Сайт ответил, но не передал данные аккаунта. Проверьте вход в выбранном профиле.';
+    ui.settings?.setProfileHint(joinText(name, '. ', L(status)), source);
+  },
+});
+
+function refreshProfileSession() {
+  if (state.settings.source === 'browser' || state.settings.platform === 'behance') profileSession.refresh(state.settings);
 }
 
 async function requireMatchingInstagramSession(settings, signal) {
@@ -1007,10 +1206,11 @@ async function requireMatchingInstagramSession(settings, signal) {
   try{
     throwIfAborted(signal);
 
-    ui.settings.setInstagramProfileHint(
-      session.username,
-      browserName,
-    );
+    if (settings.browser === state.settings.browser &&
+        settings.browserProfile === state.settings.browserProfile &&
+        state.settings.platform === 'instagram') {
+      ui.settings.setInstagramProfileHint(session.username, browserName);
+    }
 
     if (!session.authenticated) {
       const error = new Error(
@@ -1228,13 +1428,82 @@ function resolveSelectedCollections(
     }));
 }
 
+function presentArchive() {
+  state.posts = [...new Map(archiveData.posts.map(post => [post.postId, post])).values()];
+  state.collections = archiveData.collections || [];
+  state.selected = new Set(state.posts.filter(post => !state.knownPostIds.has(post.postId)).map(post => post.postId));
+  state.selectedOccurrences =
+    ensureDefaultOccurrences(
+      state.posts,
+      state.selected,
+      state.selectedOccurrences,
+    );
+  resetAllEdits(); refreshNames(); renderTable();
+  phase = state.posts.length ? 'ready' : 'idle';
+  ui.results.showArchive();
+  ui.footer.action.setLabel(state.posts.length ? 'Скачать и добавить в Eagle' : 'Начать поиск');
+  ui.settings.setArchiveStatus(`Публикаций с медиа: ${state.posts.length}. Ссылок без медиа: ${archiveData.links.length}.`, archiveData.links.length);
+  ui.status.set('Архив прочитан', archiveData.links.length ? 'Для ссылок нажмите «Загрузить публикации по ссылкам»' : 'Выберите публикации для импорта');
+  checkpointRecovery('ready', { stagingRoot: archiveData.stagingRoot, archiveLinks: archiveData.links, archiveCollections: archiveData.collections });
+}
+async function readSelectedArchive(file) {
+  if (phase === 'searching' || phase === 'importing') return;
+  const source = state.settings.platform;
+  if (!['instagram', 'pinterest'].includes(source)) { ui.status.set('Архив недоступен', 'Выберите Instagram или Pinterest'); return; }
+  let filePath = file?.path;
+  try { if (!filePath) filePath = window.require?.('electron')?.webUtils?.getPathForFile(file); } catch {}
+  if (!filePath) { ui.status.set('Не удалось открыть файл', 'Чтение архивов доступно внутри Eagle'); return; }
+  phase = 'searching'; manualStopRequested = false;
+  state.abortController = new AbortController();
+  ui.footer.action.setLabel('Остановить');
+  ui.status.set('Чтение архива…', file.name || '', true);
+  try {
+    const result = await readArchive(filePath, { source, signal: state.abortController.signal,
+      onProgress: ({ current, total }) => ui.status.set('Распаковка архива…', `${current} из ${total}`, true) });
+    discardRecovery();
+    archiveData = result;
+    await refreshImportRegistry();
+    presentArchive();
+  } catch (error) {
+    phase = state.posts.length ? 'ready' : 'idle';
+    ui.status.set('Архив не прочитан', error.message);
+    ui.footer.action.setLabel(state.posts.length ? 'Скачать и добавить в Eagle' : 'Начать поиск');
+  } finally { state.abortController = null; }
+}
+async function resolveSelectedArchive() {
+  if (phase === 'searching' || phase === 'importing' || !archiveData?.links.length) return;
+  if (archiveData.source !== state.settings.platform) { ui.status.set('Выберите соцсеть архива', archiveData.source); return; }
+  if (!await ensureToolchain()) return;
+  phase = 'searching'; manualStopRequested = false;
+  state.abortController = new AbortController(); ui.footer.action.setLabel('Остановить');
+  try {
+    const result = await resolveArchiveLinks(archiveData.links, { settings: { ...state.settings }, signal: state.abortController.signal,
+      onProgress: (current, total) => ui.status.set('Получение публикаций из архива…', `${current} из ${total}`, true),
+      onResolved: (link, posts) => {
+        archiveData.posts.push(...posts);
+        archiveData.links = archiveData.links.filter(item => item.publicationId !== link.publicationId);
+        state.posts = archiveData.posts;
+        checkpointRecovery('searching', { stagingRoot: archiveData.stagingRoot, archiveLinks: archiveData.links, archiveCollections: archiveData.collections });
+      },
+    });
+    archiveData.links = result.failed;
+    presentArchive();
+  } catch (error) {
+    presentArchive(); ui.status.set('Обработка ссылок прервана', error.message);
+  } finally { state.abortController = null; }
+}
+
 /* ---------- Поиск ---------- */
 async function runSearch() {
+  importResult = null;
+  importResultVisible = false;
   /* Настройки фиксируются на момент нажатия «Поиск».
    Изменения формы во время операции не должны менять уже
    запущенный профиль браузера или лимит. */
   await refreshImportRegistry();
-  const s = { ...state.settings };
+  let s;
+  try { s = searchSettings(state.settings); }
+  catch (error) { ui.status.set('Проверьте ссылку', error.message); return; }
 
   let activeSource;
 
@@ -1270,14 +1539,8 @@ async function runSearch() {
   }
 
   if (s.source === 'meta') {
-    ui.log.add('Разбор архива Meta пока не реализован.', 'warn');
-    ui.status.set('Источник недоступен', 'Выберите «Через авторизованный браузер»');
-    return;
-  }
-
-  if (!s.username.trim()) {
-    ui.status.set('Не указан аккаунт', 'Введите Instagram-никнейм в шаге 1');
-    ui.log.add('Поиск невозможен: не заполнено имя аккаунта.', 'err');
+    if (archiveData?.links.length) await resolveSelectedArchive();
+    else ui.status.set('Выберите архив', 'Перетащите ZIP, JSON или HTML в область выбора файла');
     return;
   }
 
@@ -1285,9 +1548,15 @@ async function runSearch() {
   try {
     stopLink = stopLinkFromSettings(s);
   } catch (error) {
-    ui.settings.sync();
+    ui.settings.showStopLinkError();
     ui.status.set('Проверьте ссылку остановки', error.message);
     ui.log.add(error.message, 'err');
+    return;
+  }
+
+  if (!s.targetUrl && s.platform !== 'behance' && !s.username.trim()) {
+    ui.status.set('Не указан аккаунт', 'Введите имя пользователя');
+    ui.log.add('Поиск невозможен: не заполнено имя аккаунта.', 'err');
     return;
   }
 
@@ -1313,7 +1582,7 @@ async function runSearch() {
     `Идёт обращение к ${activeSource.title}`,
     true,
   );
-  ui.log.add(`Поиск: @${s.username}, режим ${s.searchMode}`);
+  ui.log.add(`Поиск: ${s.platform === 'behance' ? 'Behance' : '@' + s.username}, режим ${s.searchMode}`);
 
   /* Состояние 6 — «Search for Publications»: бегущая полоса
      из начала в конец, пока идёт обращение к Eagle и браузеру */
@@ -1361,35 +1630,17 @@ async function runSearch() {
   }
 
   try {
-    const session = isInstagram
+    const session = isInstagram && !s.targetUrl
       ? await requireMatchingInstagramSession(
           s,
           operationController.signal,
         )
-      : isPinterest
-        ? {
-            cookieFile:
-              await createPinterestCookieSnapshot({
-                username: s.username,
-                browser: s.browser,
-                browserProfile:
-                  s.browserProfile,
-                signal:
-                  operationController.signal,
-              }),
-
-            username:
-              s.username,
-
-            browser:
-              s.browser,
-
-            browserProfile:
-              s.browserProfile,
-          }
+      : isPinterest && !s.targetUrl
+        ? await requireMatchingPinterestSession(s, operationController.signal)
         : {
             cookieFile: '',
             username: s.username,
+            targetUrl: s.targetUrl,
             browser: s.browser,
             browserProfile:
               s.browserProfile,
@@ -1591,6 +1842,7 @@ async function runSearch() {
       try {
         discoveryResult =
           await runDiscover({
+            targetUrl: s.targetUrl,
             username: s.username,
             browser: s.browser,
             browserProfile: s.browserProfile,
@@ -1657,6 +1909,7 @@ async function runSearch() {
                 true,
               );
 
+              ui.results.setTitle(0, discoveryFound);
               ui.status.progress.update({
                 mode: 'search',
                 lead: collectionName
@@ -1745,9 +1998,17 @@ async function runSearch() {
     await nextFrames(2);
 
     state.posts = posts;
+    alignCurrentImportCounts();
     state.selected = new Set(
       posts.map((post) => post.postId),
     );
+
+    state.selectedOccurrences =
+      ensureDefaultOccurrences(
+        state.posts,
+        state.selected,
+        state.selectedOccurrences,
+      );
 
     checkpointRecovery('ready');
     resetAllEdits();
@@ -1901,7 +2162,27 @@ function startProgressMessageRotation({
 
 /* ---------- Скачивание и импорт ---------- */
 async function runImport() {
-  const s = { ...state.settings };
+  if (retireIntermediateEagleWrite()) ui.log.add('Старая запись промежуточной дорожки исключена из очереди. Файлы в Eagle не изменены.', 'warn');
+  recoverAcknowledgedEagleWrite(recordConfirmedImport);
+  if (pendingEagleWrite()) {
+    ui.status.set('Ожидание подтверждения Eagle', 'Предыдущий файл ещё не подтверждён. Повторный импорт заблокирован, чтобы не создать дубль.');
+    return;
+  }
+  alignCurrentImportCounts();
+  for (const postId of state.knownPostIds) {
+    if (pendingCase(state.posts.find(post => post.postId === postId), state.knownPostIds)) continue;
+    state.selected.delete(postId);
+    state.selectedOccurrences.delete(postId);
+  }
+  renderTable();
+  syncFooterActionAvailability();
+  const s = { ...state.settings, folderSearch: state.settings.downloadMode === 'link' ? false : state.settings.platform === 'behance' || state.settings.folderSearch };
+  const advanceNumbering = createNumberingProgress(s, state.generated);
+  const confirmNumbering = entry => {
+    const patch = advanceNumbering(settingsForPlatform(s.platform), entry.item);
+    for (const [key, value] of Object.entries(patch)) setPlatformNaming(s.platform, key, value);
+    if (Object.keys(patch).length && state.settings.platform === s.platform) ui.naming.sync(state.settings);
+  };
 
   const {
     counters: importCounters,
@@ -1910,6 +2191,8 @@ async function runImport() {
 
   await refreshImportRegistry();
 
+  if (s.platform === 'behance') refreshNames();
+
   const chosen = orderPostsOldestFirst(
     selectImportablePosts(
       visiblePosts(),
@@ -1917,6 +2200,11 @@ async function runImport() {
       state.knownPostIds,
     ),
   );
+
+  for (let i=0; i<chosen.length; i++) {
+    const post=chosen[i];
+    if (post.source === 'behance' && post.caseDocument) chosen[i]={...post,caseSelection:{whole:pendingCase(post,state.knownPostIds),blocks:caseModes(post).blocks && !state.knownPostIds.has(post.postId)}};
+  }
 
   if (!chosen.length) {
     ui.status.set(
@@ -1948,8 +2236,20 @@ async function runImport() {
     return;
   }
 
-  if (!await ensureToolchain()) return;
+  const isArchiveImport = chosen.some(post => post.archiveLocal || post.archiveLink);
+  const onlyLocalArchive = chosen.every(post => post.archiveLocal);
+  if (!onlyLocalArchive && !await ensureToolchain()) return;
+  const requiresVideoEngine = ['pinterest', 'behance'].includes(s.platform) && chosen.some(post => !post.archiveLocal &&
+    post.components?.some(component => component.mediaType === 'video') && (s.platform !== 'pinterest' || !pinterestDownloadPlan(post).length));
+  const hasVideo = ['pinterest', 'behance'].includes(s.platform) && chosen.some(post => !post.archiveLocal && post.components?.some(component => component.mediaType === 'video'));
+  if (hasVideo && !await hasVideoDownloader({ requireHls: requiresVideoEngine, requireBrowserCompatibility: s.platform === 'behance' })) {
+    ui.results.engine.setState('error', 'Нужно обновить видеокомпонент', { button: 'Скачать', detail: 'Будут загружены gallery-dl, yt-dlp, FFmpeg и компонент совместимости с браузерами из PyPI.' });
+    ui.status.set('Нужно обновить видеокомпонент', 'Нажмите «Скачать», затем повторите импорт.');
+    return;
+  }
 
+  importResult = null;
+  importResultVisible = false;
   phase = 'importing';
   manualStopRequested = false;
   state.abortController = new AbortController();
@@ -1979,35 +2279,20 @@ async function runImport() {
   try {
     const isInstagramImport =
       activeImportSource.code ===
-      'instagram';
+      'instagram' && !isArchiveImport;
 
     const isPinterestImport =
       activeImportSource.code ===
-      'pinterest';
+      'pinterest' && !isArchiveImport;
 
     const session =
-      isInstagramImport
+      isInstagramImport && s.downloadMode !== 'link'
         ? await requireMatchingInstagramSession(
             s,
             state.abortController.signal,
           )
-        : isPinterestImport
-          ? {
-              cookieFile:
-                await createPinterestCookieSnapshot({
-                  username:
-                    s.username,
-
-                  browser:
-                    s.browser,
-
-                  browserProfile:
-                    s.browserProfile,
-
-                  signal:
-                    state.abortController.signal,
-                }),
-            }
+        : isPinterestImport && s.downloadMode !== 'link'
+          ? await requireMatchingPinterestSession(s, state.abortController.signal)
           : {
               cookieFile: '',
             };
@@ -2015,8 +2300,9 @@ async function runImport() {
     sessionCookieFile =
       session.cookieFile;
 
+    const chosenIds = new Set(chosen.map(post => String(post.postId)));
     const restoredResults = Array.isArray(recoveredDownloaded)
-      ? recoveredDownloaded
+      ? recoveredDownloaded.filter(entry => chosenIds.has(String(entry.post?.postId)) && (!pendingCase(chosen.find(post=>post.postId===entry.post.postId),state.knownPostIds) || entry.caseFile)).map(entry=>({...entry,post:chosen.find(post=>post.postId===entry.post.postId)}))
       : [];
 
     const restoredPostIds = new Set(
@@ -2039,7 +2325,7 @@ async function runImport() {
     const {
       results: newResults,
       stopReason: downloadStopReason,
-    } = await runDownload({
+    } = await (isArchiveImport ? options => downloadArchivePosts(options, runDownload) : runDownload)({
       posts: postsToDownload,
       stagingRoot: recoveryState?.stagingRoot || '',
       browser: s.browser,
@@ -2059,8 +2345,9 @@ async function runImport() {
           mode: 'downloading',
           lead: lastProgressLead,
           trail: lastProgressTrail,
-          progress: (progress.current / progress.total) * DOWNLOAD_SHARE,
+          progress: (caseProgressInfo(progress)?.fraction ?? ((progress.current-(progress.post.source==='behance' && caseModes(progress.post).whole ? 1 : 0)) / progress.total)) * DOWNLOAD_SHARE,
           ...publicationInfo(),
+          ...(caseProgressInfo(progress) || {}),
         });
       },
       /* Обрыв связи — состояние 5 с отсчётом до попытки */
@@ -2113,11 +2400,16 @@ async function runImport() {
       downloaded: recoveryDownloadSnapshot(results),
     });
 
-    const downloaded = results.filter((entry) => entry.files.length);
-    const failedDownloads = results.filter((entry) => !entry.files.length);
+    const downloaded = results.filter((entry) => entry.files.length || entry.caseFile);
+    const failedDownloads = results.filter((entry) => entry.error || entry.caseError || (!entry.files.length && !entry.caseFile));
+    for (const entry of results) {
+      const post = state.posts.find(post => post.postId === entry.post.postId);
+      if (post) post.downloadIssue = (entry.error || entry.caseError) ? (entry.issue || { label: 'Ошибка загрузки — можно повторить', detail: entry.error || entry.caseError }) : null;
+    }
+    ui.log.add(`Скачивание завершено: проверено ${results.length} публикаций; полностью скачано ${results.length - failedDownloads.length}; с ошибками ${failedDownloads.length}; файлов ${downloaded.reduce((sum, entry) => sum + entry.files.length, 0)}.`, failedDownloads.length ? 'warn' : 'ok');
 
     failedDownloads.forEach((entry) => {
-      ui.log.add(`Не скачано: ${entry.post.url} — ${entry.error}`, 'err');
+      ui.log.add(`Не скачано: ${entry.post.url} — ${entry.error || entry.caseError}`, 'err');
     });
 
     if (!downloaded.length) {
@@ -2164,7 +2456,12 @@ async function runImport() {
         ? entry.post.selectedComponents
         : undefined;
 
-      const selectedFiles = selectedDownloadedFiles(entry, selection);
+      const selectedFiles = selectedDownloadedFiles({...entry,files:entry.post.source === 'behance' && !caseModes(entry.post).blocks ? [] : entry.files}, selection);
+      const caseItem=pendingCase(entry.post,state.knownPostIds) ? caseImportItem(entry) : null;
+      if (caseItem && !state.knownPostIds.has(caseItem.postId)) {
+        items.push({...caseItem,name:caseOutputName({names,nameOverride,fallback:caseItem.name}),
+          annotation:descOverride ?? names?.caseDescription ?? annotation,numberingValues:names?.caseCounterValues});
+      }
 
       selectedFiles.forEach(({
         file,
@@ -2181,7 +2478,7 @@ async function runImport() {
 
         items.push({
           path: file,
-          name: resolveComponentName({
+          name: entry.post.source==='behance' && entry.post.caseDocument ? caseOutputName({names,nameOverride,componentIndex,fallback:entry.post.username}) : resolveComponentName({
             nameOverride,
             generatedName: names?.name,
             componentNames,
@@ -2200,18 +2497,120 @@ async function runImport() {
           component: String(componentIndex),
           componentCount:
             entry.post.componentCount || entry.files.length,
+          ...(entry.post.source==='behance' && entry.post.caseDocument ? {numberingValues:names?.counterValuesByComponent?.[componentIndex]} : {}),
         });
       });
     });
 
     if (!items.length) {
       throw new Error(
-        'В выбранных публикациях нет компонентов для импорта',
+        failedDownloads.length
+          ? 'Выбранные публикации не подготовлены к импорту. Причины ошибок указаны в техническом журнале; повторите загрузку или выберите отдельные блоки.'
+          : 'В выбранных публикациях нет компонентов для импорта',
       );
+    }
+
+    if (s.folderSearch) {
+      ui.status.set(
+        'Подготовка папок Eagle…',
+        `Источник: ${activeImportSource.title}`,
+        true,
+      );
+
+      const postsById =
+        new Map(
+          downloaded.map(
+            (entry) => [
+              String(
+                entry?.post?.postId || '',
+              ),
+              entry.post,
+            ],
+          ),
+        );
+
+      const folderIdsByPostId =
+        new Map();
+
+      for (const item of items) {
+        const postId =
+          String(
+            item?.postId || '',
+          );
+
+        if (
+          !postId ||
+          folderIdsByPostId.has(postId)
+        ) {
+          continue;
+        }
+
+        const post =
+          postsById.get(item.sourcePostId || postId);
+
+        if (!post) {
+          continue;
+        }
+
+        const selectedOccurrenceId =
+          state.selectedOccurrences
+            instanceof Map
+            ? (
+                state.selectedOccurrences.get(
+                  item.sourcePostId || postId,
+                ) || ''
+              )
+            : '';
+
+        const route =
+          buildPostFolderRoute({
+            post,
+            platform:
+              activeImportSource.code ||
+              s.platform,
+
+            folderSearch:
+              s.folderSearch === true,
+
+            selectedOccurrenceId,
+          });
+
+        const eagleFolders =
+          await ensureEagleFolderRoute({
+            platformFolderName:
+              platformFolderName(
+                activeImportSource.code ||
+                s.platform,
+              ),
+
+            route,
+
+            onLog:
+              (line) =>
+                ui.log.add(line),
+          });
+
+        folderIdsByPostId.set(
+          postId,
+          eagleFolders.folderIds,
+        );
+      }
+
+      for (const item of items) {
+        const postId =
+          String(
+            item?.postId || '',
+          );
+
+        item.folderIds =
+          folderIdsByPostId.get(postId) ||
+          [];
+      }
     }
 
     ui.status.set('Импорт в Eagle…', `0 из ${items.length}`, true);
 
+    const knownBeforeImport = new Set(state.knownPostIds);
     const {
       created, 
       failed, 
@@ -2224,28 +2623,25 @@ async function runImport() {
       signal: state.abortController.signal,
       onProgress: (progress) => {
         ui.status.set('Импорт в Eagle…',
-          `${progress.current} из ${progress.total} — ${progress.item.name}`,
+          `${progress.completed} из ${progress.total} — ${progress.item.name}`,
           true);
 
         lastProgressLead = `Импорт: ${progress.item.name}`;
-        lastProgressTrail = `${progress.current} из ${progress.total}`;
+        lastProgressTrail = `${progress.completed} из ${progress.total}`;
         ui.status.progress.update({
           mode: 'downloading',
           lead: lastProgressLead,
           trail: lastProgressTrail,
           progress: DOWNLOAD_SHARE
-            + (progress.current / progress.total) * (1 - DOWNLOAD_SHARE),
+            + (progress.completed / progress.total) * (1 - DOWNLOAD_SHARE),
           ...publicationInfo(),
         });
       },
       onLog: (line) => ui.log.add(line),
+      onLateCreated: (entry) => { confirmNumbering(entry); recordConfirmedImport(entry); ui.log.add('Eagle подтвердил задержанное добавление. Можно продолжить оставшуюся очередь.', 'ok'); },
       onCreated: async (createdEntry) => {
-        state.importRecords = recordCreatedEagleItems(
-          state.importRecords,
-          [createdEntry],
-        );
-
-        saveImportRecords(state.importRecords);
+        confirmNumbering(createdEntry);
+        recordConfirmedImport(createdEntry);
 
         checkpointRecovery('importing', {
           createdEagleItems: [
@@ -2277,23 +2673,21 @@ async function runImport() {
           'Очередь остановлена; уже скачанные файлы добавлены в Eagle. ' +
           'Подождите и продолжите синхронизацию позже.'
         )
-        : eagleStopReason;
-
-    const knownBeforeImport = new Set(
-      state.knownPostIds,
-    );
+        : eagleStopReason || (failedDownloads.length
+          ? `Не удалось скачать публикаций: ${failedDownloads.length}. Повторите импорт оставшихся публикаций.`
+          : null);
 
     state.importRecords = recordCreatedEagleItems(
       state.importRecords,
       created,
     );
 
-    await refreshImportRegistry();
+    await refreshImportRegistry(created);
 
     const importedPostIds = new Set(
       [...state.knownPostIds].filter(
         (postId) => !knownBeforeImport.has(postId),
-      ),
+      ).map(postId=>postId.replace(/^case:v1:/,'')),
     );
 
     const {
@@ -2301,13 +2695,14 @@ async function runImport() {
     } = currentNumberingContext(s);
 
     /*
-     * Ручной старт перебивает историю: перед сохранением
-     * очищаем прежние записи затронутых счётчиков, чтобы
-     * новая серия начиналась строго с введённого числа.
+     * Общий счётчик уже продолжен по подтверждениям Eagle. Убираем
+     * его старые серии только в текущей сети. Историю авторов и типов
+     * сохраняем, включая группы, которых не было в этой загрузке.
      */
     for (const counter of importedCounters) {
+      if (counter.mode !== 'global') continue;
       for (const key of [...counterHistoryRecords.keys()]) {
-        if (key.includes(`::${counter.id}::`)) {
+        if (key.startsWith(`${s.platform}::${counter.id}::`)) {
           counterHistoryRecords.delete(key);
         }
       }
@@ -2318,13 +2713,12 @@ async function runImport() {
       s,
       importedPostIds,
       importedCounters,
+      created,
     );
 
     if (created.length) {
-      resetSelectionsAfterImport(
-        state.posts,
-        state.selected,
-      );
+      resetSelectionsAfterImport(state.posts, state.selected);
+      state.selectedOccurrences.clear();
 
       checkpointRecovery('importing');
       refreshNames();
@@ -2389,6 +2783,18 @@ async function runImport() {
         `Импорт завершён: ${importSummary.detail}.`,
         'ok',
       );
+    }
+    const outcome = summarizeImportOutcome(chosen, state.knownPostIds, state.importRecords, created);
+    const outcomeText = `Публикаций полностью: ${outcome.complete}/${outcome.total}; частично: ${outcome.partial}; не импортировано: ${outcome.notImported}. Файлов добавлено: ${outcome.files}.`;
+    ui.log.add(outcomeText);
+    showImportResult(outcome, Boolean(stopReason || failed.length));
+    // Repeat the per-post causes after Eagle's verbose import logs so the
+    // bounded UI journal retains the failures, not only successful writes.
+    for (const entry of failedDownloads) ui.log.add(redact(`Не скачано: ${entry.post.url} — ${entry.error || 'Файлы не получены'}`), 'err');
+    for (const post of chosen) {
+      if (!summarizeImportOutcome([post],state.knownPostIds,state.importRecords,[]).complete && !failedDownloads.some(entry => entry.post.postId === post.postId)) {
+        ui.log.add(`Не завершено: ${post.url}; ожидается компонентов: ${post.componentCount}; подтверждено: ${state.importRecords.get(post.postId)?.components.size || 0}`, 'warn');
+      }
     }
     if (!stopReason) {
       discardRecovery();
@@ -2482,6 +2888,7 @@ async function runImport() {
       sessionCookieFile = '';
     }
 
+    finishImportSelection();
     state.abortController = null;
     control = null;
     manualStopRequested = false;
@@ -2492,14 +2899,8 @@ async function runImport() {
    Отсутствие движка показывается как понятная подсказка
    с кнопкой, а не как технический текст. */
 function reportRunError(title, error) {
-    if (
-    error?.code === 'INSTAGRAM_ACCOUNT_MISMATCH' ||
-    error?.code === 'INSTAGRAM_SESSION_INVALID'
-  ) {
-    const modalTitle = error.code === 'INSTAGRAM_ACCOUNT_MISMATCH'
-      ? 'Выбран другой Instagram-аккаунт'
-      : 'Необходимо войти в Instagram';
-
+  const modalTitle = sessionErrorTitle(error);
+  if (modalTitle) {
     /* В статусе оставляем только короткий текст — длинное
        объяснение находится в отдельном окне. */
     ui.status.set(
@@ -2541,6 +2942,46 @@ let collectionModalResolve = null;
 let collectionPickerResolve = null;
 let collectionPickerActive = false;
 const collectionPickerChecked = new Set();
+const collectionPickerCheckboxes = new Map();
+const collectionPickerGesture = createCheckboxGestureState();
+let collectionPickerItems = [];
+
+function syncSelectionCheckbox(checkbox, selected, total) {
+  checkbox.set(total > 0 && selected === total, true);
+  checkbox.setMixed(selected > 0 && selected < total);
+  checkbox.setDisabled(total === 0);
+}
+
+function syncCollectionPickerSelection() {
+  for (const [id, entry] of collectionPickerCheckboxes) {
+    const checked = collectionPickerChecked.has(id);
+    entry.checkbox.set(checked, true);
+    entry.row.classList.toggle('is-selected', checked);
+  }
+  ui.footer.action.setDisabled(collectionPickerChecked.size === 0);
+  updateCollectionPickerTitle();
+}
+
+function selectPickerRow(id, checked, event) {
+  const ids = event?.shiftKey
+    ? applyShiftSelection({
+      orderedIds: [...collectionPickerCheckboxes.keys()],
+      selectedIds: collectionPickerChecked,
+      anchorId: collectionPickerGesture.getAnchor(),
+      targetId: id,
+      checked,
+    }).affectedIds
+    : [id];
+
+  if (!event?.shiftKey || !collectionPickerCheckboxes.has(collectionPickerGesture.getAnchor())) {
+    collectionPickerGesture.setAnchor(id);
+  }
+  for (const targetId of ids) {
+    if (checked) collectionPickerChecked.add(targetId);
+    else collectionPickerChecked.delete(targetId);
+  }
+  syncCollectionPickerSelection();
+}
 
 let collectionPickerTotal = 0;
 let collectionPickerFoundCount = 0;
@@ -2548,9 +2989,10 @@ let collectionPickerFoundCount = 0;
 function updateCollectionPickerTitle() {
   const count = collectionPickerChecked.size;
   const total = collectionPickerTotal;
-  ui.results.title.textContent = total
+  syncSelectionCheckbox(ui.results.selectAll, count, total);
+  setText(ui.results.title, L(total
     ? `Найденные коллекции — ${count} из ${total}`
-    : 'Найденные коллекции';
+    : 'Найденные коллекции'));
 
   ui.status.progress.update({
     lead: `Найдено: ${collectionPickerFoundCount} коллекций`,
@@ -2582,6 +3024,12 @@ function selectCollectionsInTable(
   collections,
 ) {
   collectionPickerActive = true;
+  stopTableSelectionSync();
+  stopTableSelectionTitleUpdate();
+  stopTableAutoScroll();
+  tableSelectionGesture.reset();
+  collectionPickerItems = collections;
+  collectionPickerGesture.reset();
   collectionPickerChecked.clear();
   collapsedCollectionPickerIds.clear();
 
@@ -2616,6 +3064,7 @@ function selectCollectionsInTable(
 function renderCollectionPickerTree(
   collections,
 ) {
+  collectionPickerCheckboxes.clear();
   const body =
     ui.results.body;
 
@@ -2629,13 +3078,13 @@ function renderCollectionPickerTree(
       el(
         'div',
         'rs-empty__title',
-        'Коллекции не найдены',
+        L('Коллекции не найдены'),
       ),
 
       el(
         'div',
         'rs-empty__text',
-        'В этом аккаунте нет доступных коллекций.',
+        L('В этом аккаунте нет доступных коллекций.'),
       ),
     );
 
@@ -2843,23 +3292,22 @@ function createCollectionPickerRow(
       checked:
         collectionPickerChecked.has(id),
 
-      onChange(value) {
-        if (value) {
-          collectionPickerChecked.add(id);
-        } else {
-          collectionPickerChecked.delete(id);
-        }
-
-        root.classList.toggle(
-          'is-selected',
-          value,
-        );
-
-        ui.footer.action.setDisabled(
-          collectionPickerChecked.size === 0,
-        );
-
-        updateCollectionPickerTitle();
+      onPointerDown(event) {
+        const checked = !collectionPickerChecked.has(id);
+        if (event.shiftKey) { selectPickerRow(id, checked, event); return true; }
+        collectionPickerGesture.beginDrag(id, checked);
+        selectPickerRow(id, checked);
+        startPickerDrag({ event, body: ui.results.body, gesture: collectionPickerGesture,
+          active: () => collectionPickerActive,
+          apply: (targetId, value) => {
+            if (value) collectionPickerChecked.add(targetId); else collectionPickerChecked.delete(targetId);
+            syncCollectionPickerSelection();
+          },
+        });
+        return true;
+      },
+      onChange(value, event) {
+        selectPickerRow(id, value, event);
       },
     });
 
@@ -2931,31 +3379,19 @@ function createCollectionPickerRow(
       );
   }
 
-  const toggleCheckbox = () => {
-    checkbox.set(
-      !checkbox.value,
-    );
+  collectionPickerCheckboxes.set(id, { checkbox, row: root });
+  root.dataset.collectionPickerId = id;
+
+  const toggleCheckbox = (event) => {
+    selectPickerRow(id, !collectionPickerChecked.has(id), event);
   };
 
-  root.addEventListener(
-    'click',
-    toggleCheckbox,
-  );
-
-  root.addEventListener(
-    'keydown',
-    (event) => {
-      if (
-        event.key !== 'Enter' &&
-        event.key !== ' '
-      ) {
-        return;
-      }
-
-      event.preventDefault();
-      toggleCheckbox();
-    },
-  );
+  root.addEventListener('click', toggleCheckbox);
+  root.addEventListener('keydown', (event) => {
+    if (event.key !== 'Enter' && event.key !== ' ') return;
+    event.preventDefault();
+    toggleCheckbox(event);
+  });
 
   root.classList.toggle(
     'is-selected',
@@ -2977,8 +3413,7 @@ function openCollectionModal(
   const list = ui.modal.list;
   clear(list);
 
-  ui.modal.title.textContent =
-    'Выберите коллекции';
+  setText(ui.modal.title, L('Выберите коллекции'));
 
   const boxes = new Map();
 
@@ -3027,7 +3462,7 @@ function openCollectionModal(
       el(
         'div',
         'rs-hint',
-        'Доступные коллекции не найдены.',
+        L('Доступные коллекции не найдены.'),
       ),
     );
   }
@@ -3158,6 +3593,9 @@ function refreshNames() {
     counters,
     counterSeeds,
 
+    knownPostIds: state.knownPostIds,
+    missingComponents: state.missingComponents,
+
     destination:
       s.numberingDestination,
 
@@ -3170,6 +3608,7 @@ function refreshNames() {
     descriptionPlacement:
       s.descriptionPlacement,
 
+    descriptions: s.descriptions,
     extraDescription:
       s.extraDescription,
   });
@@ -3191,7 +3630,7 @@ function componentNumbersFromPositions(post, positions) {
 
 function currentCarouselState(post) {
   if (
-    Number(post?.componentCount) <= 1 ||
+    (Number(post?.componentCount) <= 1 && !post?.caseDocument) ||
     !Array.isArray(post?.components)
   ) {
     return null;
@@ -3237,6 +3676,12 @@ function tablePostSelectionSnapshot(post) {
     selected:
       state.selected.has(post.postId),
 
+    occurrenceId:
+      state.selectedOccurrences.get(
+        post.postId,
+      ),
+
+    caseSelection: post.caseSelection ? {...post.caseSelection} : undefined,
     components:
       Array.isArray(post.selectedComponents)
         ? [...post.selectedComponents]
@@ -3248,8 +3693,16 @@ function sameSelectionSnapshot(
   first,
   second,
 ) {
+  if (JSON.stringify(first.caseSelection) !== JSON.stringify(second.caseSelection)) return false;
   if (
     first.selected !== second.selected
+  ) {
+    return false;
+  }
+
+  if (
+    first.occurrenceId !==
+    second.occurrenceId
   ) {
     return false;
   }
@@ -3344,7 +3797,7 @@ function stopTableAutoScroll() {
 function visitTablePostDuringDrag(post) {
   if (
     !post ||
-    state.knownPostIds.has(post.postId) ||
+    isPostImported(post,state.knownPostIds) ||
     !tableSelectionGesture.isDragging()
   ) {
     return false;
@@ -3527,7 +3980,7 @@ function updateTableDragPointer(event) {
 
 function tablePostVisualState(post) {
   const isKnown =
-    state.knownPostIds.has(post.postId);
+    isPostImported(post,state.knownPostIds);
 
   const carouselState =
     currentCarouselState(post);
@@ -3537,14 +3990,14 @@ function tablePostVisualState(post) {
     state.selected.has(post.postId) &&
     (
       !carouselState ||
-      carouselState.selectedCount > 0
+      carouselState.selectedCount > 0 || pendingCase(post,state.knownPostIds)
     );
 
   return {
     selected,
 
     checked: carouselState
-      ? selected && carouselState.checked
+      ? selected && (carouselState.checked || pendingCase(post,state.knownPostIds))
       : selected,
 
     mixed: Boolean(
@@ -3577,17 +4030,32 @@ function nextTablePostState(post) {
   return !current.checked;
 }
 
-function setTablePostChecked(post, checked) {
+function setTablePostChecked(
+  post,
+  checked,
+  occurrenceId = '',
+) {
   if (
     !post ||
-    state.knownPostIds.has(post.postId)
+    (isPostImported(post,state.knownPostIds))
   ) {
     return;
   }
 
+  const postId =
+    String(
+      post.postId || '',
+    );
+
+  const cleanOccurrenceId =
+    String(
+      occurrenceId || '',
+    ).trim();
+
   const before =
     tablePostSelectionSnapshot(post);
 
+  if(post.caseDocument && checked && !caseModes(post).whole && !caseModes(post).blocks)post.caseSelection={whole:true,blocks:false};
   const carouselState =
     currentCarouselState(post);
 
@@ -3601,11 +4069,33 @@ function setTablePostChecked(post, checked) {
 
     if (
       checked &&
-      carouselState.availableCount > 0
+      (carouselState.availableCount > 0 || pendingCase(post,state.knownPostIds))
     ) {
-      state.selected.add(post.postId);
+      state.selected.add(postId);
+
+      if (cleanOccurrenceId) {
+        state.selectedOccurrences.set(
+          postId,
+          cleanOccurrenceId,
+        );
+      }
     } else {
-      state.selected.delete(post.postId);
+      const activeOccurrenceId =
+        state.selectedOccurrences.get(
+          postId,
+        );
+
+      if (
+        !cleanOccurrenceId ||
+        !activeOccurrenceId ||
+        activeOccurrenceId ===
+          cleanOccurrenceId
+      ) {
+        state.selected.delete(postId);
+        state.selectedOccurrences.delete(
+          postId,
+        );
+      }
     }
 
     captureTableSelectionHistory(
@@ -3617,9 +4107,31 @@ function setTablePostChecked(post, checked) {
   }
 
   if (checked) {
-    state.selected.add(post.postId);
+    state.selected.add(postId);
+
+    if (cleanOccurrenceId) {
+      state.selectedOccurrences.set(
+        postId,
+        cleanOccurrenceId,
+      );
+    }
   } else {
-    state.selected.delete(post.postId);
+    const activeOccurrenceId =
+      state.selectedOccurrences.get(
+        postId,
+      );
+
+    if (
+      !cleanOccurrenceId ||
+      !activeOccurrenceId ||
+      activeOccurrenceId ===
+        cleanOccurrenceId
+    ) {
+      state.selected.delete(postId);
+      state.selectedOccurrences.delete(
+        postId,
+      );
+    }
   }
 
   captureTableSelectionHistory(
@@ -3629,27 +4141,81 @@ function setTablePostChecked(post, checked) {
 }
 
 function syncTablePostCheckbox(post) {
-  const entry =
-    tableCheckboxes.get(post.postId);
+  for (
+    const entry
+    of tablePostCopies.get(
+      post.postId,
+    ) || []
+  ) {
+    const carouselState =
+      currentCarouselState(post);
 
-  if (!entry) return;
+    const occurrenceIsSelected =
+      entry.occurrenceId
+        ? occurrenceSelected(
+            {
+              ...post,
+              occurrenceId:
+                entry.occurrenceId,
+            },
 
-  const visual =
-    tablePostVisualState(post);
+            state.selected,
+            state.selectedOccurrences,
+          )
+        : state.selected.has(
+            post.postId,
+          );
 
-  entry.checkbox.set(
-    visual.checked,
-    true,
-  );
+    const selected =
+      !isPostImported(post,state.knownPostIds) &&
+      occurrenceIsSelected &&
+      (
+        !carouselState ||
+        carouselState.selectedCount > 0 || pendingCase(post,state.knownPostIds)
+      );
 
-  entry.checkbox.setMixed(
-    visual.mixed,
-  );
+    const checked =
+      carouselState
+        ? (
+            selected &&
+            (carouselState.checked || pendingCase(post,state.knownPostIds))
+          )
+        : selected;
 
-  entry.row.classList.toggle(
-    'is-selected',
-    visual.selected,
-  );
+    const mixed =
+      Boolean(
+        carouselState &&
+        selected &&
+        carouselState.mixed,
+      );
+
+    const isKnown = isPostImported(post,state.knownPostIds);
+    entry.checkbox.setDisabled(isKnown);
+    entry.row.classList.toggle('is-imported', isKnown);
+    if (isKnown) setLocalizedProperty(entry.row, 'title', L('Эта публикация уже добавлена в Eagle'));
+    entry.checkbox.set(
+      checked,
+      true,
+    );
+
+    entry.checkbox.setMixed(
+      mixed,
+    );
+
+    entry.row.classList.toggle(
+      'is-selected',
+      selected,
+    );
+
+    entry.row
+      .closest(
+        '.rs-collection__post',
+      )
+      ?.classList.toggle(
+        'is-selected',
+        selected,
+      );
+  }
 }
 
 function pressTableRange(
@@ -3699,6 +4265,16 @@ function clearTableRangePreview() {
   tableRangePreviewIds.clear();
 }
 
+function tablePostsInDisplayOrder() {
+  const posts = new Map();
+  for (const row of ui.results.body.querySelectorAll('[data-table-post-id]')) {
+    if (row.closest('.is-collapsed')) continue;
+    const id = row.dataset.tablePostId;
+    if (!posts.has(id)) posts.set(id, tableCheckboxes.get(id).post);
+  }
+  return [...posts.values()];
+}
+
 function previewTableRange(targetPostId) {
   const anchorPostId =
     tableSelectionGesture.getAnchor();
@@ -3711,9 +4287,7 @@ function previewTableRange(targetPostId) {
     return;
   }
 
-  const orderedPostIds = [
-    ...tableCheckboxes.keys(),
-  ];
+  const orderedPostIds = tablePostsInDisplayOrder().map(post => post.postId);
 
   const range = checkboxRange(
     orderedPostIds,
@@ -3794,7 +4368,34 @@ function updateTableSelectionTitle(
     posts.length,
   );
 
+  const selectable = posts.filter(collectionPostSelectable);
+  syncSelectionCheckbox(
+    ui.results.selectAll,
+    selectedVisiblePostCount(selectable),
+    selectable.length,
+  );
+  for (const { posts: groupPosts, checkbox, row } of collectionHeaderCheckboxes.values()) {
+    const selection = collectionSelectionState(groupPosts, state.selected, collectionPostSelectable);
+    checkbox.set(selection.checked, true);
+    checkbox.setMixed(selection.mixed);
+    row.classList.toggle('is-selected', selection.selectedCount > 0);
+  }
   syncFooterActionAvailability();
+  syncImportResultSelection();
+}
+
+function refreshBehanceTableNames() {
+  if (state.settings.platform !== 'behance' || phase === 'importing') return;
+  refreshNames();
+  for (const copies of tablePostCopies.values()) {
+    for (const { post, row } of copies) {
+      for (const [field, selector] of [['name', '.rs-cell--name .rs-cell__text'], ['description', '.rs-desc__text']]) {
+        const node = row.querySelector(selector);
+        const value = cellValue(post.postId, field);
+        if (node && !node.querySelector('.rs-editable') && node.textContent !== value) setText(node, value);
+      }
+    }
+  }
 }
 
 function scheduleTableSelectionTitleUpdate() {
@@ -3819,6 +4420,7 @@ function scheduleTableSelectionTitleUpdate() {
       tableSelectionTitleNextFrame =
         requestAnimationFrame(() => {
           tableSelectionTitleNextFrame = null;
+          refreshBehanceTableNames();
           updateTableSelectionTitle();
         });
     });
@@ -3911,7 +4513,7 @@ function applyTableShiftSelection(
   targetPost,
   checked,
 ) {
-  const posts = visiblePosts();
+  const posts = tablePostsInDisplayOrder();
 
   const result = applyShiftSelection({
     orderedIds: posts.map(
@@ -4042,43 +4644,43 @@ function collectionPostSelectable(post) {
 }
 
 function applyCollectionSelectionChanges(changes) {
-  if (!Array.isArray(changes)) return;
-
-  const effectiveChanges = [];
-
-  for (const change of changes) {
-    const post = state.posts.find(
-      (item) => item.postId === change.postId,
-    );
-
-    if (!post || !collectionPostSelectable(post)) continue;
-
-    const beforeSelected = state.selected.has(change.postId);
-    if (beforeSelected === change.after.selected) continue;
-
-    if (change.after.selected) {
-      state.selected.add(change.postId);
-    } else {
-      state.selected.delete(change.postId);
-    }
-
-    const components = Array.isArray(post.selectedComponents)
-      ? [...post.selectedComponents]
-      : undefined;
-
-    effectiveChanges.push({
-      postId: change.postId,
-      before: { selected: beforeSelected, components },
-      after: { selected: state.selected.has(change.postId), components },
-    });
-  }
-
-  if (!effectiveChanges.length) {
-    renderTable();
+  if (!Array.isArray(changes)) {
     return;
   }
 
-  recordSelectionChange(effectiveChanges);
+  beginTableSelectionHistory();
+
+  const postsById =
+    new Map(
+      state.posts.map(
+        (post) => [
+          post.postId,
+          post,
+        ],
+      ),
+    );
+
+  for (const change of changes) {
+    const post =
+      postsById.get(
+        change.postId,
+      );
+
+    if (
+      !post ||
+      !collectionPostSelectable(post)
+    ) {
+      continue;
+    }
+
+    setTablePostChecked(
+      post,
+      change.after.selected,
+      change.after.occurrenceId || '',
+    );
+  }
+
+  finishTableSelectionHistory();
   refreshNames();
   renderTable();
 }
@@ -4142,7 +4744,41 @@ function collectionGroupPosts(
       }
 
       seen.add(postId);
-      result.push(post);
+
+      result.push({
+        ...post,
+
+        occurrenceId:
+          occurrenceIdOf(
+            postId,
+            current?.id,
+          ),
+
+        collectionId:
+          String(
+            current?.id || '',
+          ),
+
+        collectionName:
+          String(
+            current?.name || '',
+          ),
+
+        collectionType:
+          String(
+            current?.type || '',
+          ),
+
+        collectionParentId:
+          String(
+            current?.parentId || '',
+          ),
+
+        collectionParentName:
+          String(
+            current?.parentName || '',
+          ),
+      });
     }
 
     for (
@@ -4173,6 +4809,7 @@ function createCollectionHeader(
     collectionSelectionState(
       groupPosts,
       state.selected,
+      state.selectedOccurrences,
       collectionPostSelectable,
     );
 
@@ -4218,6 +4855,7 @@ function createCollectionHeader(
           collectionSelectionChanges(
             groupPosts,
             state.selected,
+            state.selectedOccurrences,
             collectionPostSelectable,
           );
 
@@ -4226,6 +4864,8 @@ function createCollectionHeader(
         );
       },
     });
+
+  collectionHeaderCheckboxes.set(group.id, { posts: groupPosts, checkbox, row: root });
 
   /*
    * Нажатие checkbox не должно одновременно сворачивать папку.
@@ -4276,21 +4916,14 @@ function createCollectionHeader(
     );
 
   const toggle = () => {
-    if (
-      collapsedCollectionIds.has(
-        group.id,
-      )
-    ) {
-      collapsedCollectionIds.delete(
-        group.id,
-      );
-    } else {
-      collapsedCollectionIds.add(
-        group.id,
-      );
-    }
-
-    renderTable();
+    const collapsed = !collapsedCollectionIds.has(group.id);
+    if (collapsed) collapsedCollectionIds.add(group.id);
+    else collapsedCollectionIds.delete(group.id);
+    // Keep row nodes, selection, editors and scroll position intact. Toggling
+    // one folder must not rebuild every publication in the library.
+    root.closest('.rs-collection').classList.toggle('is-collapsed', collapsed);
+    root.setAttribute('aria-expanded', String(!collapsed));
+    chevron.classList.toggle('is-expanded', !collapsed);
   };
 
   root.addEventListener(
@@ -4419,12 +5052,58 @@ function renderCollectionGroups({
         'true',
       );
 
+      const occurrence = {
+        occurrenceId:
+          occurrenceIdOf(
+            postId,
+            group.id,
+          ),
+
+        collectionId:
+          String(
+            group.id || '',
+          ),
+
+        collectionName:
+          String(
+            group.name || '',
+          ),
+
+        collectionType:
+          String(
+            group.type || '',
+          ),
+
+        parentId:
+          String(
+            group.parentId || '',
+          ),
+
+        parentName:
+          String(
+            group.parentName || '',
+          ),
+      };
+
       const row =
-        createPostRow(post);
+        createPostRow(
+          post,
+          occurrence,
+        );
 
       wrapper.classList.toggle(
         'is-selected',
-        collectionRowSelected(post),
+
+        occurrenceSelected(
+          {
+            ...post,
+            occurrenceId:
+              occurrence.occurrenceId,
+          },
+
+          state.selected,
+          state.selectedOccurrences,
+        ),
       );
 
       wrapper.append(
@@ -4470,6 +5149,7 @@ function renderCollectionGroups({
 }
 
 function renderTable() {
+  fitCaseStructureColumn(ui.results.node,visiblePosts(),currentCarouselState);
   syncTableThumbnailVisibility();
 
   stopTableSelectionSync();
@@ -4479,11 +5159,14 @@ function renderTable() {
   const body = ui.results.body;
   clear(body);
   tableCheckboxes.clear();
+  tablePostCopies.clear();
+  collectionHeaderCheckboxes.clear();
 
   const posts = visiblePosts();
 
   const folderTableEnabled =
-    state.settings.folderSearch === true &&
+    state.settings.downloadMode !== 'link' &&
+    (state.settings.platform === 'behance' || state.settings.folderSearch === true) &&
     state.collections.length > 0;
 
   updateTableSelectionTitle(posts);
@@ -4493,20 +5176,14 @@ function renderTable() {
   }
   ui.results.resetAllButton.node.style.display = hasEdits() ? '' : 'none';
 
-  const selectedVisible = posts.filter((post) => state.selected.has(post.postId));
-  if (!posts.length) ui.results.selectAll.set(false, true);
-  else if (selectedVisible.length === posts.length) ui.results.selectAll.set(true, true);
-  else if (selectedVisible.length) ui.results.selectAll.setMixed(true);
-  else ui.results.selectAll.set(false, true);
-
   if (!posts.length) {
     const empty = el('div', 'rs-empty');
     empty.append(
-      el('div', 'rs-empty__title', 'Список пуст'),
+      el('div', 'rs-empty__title', L('Список пуст')),
       el('div', 'rs-empty__text',
-        state.posts.length
+        L(state.posts.length
           ? 'Все публикации скрыты фильтрами. Измените условия в шаге 2.'
-          : 'Заполните шаг 1, выберите режим поиска и нажмите «Начать поиск».'),
+          : 'Заполните шаг 1, выберите режим поиска и нажмите «Начать поиск».')),
     );
     body.appendChild(empty);
     return;
@@ -4522,7 +5199,12 @@ function renderTable() {
     renderCollectionGroups({
       container: body,
       groups: collectionGroups,
-      createPostRow: (post) => renderRow(post),
+      createPostRow:
+        (post, occurrence) =>
+          renderRow(
+            post,
+            occurrence,
+          ),
     });
     return;
   }
@@ -4532,33 +5214,69 @@ function renderTable() {
   body.appendChild(fragment);
 }
 
-function renderRow(post) {
+function renderRow(
+  post,
+  occurrence = null,
+) {
   const row = el('div', 'rs-row');
-  const isKnown = state.knownPostIds.has(post.postId);
+  const isKnown = isPostImported(post,state.knownPostIds);
+
+  const rowOccurrenceId =
+    String(
+      occurrence?.occurrenceId || '',
+    );
+
+  const rowSelectionModel = {
+    ...post,
+    occurrenceId:
+      rowOccurrenceId,
+  };
 
   row.classList.toggle('is-imported', isKnown);
 
   if (isKnown) {
-    row.title = 'Эта публикация уже добавлена в Eagle';
+    setLocalizedProperty(row, 'title', L('Эта публикация уже добавлена в Eagle'));
   }
 const grid = el('div', 'rs-table__grid');
-const carouselState = currentCarouselState(post);
-const isCarousel = carouselState !== null;
+const carouselState =
+  currentCarouselState(post);
+
+const isCarousel =
+  carouselState !== null;
+
+const occurrenceIsSelected =
+  rowOccurrenceId
+    ? occurrenceSelected(
+        rowSelectionModel,
+        state.selected,
+        state.selectedOccurrences,
+      )
+    : state.selected.has(
+        post.postId,
+      );
 
 const isSelected =
   !isKnown &&
-  state.selected.has(post.postId) &&
-  (!isCarousel || carouselState.selectedCount > 0);
+  occurrenceIsSelected &&
+  (
+    !isCarousel ||
+    carouselState.selectedCount > 0 || pendingCase(post,state.knownPostIds)
+  );
 
-const parentChecked = isCarousel
-  ? isSelected && carouselState.checked
-  : isSelected;
+const parentChecked =
+  isCarousel
+    ? (
+        isSelected &&
+        (carouselState.checked || pendingCase(post,state.knownPostIds))
+      )
+    : isSelected;
 
-const parentMixed = Boolean(
-  isCarousel &&
-  isSelected &&
-  carouselState.mixed,
-);
+const parentMixed =
+  Boolean(
+    isCarousel &&
+    isSelected &&
+    carouselState.mixed,
+  );
 
 row.classList.toggle('is-selected', isSelected);
 
@@ -4572,7 +5290,7 @@ const checkbox = createCheckbox({
 
   onChange: (value, event) => {
     beginTableSelectionHistory();
-    const checked = parentMixed
+    const checked = tablePostVisualState(post).mixed
       ? nextTablePostState(post)
       : value;
 
@@ -4586,6 +5304,7 @@ const checkbox = createCheckbox({
       setTablePostChecked(
         post,
         checked,
+        rowOccurrenceId,
       );
 
       tableSelectionGesture.setAnchor(
@@ -4606,8 +5325,9 @@ const checkbox = createCheckbox({
 
     beginTableSelectionHistory();
 
-    const checked =
-      nextTablePostState(post);
+    const checked = rowOccurrenceId
+      ? !occurrenceSelected(rowSelectionModel, state.selected, state.selectedOccurrences)
+      : nextTablePostState(post);
 
     if (event.shiftKey) {
       clearTableRangePreview();
@@ -4637,6 +5357,7 @@ const checkbox = createCheckbox({
     setTablePostChecked(
       post,
       checked,
+      rowOccurrenceId,
     );
 
     syncTablePostCheckbox(post);
@@ -4663,14 +5384,17 @@ const checkbox = createCheckbox({
 row.dataset.tablePostId =
   post.postId;
 
-tableCheckboxes.set(
-  post.postId,
-  {
-    checkbox,
-    row,
-    post,
-  },
-);
+const entry = {
+  checkbox,
+  row,
+  post,
+  occurrenceId:
+    rowOccurrenceId,
+};
+if (!tableCheckboxes.has(post.postId)) tableCheckboxes.set(post.postId, entry);
+const copies = tablePostCopies.get(post.postId) || [];
+copies.push(entry);
+tablePostCopies.set(post.postId, copies);
 
 row.addEventListener(
   'pointerenter',
@@ -4707,15 +5431,7 @@ if (isKnown) {
 
   const thumb = el('div', 'rs-thumb');
   if (state.settings.thumbnails && post.previewUrl) {
-    const image = document.createElement('img');
-    image.loading = 'lazy';
-    image.src = post.previewUrl;
-    image.alt = '';
-    image.addEventListener('error', () => {
-      thumb.classList.add('is-empty');
-      thumb.removeChild(image);
-    });
-    thumb.appendChild(image);
+    attachThumbnail(thumb, post.previewUrl);
   } else {
     thumb.classList.add('is-empty');
   }
@@ -4740,8 +5456,7 @@ if (isKnown) {
     );
 
     const carouselDisabled =
-      isKnown ||
-      carouselState.disabled;
+      (isKnown || carouselState.disabled) && !post.caseDocument;
 
     carouselButton.classList.toggle(
       'is-disabled',
@@ -4753,18 +5468,20 @@ if (isKnown) {
       String(carouselDisabled),
     );
 
+    const structureValue=post.caseDocument ? caseStructure(post,carouselState.selectedCount,carouselState.total) : {label:post.source==='behance'?'Блоков':post.type,count:`${carouselState.selectedCount}/${carouselState.total}`};
     const carouselLabel = el(
       'span',
       'rs-carousel-button__label',
-      post.type,
+      L(structureValue.label),
     );
 
     const carouselCount = el(
       'span',
       'rs-carousel-button__count',
-      `${carouselState.selectedCount}/${carouselState.total}`,
+      structureValue.count,
     );
 
+    carouselCount.hidden=!structureValue.count;
     carouselButton.append(
       carouselLabel,
       carouselCount,
@@ -4772,16 +5489,15 @@ if (isKnown) {
 
     structure.appendChild(carouselButton);
   } else {
-    structure.textContent = post.type;
+    setUiText(structure, post.type);
   }
 
   if (
-    post.componentCount > 1 &&
-    !isKnown &&
-    !carouselState?.disabled
+    (post.caseDocument || post.componentCount > 1) &&
+    (post.caseDocument || (!isKnown && !carouselState?.disabled))
   ) {
     structure.classList.add('is-clickable');
-    structure.title = 'Настроить компоненты публикации';
+    setLocalizedProperty(structure, 'title', L('Настроить компоненты публикации'));
 
     structure.addEventListener('click', () => {
       const latestState = currentCarouselState(post);
@@ -4793,7 +5509,9 @@ if (isKnown) {
       importedPositions:
         latestState?.imported || new Set(),
 
-      onConfirm: (selection) => {
+      caseImported: post.source === 'behance' && state.knownPostIds.has(caseRegistryId(post)),
+      onConfirm: (selection, modes) => {
+        if (modes && post.caseDocument) post.caseSelection=modes;
         const available =
           latestState?.available ||
           availableComponentPositions(post);
@@ -4812,7 +5530,7 @@ if (isKnown) {
             selectedPositions,
           );
 
-          if (selectedPositions.size) {
+          if (selectedPositions.size || pendingCase(post,state.knownPostIds)) {
             state.selected.add(post.postId);
           } else {
             state.selected.delete(post.postId);
@@ -4849,10 +5567,10 @@ nameCell.classList.toggle(
   isKnown,
 );
 
-nameText.textContent = cellValue(
+setText(nameText, cellValue(
   post.postId,
   'name',
-);
+));
 
 nameCell.appendChild(nameText);
 
@@ -4889,8 +5607,7 @@ if (!isKnown) {
     nameCell.appendChild(resetNameButton);
   }
 
-  nameCell.title =
-    'Двойной щелчок — редактировать';
+  setLocalizedProperty(nameCell, 'title', L('Двойной щелчок — редактировать'));
 
     nameCell.addEventListener(
     'dblclick',
@@ -5121,8 +5838,7 @@ if (!isKnown) {
       );
     }
 
-    descCell.title =
-      'Двойной щелчок — редактировать';
+    setLocalizedProperty(descCell, 'title', L('Двойной щелчок — редактировать'));
 
     descCell.addEventListener(
       'dblclick',
@@ -5144,6 +5860,11 @@ if (!isKnown) {
     );
   }
 
+  if (post.downloadIssue) {
+    const issue = el('div', 'rs-download-issue', L(post.downloadIssue.label));
+    issue.title = post.downloadIssue.detail;
+    structure.appendChild(issue);
+  }
   grid.append(lead, author, structure, nameCell, descCell);
   row.appendChild(grid);
   return row;
@@ -5303,6 +6024,18 @@ function startEdit(node, postId, field, multiline = false) {
 }
 
 function toggleAll(value) {
+  if (collectionPickerActive) {
+    collectionPickerGesture.reset();
+    collectionPickerChecked.clear();
+    if (value) {
+      for (const collection of collectionPickerItems) {
+        collectionPickerChecked.add(String(collection.id));
+      }
+    }
+    syncCollectionPickerSelection();
+    return;
+  }
+
   tableSelectionGesture.reset();
   beginTableSelectionHistory();
   stopTableAutoScroll();
@@ -5319,11 +6052,14 @@ function toggleAll(value) {
 
   finishTableSelectionHistory();
 
+  refreshBehanceTableNames();
   updateTableSelectionTitle();
   syncTableSelectionInBatches();
 }
 
 function clearResults() {
+  importResult = null;
+  importResultVisible = false;
   /*
    * Если сейчас открыт промежуточный выбор коллекций,
    * закрываем его как отменённый. Это разблокирует
@@ -5348,8 +6084,10 @@ function clearResults() {
     state.collections = [];
   }
 
+  archiveData = null;
   state.posts = [];
   state.selected.clear();
+  state.selectedOccurrences.clear();
   state.generated.clear();
 
   resetAllEdits();
