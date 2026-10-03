@@ -1349,8 +1349,9 @@ export function buildNames({
         componentNames[number - 1] = composed.name;
         componentDescriptions[number - 1] = composed.description;
       }
-      name = numbers.map(number => componentNames[number - 1]).join('\n');
-      description = [...new Set(numbers.map(number => componentDescriptions[number - 1]))].join('\n\n');
+      const base = composeNaming({name:originalName,description:originalDescription,counters:[],descriptions:rules});
+      name = numbers.length ? numbers.map(number => componentNames[number - 1]).join('\n') : base.name;
+      description = numbers.length ? [...new Set(numbers.map(number => componentDescriptions[number - 1]))].join('\n\n') : base.description;
     }
 
     /*
