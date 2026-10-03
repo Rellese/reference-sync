@@ -61,7 +61,7 @@ test('missing video is retried in isolation, decoded and permits whole-case pack
 for(const retry of ['failed','corrupt','empty'])test(`failed missing-video retry (${retry}) retains images and cannot publish an incomplete case`,async t=>{
  const f=fixture(t,{retry});let packaged=0;
  const {results}=await downloadWithCases(f.options,behanceMediaSource.download,async()=>{packaged++;throw Error('must not package');});
- assert.equal(f.calls.length,2);assert.equal(packaged,0);assert.equal(results[0].caseFile,undefined);
+ assert.equal(f.calls.length,retry==='failed'?4:2);assert.equal(packaged,0);assert.equal(results[0].caseFile,undefined);
  assert.match(results[0].caseError,retry==='corrupt'?/2\.mp4.*Неполный MP4/:/Видеоблок 2.*401/);
  if(retry!=='corrupt')assert.doesNotMatch(results[0].error,/Failed to parse XML/);
  assert.deepEqual(fs.readdirSync(path.join(f.root,'behance_123')),['1.gif']);
