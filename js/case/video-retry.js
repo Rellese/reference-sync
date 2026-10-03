@@ -2,26 +2,60 @@ import {nodeApi} from '../node-bridge.js';
 import {runGallery} from '../toolchain.js';
 import {validateVideo} from '../downloaded-media.js';
 import {throwIfAborted} from '../job-control.js';
+import {downloadIssue} from '../download-outcome.js';
+
+export function isRetryableVideoFailure(raw) {
+ const errors=String(raw).split(/\r?\n/).filter(line=>/\[error\]/i.test(line));
+ return errors.some(line=>/^\[downloader\.ytdl\]\[error\]/i.test(line)) && errors.every(line=>
+  /^\[downloader\.ytdl\]\[error\]/i.test(line) || /^\[download\]\[error\] Failed to download \d+\.(?:mp4|mov|webm|mkv|m4v|avi)\s*$/i.test(line));
+}
 
 // Retry one rejected final video in a fresh directory. A broken staging file
 // must not cause gallery-dl to skip the second attempt as "already downloaded".
 export async function validateCaseVideo(file,{args,postDir,ffmpeg,signal,control,onLog,run=runGallery,validate=validateVideo}={}) {
  try{await validate(file,{ffmpeg,signal});return;}
  catch(error){throwIfAborted(signal);if(!ffmpeg)throw error;onLog?.(error.message);}
- const {fs,path}=nodeApi,number=path.basename(file).match(/^(\d+)\./)?.[1];
+ const {path}=nodeApi,number=path.basename(file).match(/^(\d+)\./)?.[1];
  if(!number)throw Error('Invalid video component');
+ await retryVideo(number,{args,postDir,ffmpeg,signal,control,onLog,run,validate,name:path.basename(file)});
+}
+
+async function retryVideo(number,{args,postDir,ffmpeg,signal,control,onLog,run,validate,name}) {
+ number=Number(number);if(!Number.isSafeInteger(number)||number<1)throw Error('Invalid video component');
+ const {fs,path}=nodeApi;
  await control?.checkpoint();throwIfAborted(signal);
  const temporary=fs.mkdtempSync(path.join(postDir,'retry-video-'));
  try{
   const retryArgs=[...args];
   const range=retryArgs.indexOf('--range');if(range>=0)retryArgs.splice(range,2);
   retryArgs[retryArgs.indexOf('--dest')+1]=temporary;
-  retryArgs.splice(retryArgs.length-1,0,'--range',number);
+  retryArgs.splice(retryArgs.length-1,0,'--range',String(number));
   onLog?.(`Повторная загрузка видеоблока: ${number}`);
-  const result=await run(retryArgs,{signal});throwIfAborted(signal);
-  if(result.code!==0)throw Error(`Не удалось повторно скачать видеоблок: ${number}`);
-  const candidate=path.join(temporary,path.basename(file));
+  const result=await run(retryArgs,{signal,onStderr:line=>onLog?.(line.trim())});throwIfAborted(signal);
+  if(result.code!==0)throw Error(`Видеоблок ${number} не скачан: ${downloadIssue(result.stderr || result.stdout).detail || 'ошибка повторной загрузки'}`);
+  const names=fs.readdirSync(temporary).filter(value=>new RegExp(`^${number}\\.(mp4|mov|webm|mkv|m4v|avi)$`,'i').test(value));
+  const candidateName=name || (names.length===1 ? names[0] : '');
+  if(!candidateName)throw Error(`Видеоблок ${number}: загрузчик не вернул готовый видеофайл. ${downloadIssue(result.stderr || result.stdout).detail}`.trim());
+  const candidate=path.join(temporary,candidateName);
   await validate(candidate,{ffmpeg,signal});throwIfAborted(signal);
-  fs.renameSync(candidate,file);
+  const destination=path.join(postDir,candidateName);
+  fs.renameSync(candidate,destination);
+  return destination;
  }finally{fs.rmSync(temporary,{recursive:true,force:true});}
+}
+
+// A failed downloader may leave no final file at all. Existing invalid videos
+// already receive their one retry above; do not retry those a second time.
+export async function retryMissingCaseVideos({post,files,existingFiles,args,postDir,ffmpeg,signal,control,onLog,run=runGallery,validate=validateVideo}) {
+ const selected=new Set((post.selectedComponents || post.components?.map(c=>c.index) || []).map(Number));
+ const present=new Set(existingFiles.map(file=>Number(nodeApi.path.basename(file).match(/^(\d+)\./)?.[1])));
+ const missing=(post.components || []).filter(c=>c.mediaType==='video'&&selected.has(Number(c.index))&&!present.has(Number(c.index)));
+ const output=[...files],failures=[];let recovered=0;
+ for(const component of missing) {
+  try {
+   if(!ffmpeg)throw Error(`Видеоблок ${component.index}: требуется FFmpeg`);
+   output.push(await retryVideo(component.index,{args,postDir,ffmpeg,signal,control,onLog,run,validate}));recovered++;
+  }catch(error){throwIfAborted(signal);if(error.code==='JOB_STOPPED')throw error;failures.push(error.message);onLog?.(error.message);}
+ }
+ return {files:output,recovered,failures};
 }

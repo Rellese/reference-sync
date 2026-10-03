@@ -1,5 +1,5 @@
 import {createPrivateCookieFile,copyPrivateCookieFile} from '../private-cookies.js';
-import {validateCaseVideo} from '../case/video-retry.js';
+import {validateCaseVideo,retryMissingCaseVideos,isRetryableVideoFailure} from '../case/video-retry.js';
 import {watchCaseProgress} from '../case/progress.js';
 import { sourceLinkTarget } from '../source-link.js';
 import { downloadIssue } from '../download-outcome.js';
@@ -1202,12 +1202,14 @@ export function createGallerySource(spec) {
       args.push(post.url);
 
       let error = null;
+      let retryableVideoError = false;
       let attempts = 0;
       let issue = null;
 
       for (;;) {
         attempts += 1;
         error = null;
+        retryableVideoError = false;
         issue = null;
         let raw = '';
         try {
@@ -1224,6 +1226,7 @@ export function createGallerySource(spec) {
           });
           raw += `\n${result.stdout || ''}\n${result.stderr || ''}`;
           if (result.code !== 0) error = describeFailure(result, browser, title);
+          retryableVideoError=Boolean(error && code==='behance' && isRetryableVideoFailure(raw));
         } catch (runError) {
           raw += `\n${runError.message}`;
           error = runError.message;
@@ -1259,23 +1262,33 @@ export function createGallerySource(spec) {
       } catch (_) { /* пусто */ }
 
       const verifiedFiles = [];
+      let validationFailed=false;
       for (const file of files) {
         try {
-          if(code==='behance')await validateCaseVideo(file,{args,postDir,ffmpeg:toolchain.ffmpeg,signal,control,onLog});
+          if(code==='behance')await validateCaseVideo(file,{args,postDir,ffmpeg:toolchain.ffmpeg,signal,control,onLog:line=>onLog?.(redactCommon(line))});
           else await validateVideo(file, { ffmpeg: toolchain.ffmpeg, signal });
           verifiedFiles.push(file);
         } catch (validationError) {
           if (signal?.aborted) throw validationError;
-          error = validationError.message;
+          validationFailed=true;
+          error = redactCommon(validationError.message);
           issue = downloadIssue(error);
           onLog?.(error);
         }
       }
-      files = verifiedFiles;
+      const retry=code==='behance' ? await retryMissingCaseVideos({post,files:verifiedFiles,existingFiles:files,args,postDir,
+        ffmpeg:toolchain.ffmpeg,signal,control,onLog:line=>onLog?.(redactCommon(line))}) : {files:verifiedFiles,recovered:0,failures:[]};
+      files = retry.files.sort((a,b)=>a.localeCompare(b,undefined,{numeric:true}));
       const expectedNumbers = Array.isArray(post.selectedComponents) && post.selectedComponents.length
         ? post.selectedComponents
         : post.components?.map(component => component.index) || [1];
       const actualNumbers = new Set(files.map(file => Number(path.basename(file).match(/^(\d+)\./)?.[1])));
+      const allReceived=files.length>0 && expectedNumbers.every(number=>actualNumbers.has(Number(number)));
+      if(retry.recovered && allReceived && !validationFailed && !retry.failures.length && retryableVideoError) {
+        error=null;issue=null;control?.resetRetries();
+        onLog?.('Видеоблоки восстановлены; все выбранные файлы получены и проверены.');
+      }
+      if(retry.failures.length){error=redactCommon(retry.failures.join(' '));issue=downloadIssue(error);}
       if (!error && (!files.length || expectedNumbers.some(number => !actualNumbers.has(Number(number))))) {
         error = `${title}: не все выбранные фото и видео получены для этой публикации`;
       }

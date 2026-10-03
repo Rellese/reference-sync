@@ -3,7 +3,9 @@ import {caseModes,caseRegistryId} from './case/download.js';
 export function downloadIssue(text) {
   const raw = String(text || '');
   const unavailable = /NotFoundError[^\n]*(?:pin|post)|(?:pin|post)[^\n]*(?:not found|does not exist|was deleted)/i.test(raw);
-  const detail = raw.split(/\r?\n/).filter(line => /error|failed|not found|403|404|429/i.test(line)).slice(-3).join(' ').slice(-1200) || raw.slice(-1200);
+  const lines=[...new Set(raw.split(/\r?\n/).filter(Boolean))];
+  const errors=lines.filter(line=>/\[error\]|^ERROR:|^Traceback|^\w*Error:/i.test(line));
+  const detail = (errors.length ? errors : lines.filter(line => /error|failed|not found|403|404|429/i.test(line))).slice(-3).join(' ').slice(-1200) || raw.slice(-1200);
   return { unavailable, detail, label: unavailable ? 'Недоступно у источника' : 'Ошибка загрузки — можно повторить' };
 }
 

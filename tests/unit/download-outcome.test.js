@@ -10,6 +10,11 @@ test('only explicit source not-found marks a post unavailable; CDN/auth/validati
     assert.ok(downloadIssue(error).detail);
   }
 });
+test('actual downloader errors stay visible despite later XML warnings and duplicated stderr',()=>{
+ const error='[downloader.ytdl][error] [vimeo] 1149344007: HTTP Error 401: Unauthorized';
+ const warning='[downloader.ytdl][warning] [vimeo] 1148160026: Failed to parse XML';
+ assert.equal(downloadIssue([error,...Array(8).fill(warning),error].join('\n')).detail,error);
+});
 
 test('fresh Pinterest shape removes phantom counts without altering Eagle IDs or other sources', () => {
   const records = new Map([
