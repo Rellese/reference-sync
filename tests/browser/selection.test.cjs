@@ -916,6 +916,32 @@ test('Behance whole case and blocks are independent, including already imported 
  if(process.env.UI_SCREENSHOT) {await page.locator('.rs-carousel-button').click();await page.screenshot({path:process.env.UI_SCREENSHOT+'-case-modes.png'});}
 });
 
+for(const mode of ['smart','full','recent'])test(`Behance saved search passes ${mode} and its limit from UI for the chosen board`,async t=>{
+ const page=await setup(t);
+ await page.evaluate(async mode=>{
+  const {getSource}=await import('/js/sources/registry.js');
+  const {nodeApi}=await import('/js/node-bridge.js');
+  // In-memory host bridge; the browser test never accesses real user files.
+  Object.assign(nodeApi,{available:true,os:{homedir:()=>'/fixture'},path:{join:(...parts)=>parts.join('/')},
+   fs:{existsSync:()=>false,mkdirSync:()=>{},writeFileSync:()=>{},renameSync:()=>{}}});
+  const {state,toolchain}=window.__rs;
+  Object.assign(state.settings,{platform:'behance',downloadMode:'saved',searchMode:mode,recentLimit:15,folderSearch:false,thumbnails:false});
+  toolchain.ready=true;
+  getSource('behance').listContainers=async()=>[{id:'10',name:'Fixture board',type:'COLLECTION',url:'https://www.behance.net/collection/10/a'}];
+  getSource('behance').discover=async options=>{
+   window.fixtureSearch={mode:options.searchMode,limit:options.limit,boards:options.collections.map(c=>c.id)};
+   options.onProgress?.({stage:'discover',found:1,collection:'Fixture board'});
+   return {posts:[{source:'behance',postId:'behance:123',username:'designer',url:'https://www.behance.net/gallery/123/a',
+    componentCount:1,components:[{index:1,mediaType:'image'}],collectionId:'10',collectionName:'Fixture board',collectionType:'COLLECTION'}]};
+  };
+ },mode);
+ await page.getByRole('button',{name:'Начать поиск',exact:true}).click();
+ await picker(page,'10').click();
+ await page.getByRole('button',{name:'Продолжить поиск',exact:true}).click();
+ await page.waitForFunction(()=>Boolean(window.fixtureSearch));
+ assert.deepEqual(await page.evaluate(()=>window.fixtureSearch),{mode,limit:mode==='recent'?15:0,boards:['10']});
+ await page.waitForSelector('[data-table-post-id="behance:123"]');
+});
 test('Behance import submits a case plus only selected blocks and records their confirmations separately',async t=>{
  const page=await setup(t);
  await page.evaluate(async()=>{

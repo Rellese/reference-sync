@@ -72,7 +72,7 @@ test('Behance passes selected block numbers to downloader and keeps only importa
 test('Behance enumerates queued projects, prepares each page and counts recent posts per board', async () => {
   const {discoverBehance} = await import('../../js/sources/behance.js');
   const refreshed=[], extracted=[];
-  const result=await discoverBehance({username:'designer',collections:[{id:'10',name:'A',url:'https://www.behance.net/moodboard/10/a'},{id:'20',name:'B',url:'https://www.behance.net/collection/20/a'}],limit:1}, {
+  const result=await discoverBehance({username:'designer',searchMode:'recent',collections:[{id:'10',name:'A',url:'https://www.behance.net/moodboard/10/a'},{id:'20',name:'B',url:'https://www.behance.net/collection/20/a'}],limit:1}, {
     session:async(options,url,action)=>action({...options,cookieFile:'fixture'}),
     run:async()=>({code:0,stdout:JSON.stringify([[6,'https://www.behance.net/gallery/123/a',{id:123}],[6,'https://www.behance.net/gallery/456/a',{id:456}]])}),
     refresh:async(file,url)=>refreshed.push(url),

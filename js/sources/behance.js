@@ -3,6 +3,7 @@ import { packageBehanceCase } from '../case/package.js';
 import { downloadWithCases } from '../case/download.js';
 import { behancePreview } from './behance-preview.js';
 import { validateSourceLink } from '../source-link.js';
+import {postMatchesStopLink} from '../stop-link.js';
 // Saved moodboards and explicit links share the same media-block importer.
 import { listBehanceCollections } from './behance-collections.js';
 import { runGallery } from '../toolchain.js';
@@ -75,6 +76,12 @@ export async function discoverBehance(options, {
   discoverProject = next => behanceMediaSource.discover(next),
 } = {}) {
   const targets = options.targetUrl ? [{id:'link',name:'Behance',url:validateSourceLink('behance',options.targetUrl)}] : buildBehanceTargets(options);
+  const searchMode=options.searchMode || 'smart';
+  const limit=searchMode==='recent' ? Math.max(0,Math.trunc(Number(options.limit)||0)) : 0;
+  // Whole cases and separately imported blocks have independent registry IDs.
+  // Either complete import counts as a previously imported publication here.
+  const knownPostIds=new Set([...(options.knownPostIds || [])].map(id=>String(id).replace(/^case:v1:/,'')));
+  const stopAtKnown=searchMode==='smart'||searchMode==='recent';
   const posts = new Map();
   let stoppedEarly = false;
   const stopLinkTargets = [];
@@ -87,19 +94,31 @@ export async function discoverBehance(options, {
         const engineUrl = target.url.replace('/moodboard/', '/collection/');
         const result = await run(['--config-ignore','--no-input','--cookies',next.cookieFile,
           '--dump-json','-o','output.jsonl=false','--http-timeout','30','--retries','2',
+          // Collection entries are Queue messages, not Directory posts.
+          // --post-range cannot bound this pass; --child-range does.
+          ...(limit ? ['--child-range',`1-${limit}`] : []),
           '-o','extractor.behance.tls12=true','-o',`extractor.behance.user-agent=${BEHANCE_USER_AGENT}`,engineUrl], {signal:next.signal});
+        throwIfAborted(next.signal);
         const records = parseDumpJson(result.stdout);
         validateBehanceDiscovery(records);
         if (result.code !== 0) throw new Error('Не удалось прочитать список кейсов Behance.');
         projectUrls = [...new Set(records.filter(record => record._galleryType === 6).map(record => behanceTarget(record._galleryUrl).url))];
       }
-      let accepted = 0;
+      let checked = 0;
       for (const url of projectUrls) {
         throwIfAborted(next.signal);
-        if (options.limit > 0 && accepted >= options.limit) break;
+        if (limit && checked >= limit) break;
+        const candidate={postId:`behance:${behanceTarget(url).id}`,url};
+        const linkReached=postMatchesStopLink(candidate,options.stopLink);
+        if(linkReached || (stopAtKnown && knownPostIds.has(candidate.postId))) {
+          stoppedEarly=true;
+          if(linkReached)stopLinkTargets.push(String(target.id));
+          break;
+        }
+        checked++;
         await refresh(next.cookieFile, url, next.signal);
-        const result = await discoverProject({...next, targetUrl:'', limit:0,
-          collections:[{...target,url}], onProgress:progress => options.onProgress?.({...progress,found:posts.size})});
+        const result = await discoverProject({...next, targetUrl:'', searchMode,knownPostIds,limit:0,
+          collections:[{...target,url}], onProgress:progress => options.onProgress?.({...progress,stage:'discover',found:posts.size})});
         for (const post of result.posts) {
           const existing = posts.get(post.postId);
           if (!existing) posts.set(post.postId,post);
@@ -110,9 +129,8 @@ export async function discoverBehance(options, {
               for (const item of post[key] || []) if (!seen.has(identity(item))) { (existing[key] ||= []).push(item); seen.add(identity(item)); }
             }
           }
-          accepted++;
         }
-        options.onProgress?.({found:posts.size,collection:target.name});
+        options.onProgress?.({stage:'discover',found:posts.size,collection:target.name});
         if (result.stoppedEarly) {
           stoppedEarly = true;
           if (result.stopLinkReached) stopLinkTargets.push(String(target.id));
