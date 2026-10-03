@@ -1,5 +1,6 @@
 import { guardedEagleWrite } from './eagle-write-guard.js';
 import { composeNaming } from './naming-compose.js';
+import {caseNamingPlan,orderCaseNamingUnits} from './case/naming.js';
 /* ============================================================
    ReferenceSync — импорт в Eagle
 
@@ -917,7 +918,7 @@ function buildPublicationCounterValues(
 
   counters.forEach((counter) => {
     const counterValues = new Map();
-    const orderedPosts = counter.direction === 'start' ? [...selectedPosts].reverse() : selectedPosts;
+    const orderedPosts = orderCaseNamingUnits(counter.direction === 'start' ? [...selectedPosts].reverse() : selectedPosts,counter);
 
     if (
       counter.mode ===
@@ -1062,7 +1063,12 @@ function placeAdditionalText(
     .join('\n\n');
 }
 
-export function buildNames({
+export function buildNames(options={}) {
+  const plan=caseNamingPlan(options);
+  return plan.collapse(buildPostNames({...options,posts:plan.posts,selected:plan.selected}));
+}
+
+function buildPostNames({
   posts,
   selected,
   numberingEnabled = true,

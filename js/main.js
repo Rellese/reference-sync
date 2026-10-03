@@ -3,6 +3,7 @@ try { cleanupCookieSnapshots(); } catch { console.warn('ReferenceSync: cookie cl
 import {caseStructure,fitCaseStructureColumn} from './case/structure.js';
 import {caseProgressInfo} from './case/progress.js';
 import { isPostImported, caseModes, caseRegistryId, caseImportItem, pendingCase } from './case/download.js';
+import {caseOutputName,caseNamingHistory} from './case/naming.js';
 import { searchSettings } from './source-link.js';
 import { sessionErrorTitle } from './session-account.js';
 import { summarizeImportOutcome } from './download-outcome.js';
@@ -292,10 +293,12 @@ function rememberImportedCounterHistory(
   settings,
   importedPostIds,
   counters,
+  created = [],
 ) {
+  const caseHistory=settings.platform==='behance' ? caseNamingHistory(created,state.posts) : null;
   if (
     settings.numberingEnabled !== true ||
-    !importedPostIds?.size ||
+    !(caseHistory?.importedPostIds.size || importedPostIds?.size) ||
     !counters?.length
   ) {
     return false;
@@ -309,10 +312,10 @@ function rememberImportedCounterHistory(
         settings.platform,
       counters,
       posts:
-        state.posts,
+        caseHistory?.posts || state.posts,
       generated:
-        state.generated,
-      importedPostIds,
+        caseHistory?.generated || state.generated,
+      importedPostIds: caseHistory?.importedPostIds || importedPostIds,
     });
 
   return saveCounterHistoryRecords(
@@ -2176,7 +2179,7 @@ async function runImport() {
   const s = { ...state.settings, folderSearch: state.settings.downloadMode === 'link' ? false : state.settings.platform === 'behance' || state.settings.folderSearch };
   const advanceNumbering = createNumberingProgress(s, state.generated);
   const confirmNumbering = entry => {
-    const patch = advanceNumbering(settingsForPlatform(s.platform), entry.item.sourcePostId || entry.item.postId);
+    const patch = advanceNumbering(settingsForPlatform(s.platform), entry.item);
     for (const [key, value] of Object.entries(patch)) setPlatformNaming(s.platform, key, value);
     if (Object.keys(patch).length && state.settings.platform === s.platform) ui.naming.sync(state.settings);
   };
@@ -2187,6 +2190,8 @@ async function runImport() {
   } = currentNumberingContext(s);
 
   await refreshImportRegistry();
+
+  if (s.platform === 'behance') refreshNames();
 
   const chosen = orderPostsOldestFirst(
     selectImportablePosts(
@@ -2454,7 +2459,8 @@ async function runImport() {
       const selectedFiles = selectedDownloadedFiles({...entry,files:entry.post.source === 'behance' && !caseModes(entry.post).blocks ? [] : entry.files}, selection);
       const caseItem=pendingCase(entry.post,state.knownPostIds) ? caseImportItem(entry) : null;
       if (caseItem && !state.knownPostIds.has(caseItem.postId)) {
-        items.push({...caseItem,name:resolveComponentName({nameOverride,generatedName:names?.name,componentIndex:0,fallback:caseItem.name}),annotation});
+        items.push({...caseItem,name:caseOutputName({names,nameOverride,fallback:caseItem.name}),
+          annotation:descOverride ?? names?.caseDescription ?? annotation,numberingValues:names?.caseCounterValues});
       }
 
       selectedFiles.forEach(({
@@ -2472,7 +2478,7 @@ async function runImport() {
 
         items.push({
           path: file,
-          name: resolveComponentName({
+          name: entry.post.source==='behance' && entry.post.caseDocument ? caseOutputName({names,nameOverride,componentIndex,fallback:entry.post.username}) : resolveComponentName({
             nameOverride,
             generatedName: names?.name,
             componentNames,
@@ -2491,6 +2497,7 @@ async function runImport() {
           component: String(componentIndex),
           componentCount:
             entry.post.componentCount || entry.files.length,
+          ...(entry.post.source==='behance' && entry.post.caseDocument ? {numberingValues:names?.counterValuesByComponent?.[componentIndex]} : {}),
         });
       });
     });
@@ -2706,6 +2713,7 @@ async function runImport() {
       s,
       importedPostIds,
       importedCounters,
+      created,
     );
 
     if (created.length) {
@@ -3585,6 +3593,9 @@ function refreshNames() {
     counters,
     counterSeeds,
 
+    knownPostIds: state.knownPostIds,
+    missingComponents: state.missingComponents,
+
     destination:
       s.numberingDestination,
 
@@ -4373,6 +4384,20 @@ function updateTableSelectionTitle(
   syncImportResultSelection();
 }
 
+function refreshBehanceTableNames() {
+  if (state.settings.platform !== 'behance' || phase === 'importing') return;
+  refreshNames();
+  for (const copies of tablePostCopies.values()) {
+    for (const { post, row } of copies) {
+      for (const [field, selector] of [['name', '.rs-cell--name .rs-cell__text'], ['description', '.rs-desc__text']]) {
+        const node = row.querySelector(selector);
+        const value = cellValue(post.postId, field);
+        if (node && !node.querySelector('.rs-editable') && node.textContent !== value) setText(node, value);
+      }
+    }
+  }
+}
+
 function scheduleTableSelectionTitleUpdate() {
   if (
     tableSelectionTitleFrame !== null ||
@@ -4395,6 +4420,7 @@ function scheduleTableSelectionTitleUpdate() {
       tableSelectionTitleNextFrame =
         requestAnimationFrame(() => {
           tableSelectionTitleNextFrame = null;
+          refreshBehanceTableNames();
           updateTableSelectionTitle();
         });
     });
@@ -6026,6 +6052,7 @@ function toggleAll(value) {
 
   finishTableSelectionHistory();
 
+  refreshBehanceTableNames();
   updateTableSelectionTitle();
   syncTableSelectionInBatches();
 }
