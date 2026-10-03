@@ -4,6 +4,11 @@ import fs from 'node:fs';import path from 'node:path';import os from 'node:os';
 import {nodeApi} from '../../js/node-bridge.js';
 import {retryMissingCaseVideos,isVimeoHttp401,waitForVideoRetry} from '../../js/case/video-retry.js';
 import {makeStopError} from '../../js/job-control.js';
+import crypto from 'node:crypto';
+import {EventEmitter} from 'node:events';
+import {PassThrough} from 'node:stream';
+import {toolchain} from '../../js/toolchain.js';
+import {recoverEmbeddedVideo,VIMEO_STREAM_SCRIPT} from '../../js/case/vimeo-stream.js';
 const refused='[downloader.ytdl][error] [vimeo] 123: Unable to download webpage: HTTP Error 401: Unauthorized\n[download][error] Failed to download 7.mp4';
 
 test('only Vimeo 401 gets delayed retries; other errors and mixed failures do not',()=>{
@@ -51,6 +56,39 @@ test('Eagle player recovery replaces a Vimeo 401 without more metadata requests 
  },validate:async file=>{decoded++;await f.options.validate(file);}});
  assert.equal(f.seen.length,1);assert.equal(players,1);assert.equal(decoded,1);assert.deepEqual(f.waits,[]);
  assert.equal(result.recovered,1);assert.deepEqual(result.failures,[]);assert.deepEqual(fs.readdirSync(f.root),['7.mp4']);
+});
+test('gallery retry enters the real player downloader using Python, then probes and decodes the final video',async t=>{
+ const f=fixture(t),oldTools={...toolchain},workers=[];
+ t.after(()=>Object.assign(toolchain,oldTools));
+ const video=fs.readFileSync(new URL('../fixtures/media/synthetic-av.mp4',import.meta.url));
+ Object.assign(nodeApi,{available:true,crypto,Buffer,os:{homedir:()=>f.root},childProcess:{spawn(command,args){
+  workers.push(command);
+  const child=new EventEmitter();child.stdout=new PassThrough();child.stderr=new PassThrough();child.kill=()=>{};
+  queueMicrotask(()=>{
+   if(command==='fixture-python'){
+    assert.equal(args[0],'-c');assert.equal(args[1],VIMEO_STREAM_SCRIPT);
+    const snapshot=args[2],data=JSON.parse(fs.readFileSync(snapshot,'utf8'));
+    assert.equal(data.url,'https://cdn.vimeocdn.com/full.mp4?token=fixture-private');
+    assert.equal(fs.statSync(snapshot).mode&0o777,0o600);
+    assert.ok(!args.slice(2).some(a=>a.includes('fixture-private')));
+    fs.writeFileSync(path.join(args[3],'7.mp4'),video);child.stdout.write('{"success":true}');
+   }else if(command==='fixture-ffprobe')child.stdout.write('{"format":{"duration":"1"}}');
+   else{assert.equal(command,'fixture-ffmpeg');child.stdout.write('frame=3\n');}
+   child.emit('close',0);
+  });return child;
+ }}});
+ Object.assign(toolchain,{ready:true,python:'fixture-python',kind:'binary',ffprobe:'fixture-ffprobe'});
+ const post={url:'https://www.behance.net/gallery/123/a',components:[{index:7,mediaType:'video',url:'https://player.vimeo.com/video/123'}]};
+ const {validate:galleryValidation,...options}=f.options;
+ const result=await retryMissingCaseVideos({...options,post,ffmpeg:'fixture-ffmpeg',recover:(number,context)=>recoverEmbeddedVideo(number,context,{
+  available:()=>true,capture:async()=>({nodeAccess:false,id:'123',duration:1,files:{progressive:[{width:1400,url:'https://cdn.vimeocdn.com/full.mp4?token=fixture-private'}]}}),
+ })});
+ assert.equal(f.seen.length,1);assert.deepEqual(workers,['fixture-python','fixture-ffprobe','fixture-ffmpeg']);
+ assert.equal(result.recovered,1);assert.deepEqual(result.failures,[]);assert.deepEqual(f.waits,[]);
+ assert.deepEqual(fs.readFileSync(result.files[0]),video);
+ assert.deepEqual(fs.readdirSync(f.root).filter(n=>!n.startsWith('.')),['7.mp4']);
+ const cache=path.join(f.root,'.reference-sync','cookie-cache');
+ assert.ok(fs.readdirSync(cache).every(dir=>fs.readdirSync(path.join(cache,dir)).length===0));
 });
 for(const failure of ['player','corrupt','foreign'])test(`failed Eagle player (${failure}) is tried once, retains no fragments and cannot complete a case`,async t=>{
  const f=fixture(t);let players=0;

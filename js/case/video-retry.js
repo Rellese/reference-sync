@@ -51,7 +51,10 @@ async function retryVideo(number,options) {
 async function retryEmbeddedVideo(number,options) {
  const {fs,path}=nodeApi,temporary=fs.mkdtempSync(path.join(options.postDir,'retry-player-'));
  try {
-  const file=await options.recover(number,{...options,postDir:temporary});
+  // Gallery's run(args) and the player's run(script,args) are different
+  // transports. Pass job context only, never the gallery retry dependencies.
+  const {post,ffmpeg,signal,control,onLog}=options;
+  const file=await options.recover(number,{post,postDir:temporary,ffmpeg,signal,control,onLog});
   if(!file)return null;
   // A returned path is still untrusted until its identity, location, container
   // and complete decode pass. Never import fragments or a different component.
