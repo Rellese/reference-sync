@@ -4,9 +4,11 @@ Import Instagram, Pinterest and Behance references into Eagle. Review results, s
 
 ## Getting started
 
-**Install Python 3.10 or later yourself. ReferenceSync does not install Python.**
+**Click Prepare engine. No manual Python installation or terminal is required on supported macOS/Windows systems.**
 
-Click the download engine preparation button to install or update gallery-dl, yt-dlp with curl_cffi and imageio-ffmpeg using that existing Python. Dependencies are downloaded from your configured Python package index, normally PyPI, into the plugin's private runtime. If pip is missing, Python's ensurepip may prepare it in the selected Python installation.
+The button first looks for a compatible existing Python 3.10+ with pip. If none is available, it downloads a separate portable Python from Astral's python-build-standalone GitHub release, verifies its pinned SHA-256, and installs it in the ReferenceSync working folder. It then installs gallery-dl, yt-dlp with curl_cffi, pycryptodomex and imageio-ffmpeg from your configured package index, normally PyPI. System Python, PATH and the registry are not changed; administrator rights are not required. Windows ARM64 uses x64 emulation and requires Windows 11.
+
+Setup downloads occur only after pressing the button. Opening the plugin or checking components never installs Python automatically. Setup can be cancelled by closing the plugin; incomplete files are cleaned and preparation can be retried.
 
 Sign in to the selected service in your browser, choose that browser/profile, search, review your selection, then download and add it to Eagle.
 
@@ -25,4 +27,4 @@ The plugin does not ask for passwords. Cookies from the selected browser/profile
 
 Some Behance videos use an isolated temporary Vimeo player inside Eagle. It runs Vimeo's own code without Node.js or Eagle API access and does not receive your selected browser cookies. The downloader accepts only validated Vimeo CDN HTTPS URLs.
 
-Settings, import history, recovery data, dependencies and download staging remain locally under .reference-sync in your home directory. Unfinished downloads may remain for recovery. Selected files and metadata are added to Eagle; original browser data and archives are not deleted. No analytics or developer upload service is used. Connections serve the selected websites, their media services, your package index and the local Eagle API. Uninstallation does not automatically remove working data. Read the bundled privacy notes before sharing logs or working folders.
+Settings, import history, recovery data, the separate Python, dependencies and download staging remain locally under .reference-sync in your home directory. Unfinished downloads may remain for recovery. Selected files and metadata are added to Eagle; original browser data and archives are not deleted. No analytics or developer upload service is used. Connections serve the selected websites, their media services, your package index and the local Eagle API. Uninstallation does not automatically remove working data. Read the bundled privacy notes before sharing logs or working folders.

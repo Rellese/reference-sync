@@ -45,6 +45,7 @@ export const nodeApi = (() => {
     path,
     os,
     https,
+    net: (()=>{try{return tryRequire('electron')?.net || null;}catch{return null;}})(),
   };
 })();
 

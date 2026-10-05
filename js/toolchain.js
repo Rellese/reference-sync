@@ -1,6 +1,7 @@
 import {requireAuthenticatedHttps} from './authenticated-links.js';
 import {findFFmpegPair} from './ffmpeg-tools.js';
 import {throwIfAborted} from './job-control.js';
+import {findManagedPython,installManagedPython} from './managed-python.js';
 /* ============================================================
    ReferenceSync — toolchain: поиск и автоматическая установка
    движка добычи данных (gallery-dl).
@@ -21,10 +22,11 @@ import {throwIfAborted} from './job-control.js';
      5. python -m gallery_dl — модуль может быть установлен без
         консольного скрипта в PATH
      6. Установка одной кнопкой: pip install --target в приватную
-        папку плагина. Python устанавливается пользователем заранее.
-        Если pip отсутствует, ensurepip может подготовить его в выбранном Python.
+        папку плагина. При отсутствии Python явная кнопка подготовки
+        скачивает закреплённый переносимый Python в отдельную папку.
+        При отсутствии pip используется отдельный Python плагина; системный Python не меняется.
 
-   Установка зависимостей требует существующего Python и нажатия кнопки.
+   Проверка ничего не устанавливает. Подготовка требует нажатия кнопки.
    ============================================================ */
 
 import { nodeApi, runCommand, ensureDir, workRoot, readJson, writeJson } from './node-bridge.js';
@@ -202,6 +204,8 @@ async function askLoginShell(binary = 'gallery-dl', signal) {
 export async function findPython({ minimumMinor = 8, signal } = {}) {
   throwIfAborted(signal);
   if (!nodeApi.available) return null;
+  const managed=findManagedPython();
+  if(managed&&await pythonWorks(managed,minimumMinor,signal))return managed;
   const { path, os, fs } = nodeApi;
   const home = os.homedir();
 
@@ -415,6 +419,7 @@ async function probeModule(python, runtimeDir, signal) {
       signal,
       env: {
         PYTHONPATH: runtimeDir,
+        PYTHONHOME: '',
         PYTHONIOENCODING: 'utf-8',
         PYTHONUTF8: '1',
       },
@@ -446,6 +451,7 @@ function applyFound(kind, command, args, version, pythonPath = null) {
    ------------------------------------------------------------ */
 export function toolchainEnv() {
   const env = { PYTHONIOENCODING: 'utf-8', PYTHONUTF8: '1' };
+  if(toolchain.command&&toolchain.command===findManagedPython())env.PYTHONHOME='';
   if (toolchain.pythonPath) env.PYTHONPATH = toolchain.pythonPath;
   return env;
 }
@@ -456,6 +462,23 @@ export function toolchainEnv() {
    раскладывает пакет в ~/.reference-sync/runtime, откуда
    запуск идёт через PYTHONPATH.
    ------------------------------------------------------------ */
+async function pythonHasPip(python,signal){
+  if(isWindows()){
+    const architecture=await runCommand(python,['-I','-c','import sysconfig;print(sysconfig.get_platform())'],{timeout:15000,signal});
+    throwIfAborted(signal);
+    if(architecture.code!==0||architecture.stdout.trim()==='win-arm64')return false;
+  }
+  const result=await runCommand(python,['-m','pip','--version'],{timeout:30000,signal,env:{PYTHONHOME:''}})
+    .catch(()=>{throwIfAborted(signal);return {code:1};});
+  throwIfAborted(signal);return result.code===0;
+}
+export async function preparePython({signal,onProgress,onLog,find=findPython,install=installManagedPython,check=pythonHasPip}={}){
+  throwIfAborted(signal);let python=await find({minimumMinor:10,signal});throwIfAborted(signal);
+  if(python&&!await check(python,signal))python=null;
+  if(!python){onLog?.('Скачиваем отдельный Python для ReferenceSync…');python=await install({signal,onProgress});}
+  throwIfAborted(signal);return python;
+}
+
 export async function installToolchain({ onLog, onProgress, signal } = {}) {
   throwIfAborted(signal);
   const log = (message, kind) => { if (onLog) onLog(message, kind); };
@@ -466,7 +489,7 @@ export async function installToolchain({ onLog, onProgress, signal } = {}) {
   }
 
   step('python', 5);
-  let python = await findPython({ minimumMinor: 10, signal });
+  const python = await preparePython({signal,onProgress,onLog});
   throwIfAborted(signal);
 
   if (!python) {
@@ -476,23 +499,6 @@ export async function installToolchain({ onLog, onProgress, signal } = {}) {
   log(`Используется Python: ${python}`);
 
   const runtime = runtimeRoot();
-  step('pip', 15);
-
-  /* pip может отсутствовать (в некоторых сборках Python).
-     ensurepip восстанавливает его без сети. */
-  const pipCheck = await runCommand(python, ['-m', 'pip', '--version'], {
-    timeout: 30000, signal,
-  }).catch(() => { throwIfAborted(signal); return { code: 1 }; });
-  throwIfAborted(signal);
-
-  if (pipCheck.code !== 0) {
-    log('pip не найден, восстанавливаем через ensurepip…', 'warn');
-    await runCommand(python, ['-m', 'ensurepip', '--upgrade'], {
-      timeout: 180000, signal,
-      onStdout: (chunk) => log(chunk.trim()),
-    }).catch(() => { throwIfAborted(signal); return null; });
-  }
-
   throwIfAborted(signal);
 
   step('download', 30);
@@ -507,9 +513,11 @@ export async function installToolchain({ onLog, onProgress, signal } = {}) {
     '--no-input',
     '--disable-pip-version-check',
     '--no-warn-script-location',
+    '--no-cache-dir',
     '--target', runtime,
     'gallery-dl',
     'yt-dlp[default,curl-cffi]',
+    'pycryptodomex',
     'imageio-ffmpeg',
   ];
 
@@ -517,7 +525,7 @@ export async function installToolchain({ onLog, onProgress, signal } = {}) {
   const result = await runCommand(python, args, {
     timeout: 600000,
     signal,
-    env: { PIP_DISABLE_PIP_VERSION_CHECK: '1', PYTHONIOENCODING: 'utf-8' },
+    env: { PIP_DISABLE_PIP_VERSION_CHECK: '1', PYTHONIOENCODING: 'utf-8', PYTHONHOME:'' },
     onStdout: (chunk) => {
       output += chunk;
       chunk.split(/\r?\n/).forEach((line) => {
@@ -555,6 +563,11 @@ export async function installToolchain({ onLog, onProgress, signal } = {}) {
   if (!versionAtLeast(version, MIN_VERSION)) {
     throw new Error(`TOO_OLD:${versionString(version)}`);
   }
+
+  const components=await runCommand(python,['-c',
+    'import os,yt_dlp,curl_cffi,imageio_ffmpeg;from Cryptodome.Cipher import AES;curl_cffi.Curl().close();assert os.path.isfile(imageio_ffmpeg.get_ffmpeg_exe())'],
+    {timeout:30000,signal,env:{PYTHONPATH:runtime,PYTHONHOME:'',PYTHONIOENCODING:'utf-8'}});
+  throwIfAborted(signal);if(components.code!==0)throw Error('VERIFY_FAILED');
 
   applyFound('module', python, ['-m', 'gallery_dl'], version, runtime);
   step('done', 100);
@@ -634,9 +647,23 @@ export function describeToolchainError(error) {
     case 'NO_PYTHON':
       return {
         title: 'Не найден Python',
-        text: 'Установите Python 3.10 или новее с python.org и повторите подготовку движка.',
+        text: 'Нажмите «Подготовить движок», чтобы установить необходимые компоненты автоматически.',
         action: 'retry',
       };
+    case 'PYTHON_DOWNLOAD':
+      return {title:'Нет доступа к интернету',text:'Не удалось скачать Python из GitHub Astral. Проверьте подключение, VPN или прокси и повторите.',action:'retry'};
+    case 'PYTHON_CHECKSUM':
+    case 'PYTHON_SIZE':
+      return {title:'Установка не завершилась',text:'Проверка скачанного Python не прошла. Файл не будет запущен; повторите подготовку.',action:'retry'};
+    case 'PYTHON_PLATFORM':
+      return {title:'Не найден Python',text:'Автоматическая установка Python поддерживает macOS и Windows на Intel и ARM64. На других платформах нужен готовый Python 3.10 или новее.',action:'retry'};
+    case 'PYTHON_DIRECTORY':
+      return {title:'Установка не завершилась',text:'Не удалось подготовить отдельную папку Python. Проверьте доступ к рабочей папке ReferenceSync.',action:'retry'};
+    case 'PYTHON_VERIFY':
+    case 'PYTHON_ARCHIVE':
+    case 'PYTHON_INSTALL':
+    case 'PYTHON_PIP':
+      return {title:'Установка не завершилась',text:'Не удалось установить отдельный Python. Незавершённые файлы удалены; повторите подготовку.',action:'retry'};
     case 'NETWORK':
       return {
         title: 'Нет доступа к интернету',
@@ -680,7 +707,7 @@ export async function hasVideoDownloader({ requireHls = true, requireBrowserComp
   if (!requireHls) return true;
   if (toolchain.kind !== 'module') return !requireBrowserCompatibility;
   const probe = requireBrowserCompatibility
-    ? 'import sys, yt_dlp, curl_cffi; assert sys.version_info >= (3, 10); curl_cffi.Curl().close()'
+    ? 'import sys, yt_dlp, curl_cffi; from Cryptodome.Cipher import AES; assert sys.version_info >= (3, 10); curl_cffi.Curl().close()'
     : 'import yt_dlp';
   const result = await runCommand(toolchain.command, ['-c', probe], {
     env: toolchainEnv(), timeout: 15000,

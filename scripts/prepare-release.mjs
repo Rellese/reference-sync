@@ -14,7 +14,7 @@ const allowed = file => ['manifest.json', 'index.html', 'README.md', 'CHANGELOG.
   || /^js\/[\w/-]+\.js$/.test(file)
   || /^styles\/[\w/-]+\.css$/.test(file)
   || /^assets\/[\w/-]+\.(?:svg|png|woff2|otf|txt|md)$/.test(file)
-  || ['docs/PRIVACY.md', 'docs/REVIEW.md', 'docs/RELEASE.md'].includes(file);
+  || ['docs/PRIVACY.md', 'docs/REVIEW.md', 'docs/RELEASE.md', 'docs/MANAGED-PYTHON.md'].includes(file);
 const files = tracked.filter(allowed);
 const manifest = JSON.parse(await fs.readFile(path.join(root, 'manifest.json'), 'utf8'));
 if (manifest.devTools !== false || manifest.main?.devTools !== false) throw new Error('Disable devTools before packaging');

@@ -1,6 +1,6 @@
 # ReferenceSync — store fields
 
-No website changes were made. The English draft inspected on 2026-10-05 still claims Python installation and lists 1.0.0; local candidate is 1.0.1. The Chinese host returned HTTP 520, so its saved draft was not verified.
+No website changes were made. The English draft inspected on 2026-10-05 still claims Python installation and lists 1.0.0; local candidate is 1.0.2. The Chinese host returned HTTP 520, so its saved draft was not verified.
 
 ## English
 
@@ -10,7 +10,7 @@ Description: Import Instagram, Pinterest and Behance references into Eagle with 
 
 Introduction: INTRODUCTION-EN.md.
 
-Changelog: Added Behance project import and improved embedded video handling. Protected temporary cookies before export, enforced HTTPS for authenticated archive links, and clarified Python setup. Grouped available sources and fixed cancellation during engine preparation.
+Changelog: Added explicit one-button Python and dependency preparation without system Python or PATH changes, with pinned downloads and cancellation. Added Behance project import and improved embedded video handling. Protected temporary cookies before export, enforced HTTPS for authenticated archive links, and clarified Python setup. Grouped available sources and fixed cancellation during engine preparation.
 
 ## 简体中文
 
@@ -20,7 +20,7 @@ Changelog: Added Behance project import and improved embedded video handling. Pr
 
 介绍：INTRODUCTION-ZH-CN.md。
 
-更新日志：新增 Behance 项目导入并改进内嵌视频处理。导出前保护临时 Cookie，身份验证归档链接强制使用 HTTPS，并明确 Python 安装要求。将可用来源排列在一起，修复下载引擎准备过程的取消处理。
+更新日志：新增一键 Python 与依赖准备，固定下载校验并支持取消，不修改系统 Python 或 PATH。新增 Behance 项目导入并改进内嵌视频处理。导出前保护临时 Cookie，身份验证归档链接强制使用 HTTPS，并明确 Python 安装要求。将可用来源排列在一起，修复下载引擎准备过程的取消处理。
 
 ## Submission
 

@@ -4,9 +4,11 @@
 
 ## 开始使用
 
-**请先自行安装 Python 3.10 或更高版本。ReferenceSync 不会安装 Python。**
+**点击“准备引擎”即可。在支持的 macOS/Windows 系统上，无需手动安装 Python 或使用终端。**
 
-点击下载引擎准备按钮，插件通过已有的 Python 安装或更新 gallery-dl、带 curl_cffi 的 yt-dlp 和 imageio-ffmpeg。依赖项从您配置的 Python 软件包索引（通常为 PyPI）下载到插件自己的运行目录。若缺少 pip，Python 的 ensurepip 可能会在所选 Python 安装中准备 pip。
+插件先查找已有且兼容的 Python 3.10+ 和 pip。如果未找到，会从 Astral 的 python-build-standalone GitHub 发布版本下载独立便携 Python，验证固定 SHA-256 后安装到 ReferenceSync 工作目录。随后从您配置的软件包索引（通常为 PyPI）安装 gallery-dl、带 curl_cffi 的 yt-dlp、pycryptodomex 和 imageio-ffmpeg。不修改系统 Python、PATH 或注册表，也不需要管理员权限。Windows ARM64 通过 x64 模拟运行，需要 Windows 11。
+
+仅在您点击按钮后才会下载组件。打开插件或检查组件不会自动安装 Python。关闭插件可以取消准备；未完成文件会清理，之后可重试。
 
 先在浏览器中登录对应网站，再选择该浏览器及用户配置。搜索素材、检查选择，然后下载并添加到 Eagle。
 
@@ -25,4 +27,4 @@
 
 部分 Behance 视频会通过 Eagle 内的隔离临时 Vimeo 播放器解析。该页面执行 Vimeo 自身的代码，没有 Node.js 或 Eagle API 访问权限，也不会接收所选浏览器的 Cookie。下载器只接受经过验证的 Vimeo CDN HTTPS 地址。
 
-设置、导入记录、恢复数据、依赖项和下载暂存文件保存在主目录的 .reference-sync 中。未完成下载可能保留以便恢复。所选文件及元数据会添加到 Eagle；原始浏览器数据和归档不会删除。插件没有分析统计或向开发者上传数据的服务，连接用于所选网站、其媒体服务、软件包索引及本机 Eagle API。卸载不会自动删除工作数据。分享日志或目录前，请阅读随附的隐私说明。
+设置、导入记录、恢复数据、独立 Python、依赖项和下载暂存文件保存在主目录的 .reference-sync 中。未完成下载可能保留以便恢复。所选文件及元数据会添加到 Eagle；原始浏览器数据和归档不会删除。插件没有分析统计或向开发者上传数据的服务，连接用于所选网站、其媒体服务、软件包索引及本机 Eagle API。卸载不会自动删除工作数据。分享日志或目录前，请阅读随附的隐私说明。

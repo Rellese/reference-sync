@@ -912,6 +912,12 @@ async function checkToolchain() {
     onLog: (line, kind) => ui.log.add(line, kind),
   });
 
+  // An interrupted pip run may leave gallery-dl but omit video components.
+  // Detection is read-only; keep the explicit setup button available then.
+  if (toolchain.ready && !await hasVideoDownloader({requireBrowserCompatibility:true})) {
+    toolchain.ready = false;
+  }
+
   if (toolchain.ready) {
     refreshProfileSession();
     ui.results.engine.setState('ready',
@@ -925,9 +931,8 @@ async function checkToolchain() {
     'Движок загрузки не готов',
     {
       detail:
-        'Для начала работы вам необходимо скачать Gallery-DL. ' +
-        'Нажмите кнопку «Скачать» ниже.',
-      button: 'Скачать',
+        'Кнопка установит компоненты в папку ReferenceSync. Если Python не найден, будет скачана отдельная копия из Astral; загрузчики — из PyPI.',
+      button: 'Подготовить движок',
     },
   );
   ui.log.add('Движок не найден. Нажмите «Подготовить движок».', 'warn');
@@ -946,7 +951,7 @@ async function prepareToolchain() {
   const isUpdate = toolchain.ready;
   ui.results.engine.setState('working',
     isUpdate ? 'Обновляем движок загрузки…' : 'Готовим движок загрузки…',
-    { detail: 'Идёт загрузка из репозитория PyPI', progress: 5 });
+    { detail: 'Загрузка компонентов из GitHub Astral и PyPI', progress: 5 });
 
   try {
     const run = isUpdate ? updateToolchain : installToolchain;
