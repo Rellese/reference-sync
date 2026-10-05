@@ -973,7 +973,14 @@ async function prepareToolchain() {
     }
     return true;
   } catch (error) {
-    if (controller.signal.aborted) return false;
+    if (controller.signal.aborted) {
+      toolchain.ready = false;
+      ui.results.engine.setState('error', 'Движок загрузки не подготовлен', {
+        detail: 'Движок не найден. Нажмите «Подготовить движок».',
+        button: 'Подготовить движок',
+      });
+      return false;
+    }
     const info = describeToolchainError(error);
     ui.results.engine.setState('error', info.title, {
       detail: info.text,

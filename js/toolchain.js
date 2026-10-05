@@ -407,11 +407,12 @@ function runtimeHasPackage(runtimeDir) {
     || fs.existsSync(path.join(runtimeDir, 'gallery_dl'));
 }
 
-async function probeModule(python, runtimeDir) {
+async function probeModule(python, runtimeDir, signal) {
   if (!runtimeDir) return null;
   try {
     const result = await runCommand(python, ['-m', 'gallery_dl', '--version'], {
       timeout: 20000,
+      signal,
       env: {
         PYTHONPATH: runtimeDir,
         PYTHONIOENCODING: 'utf-8',
@@ -546,7 +547,7 @@ export async function installToolchain({ onLog, onProgress, signal } = {}) {
   step('verify', 90);
 
   /* Проверяем, что установленное действительно запускается */
-  const version = await probeModule(python, runtime);
+  const version = await probeModule(python, runtime, signal);
   throwIfAborted(signal);
   if (!version) {
     throw new Error('VERIFY_FAILED');
