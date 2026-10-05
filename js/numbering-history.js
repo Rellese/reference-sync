@@ -14,6 +14,7 @@ const PERSISTENT_COUNTER_MODES =
   new Set([
     'global',
     'author',
+    'type',
   ]);
 
 function storageOrNull(storage) {
@@ -494,6 +495,8 @@ function normalizeCounterHistoryRecord(record) {
       );
   }
 
+  if (mode === 'type') normalized.types = normalizeAuthorNumbers(record.types);
+
   return normalized;
 }
 
@@ -651,6 +654,8 @@ export function counterHistorySeeds({
       };
     }
 
+    if (mode === 'type') seeds[counter.id] = { types: normalizeAuthorNumbers(record.types) };
+
     if (mode === 'author') {
       seeds[counter.id] = {
         authors:
@@ -799,6 +804,12 @@ export function rememberCounterHistory({
               ),
               value + 1,
             );
+        }
+
+        if (mode === 'type') {
+          const type = String(postsById.get(postId)?.type || '').trim().toLowerCase() || 'unknown';
+          record.types ||= {};
+          record.types[type] = Math.max(normalizeNumber(record.types[type], start), value + 1);
         }
 
         seen.add(postId);

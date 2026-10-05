@@ -1,3 +1,7 @@
+import {createPrivateCookieFile,verifyPrivateCookieFile,removePrivateCookieFile} from '../private-cookies.js';
+import { assertMatchingAccount } from '../session-account.js';
+import { probePinterestAccount, pinterestCookieHeaderForHost } from '../pinterest-session.js';
+export { pinterestSessionFromHtml } from '../pinterest-session.js';
 /* ============================================================
    Pinterest — список досок и вложенных разделов
 
@@ -29,22 +33,7 @@ function pinterestCookieSnapshotPath() {
     return '';
   }
 
-  const directory =
-    ensureDir(
-      nodeApi.path.join(
-        workRoot(),
-        'cookie-cache',
-      ),
-    );
-
-  return nodeApi.path.join(
-    directory,
-    `pinterest-${Date.now()}-${
-      Math.random()
-        .toString(16)
-        .slice(2)
-    }.txt`,
-  );
+  return createPrivateCookieFile('pinterest');
 }
 
 export function removePinterestCookieSnapshot(
@@ -57,37 +46,26 @@ export function removePinterestCookieSnapshot(
     return;
   }
 
-  try {
-    nodeApi.fs.unlinkSync(cookieFile);
-  } catch (_) {
-    /* Файл уже удалён или не был создан. */
-  }
+  removePrivateCookieFile(cookieFile);
 }
 
 export function pinterestCookieExportArgs({
-  username,
   browserCookieSpec,
   cookieFile,
 }) {
-  const cleanUsername =
-    String(username ?? '')
-      .trim()
-      .replace(/^@+/, '');
-
   return [
+    '--config-ignore',
+    '--no-input',
     '--cookies-from-browser',
     browserCookieSpec,
 
     '--cookies-export',
     cookieFile,
 
-    '--simulate',
-    '--range',
-    '1',
-
-    `https://www.pinterest.com/${
-      cleanUsername
-    }/pins/`,
+    // One no-download job exports exactly once into the reserved .tmp file.
+    // Crawling a profile can spawn child jobs and rewrite it with default mode.
+    '--no-download',
+    'https://0/file.jpg',
   ];
 }
 
@@ -176,6 +154,7 @@ export async function createPinterestCookieSnapshot({
     );
   }
 
+  try { verifyPrivateCookieFile(cookieFile); } catch(error) { removePinterestCookieSnapshot(cookieFile); throw error; }
   return cookieFile;
 }
 
@@ -259,48 +238,16 @@ export function readPinterestCookies(cookieFile) {
     );
   }
 
-  const cookies = new Map();
-
-  nodeApi.fs
-    .readFileSync(cookieFile, 'utf8')
-    .split(/\r?\n/)
-    .forEach((sourceLine) => {
-      let line =
-        String(sourceLine || '').trim();
-
-      if (line.startsWith('#HttpOnly_')) {
-        line =
-          line.slice('#HttpOnly_'.length);
-      } else if (
-        !line ||
-        line.startsWith('#')
-      ) {
-        return;
-      }
-
-      const parts = line.split('\t');
-
-      if (parts.length < 7) {
-        return;
-      }
-
-      const domain =
-        clean(parts[0]).toLowerCase();
-
-      if (!domain.endsWith('pinterest.com')) {
-        return;
-      }
-
-      const name =
-        clean(parts[5]);
-
-      const value =
-        clean(parts.slice(6).join('\t'));
-
-      if (name && value) {
-        cookies.set(name, value);
-      }
-    });
+  // Use the same host, expiry and path checks as the account probe. A suffix
+  // like "notpinterest.com" must never contribute cookies to a Pinterest request.
+  const header = pinterestCookieHeaderForHost(
+    nodeApi.fs.readFileSync(cookieFile, 'utf8'),
+    HOST,
+  );
+  const cookies = new Map(header ? header.split('; ').map(pair => {
+    const separator = pair.indexOf('=');
+    return [pair.slice(0, separator), pair.slice(separator + 1)];
+  }) : []);
 
   if (!cookies.size) {
     throw new Error(
@@ -337,6 +284,7 @@ function browserUserAgent() {
 }
 
 function requestText({
+  hostname = HOST,
   path,
   headers,
   signal,
@@ -371,7 +319,7 @@ function requestText({
         nodeApi.https.request(
           {
             protocol: 'https:',
-            hostname: HOST,
+            hostname,
             path,
             method: 'GET',
             headers,
@@ -385,9 +333,12 @@ function requestText({
               'data',
               (chunk) => {
                 body += chunk;
+                if (body.length > 8 * 1024 * 1024) request.destroy(new Error('Слишком большой ответ Pinterest'));
               },
             );
 
+            response.on('error', error => finish(reject, error));
+            response.on('aborted', () => finish(reject, new Error('Ответ Pinterest прерван')));
             response.on(
               'end',
               () => {
@@ -396,6 +347,7 @@ function requestText({
                     response.statusCode || 0,
 
                   body,
+                  location: response.headers?.location || '',
                 });
               },
             );
@@ -1110,5 +1062,41 @@ export async function listPinterestContainers({
     removePinterestCookieSnapshot(
       temporaryCookieFile,
     );
+  }
+}
+
+
+export async function verifyPinterestSession({ browser, browserProfile, signal, keepCookieFile = false }) {
+  let retained = false;
+  const cookieFile = pinterestCookieSnapshotPath();
+  if (!cookieFile) return { authenticated: false, status: 'unavailable' };
+  try {
+    const result = await runGallery([
+      '--config-ignore', '--no-input', '--cookies-from-browser',
+      browserCookieSpecForProfile(browser, browserProfile),
+      '--cookies-export', cookieFile, '--no-download', 'https://0/file.jpg',
+    ], { signal, timeout: 45000 });
+    if (result.code !== 0 || !nodeApi.fs.existsSync(cookieFile)) return { authenticated: false, status: 'browser-error' };
+    verifyPrivateCookieFile(cookieFile);
+    const cookieText = nodeApi.fs.readFileSync(cookieFile, 'utf8');
+    try {
+      const session = await probePinterestAccount({ cookieText, request: requestText, userAgent: browserUserAgent(), signal });
+      retained = keepCookieFile && session.authenticated;
+      return { ...session, ...(retained ? { cookieFile } : {}) };
+    } catch (error) {
+      if (signal?.aborted) throw error;
+      return { authenticated: false, status: 'network-error' };
+    }
+  } finally { if (!retained) removePinterestCookieSnapshot(cookieFile); }
+}
+
+export async function requireMatchingPinterestSession(settings, signal) {
+  const session = await verifyPinterestSession({ ...settings, signal, keepCookieFile: true });
+  try {
+    assertMatchingAccount(session, { ...settings, platform: 'pinterest', title: 'Pinterest' });
+    return { ...session, browser: settings.browser, browserProfile: settings.browserProfile };
+  } catch (error) {
+    removePinterestCookieSnapshot(session.cookieFile);
+    throw error;
   }
 }

@@ -6,7 +6,7 @@
    не знал слова «instagram».
    ============================================================ */
 
-import { discoverSaved, downloadPosts } from '../instagram.js';
+import { discoverSaved, downloadPosts, verifyInstagramSession } from '../instagram.js';
 
 import {
   listInstagramCollections,
@@ -41,6 +41,8 @@ export default {
 
   discover: (options) =>
     discoverSaved(options),
+
+  probe: options => verifyInstagramSession(options),
 
   download: (options) =>
     downloadPosts(options),

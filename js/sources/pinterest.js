@@ -9,6 +9,7 @@ import { createGallerySource } from './gallery-source.js';
 
 import {
   listPinterestContainers,
+  verifyPinterestSession,
 } from './pinterest-containers.js';
 
 function clean(value) {
@@ -217,6 +218,7 @@ const pinterestSource = createGallerySource({
 
 export default {
   ...pinterestSource,
+  probe: options => verifyPinterestSession(options),
 
   listContainers: (options) =>
     listPinterestContainers(options),
