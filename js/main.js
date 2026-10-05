@@ -650,6 +650,7 @@ async function restoreInterruptedJob() {
 
 function prepareGracefulClose() {
   closingGracefully = true;
+  toolchainAbort?.abort();
 
   if (state.abortController) {
     state.abortController.abort();
@@ -935,10 +936,12 @@ async function checkToolchain() {
 
 /* Установка/обновление по кнопке */
 let toolchainBusy = false;
+let toolchainAbort = null;
 
 async function prepareToolchain() {
   if (toolchainBusy) return false;
   toolchainBusy = true;
+  const controller = toolchainAbort = new AbortController();
 
   const isUpdate = toolchain.ready;
   ui.results.engine.setState('working',
@@ -948,11 +951,14 @@ async function prepareToolchain() {
   try {
     const run = isUpdate ? updateToolchain : installToolchain;
     await run({
+      signal: controller.signal,
       onLog: (line, kind) => ui.log.add(line, kind),
       onProgress: ({ percent }) => {
         if (typeof percent === 'number') ui.results.engine.setProgress(percent);
       },
     });
+
+    throwIfAborted(controller.signal);
 
     refreshProfileSession();
     ui.results.engine.setState('ready',
@@ -967,6 +973,7 @@ async function prepareToolchain() {
     }
     return true;
   } catch (error) {
+    if (controller.signal.aborted) return false;
     const info = describeToolchainError(error);
     ui.results.engine.setState('error', info.title, {
       detail: info.text,
@@ -976,6 +983,7 @@ async function prepareToolchain() {
     return false;
   } finally {
     toolchainBusy = false;
+    if (toolchainAbort === controller) toolchainAbort = null;
   }
 }
 

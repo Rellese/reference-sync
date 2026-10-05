@@ -97,11 +97,18 @@ export function runCommand(command, args, options = {}) {
       signal,
     } = options;
 
+    if (signal?.aborted) {
+      reject(Object.assign(new Error('STOPPED'), { name: 'AbortError' }));
+      return;
+    }
+
     let child;
     try {
       child = nodeApi.childProcess.spawn(command, args, {
         cwd,
-        env: { ...process.env, ...(env || {}) },
+        // Python Install Manager must never download Python during detection.
+        // This affects only this child process, not the user's configuration.
+        env: { ...process.env, ...(env || {}), PYTHON_MANAGER_AUTOMATIC_INSTALL: 'false' },
         windowsHide: true,
       });
     } catch (error) {
@@ -113,11 +120,13 @@ export function runCommand(command, args, options = {}) {
     let stderr = '';
     let settled = false;
     let timer = null;
+    let abort;
 
     const finish = (fn, payload) => {
       if (settled) return;
       settled = true;
       if (timer) clearTimeout(timer);
+      if (abort) signal.removeEventListener('abort', abort);
       fn(payload);
     };
 
@@ -129,7 +138,7 @@ export function runCommand(command, args, options = {}) {
     }
 
     if (signal) {
-      const abort = () => {
+      abort = () => {
         try { child.kill('SIGTERM'); } catch (_) { /* ignore */ }
       };
       if (signal.aborted) abort();
@@ -149,6 +158,8 @@ export function runCommand(command, args, options = {}) {
     });
 
     child.on('error', (error) => finish(reject, error));
+    // Discovery also uses abort for an intentional early boundary. Preserve its
+    // captured output; callers distinguish that boundary from user cancellation.
     child.on('close', (code) => finish(resolve, { code, stdout, stderr }));
   });
 }
