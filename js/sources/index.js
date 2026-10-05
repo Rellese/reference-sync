@@ -13,13 +13,13 @@
 import { registerSource, listSources } from './registry.js';
 import instagram from './instagram.js';
 import pinterest from './pinterest.js';
-import dribbble from './dribbble.js';
 import behance from './behance.js';
+import dribbble from './dribbble.js';
 import vimeo from './vimeo.js';
 import x from './x.js';
 import layers from './layers.js';
 
-const ALL = [instagram, pinterest, dribbble, behance, vimeo, x, layers];
+const ALL = [instagram, pinterest, behance, dribbble, vimeo, x, layers];
 
 let installed = false;
 
