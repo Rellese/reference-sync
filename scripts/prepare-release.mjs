@@ -6,6 +6,9 @@ import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+const checkOnly = process.argv.includes('--check');
+const outputIndex = process.argv.indexOf('--output');
+if (outputIndex >= 0 && !process.argv[outputIndex + 1]) throw new Error('--output requires a directory');
 const tracked = execFileSync('git', ['ls-files', '-z'], { cwd: root, encoding: 'utf8' }).split('\0').filter(Boolean);
 const allowed = file => ['manifest.json', 'index.html', 'README.md', 'CHANGELOG.md'].includes(file)
   || /^js\/[\w/-]+\.js$/.test(file)
@@ -39,9 +42,23 @@ for (const file of files) {
   }
   inventory.push({ path: file, bytes: buffer.length, sha256: createHash('sha256').update(buffer).digest('hex') });
 }
-const parent = path.join(root, 'dist');
-await fs.mkdir(parent, { recursive: true });
-const destination = await fs.mkdtemp(path.join(parent, `ReferenceSync-${manifest.version}-`));
+if (checkOnly) {
+  console.log(JSON.stringify({ version: manifest.version, files: files.length,
+    bytes: inventory.reduce((sum, item) => sum + item.bytes, 0),
+    checkOnly: true, releaseReady: false, packageTested: false }));
+  process.exit(0);
+}
+let destination;
+if (outputIndex >= 0) {
+  destination = path.resolve(process.argv[outputIndex + 1]);
+  await fs.mkdir(path.dirname(destination), { recursive: true });
+  // Refuse an existing folder instead of replacing personal/release files.
+  await fs.mkdir(destination);
+} else {
+  const parent = path.join(root, 'dist');
+  await fs.mkdir(parent, { recursive: true });
+  destination = await fs.mkdtemp(path.join(parent, `ReferenceSync-${manifest.version}-`));
+}
 for (const file of files) {
   const target = path.join(destination, file);
   await fs.mkdir(path.dirname(target), { recursive: true });
