@@ -1,37 +1,6 @@
-// Fixed helpers. Cookies are scoped before writing; web JWTs stay in this
-// process and are never returned to JS, stored, or passed on the command line.
-export const vimeoCookiesScript=String.raw`
-import http.cookiejar,json,sys
-from yt_dlp.cookies import extract_cookies_from_browser
-class Silent:
- def __getattr__(self,name):return lambda *args,**kwargs:None
-try:
- browser,sep,profile=sys.argv[2].partition(':')
- if browser=='file':
-  source=http.cookiejar.MozillaCookieJar(sys.argv[3]);source.load(ignore_discard=True,ignore_expires=True)
- else:
-  if browser not in {'brave','chrome','chromium','edge','firefox','opera','safari','vivaldi'}:raise ValueError()
-  source=extract_cookies_from_browser(browser,profile or None,logger=Silent())
- jar=http.cookiejar.MozillaCookieJar(sys.argv[1])
- for cookie in source:
-  domain=cookie.domain.lstrip('.').lower()
-  if domain=='vimeo.com' or domain.endswith('.vimeo.com'):jar.set_cookie(cookie)
- jar.save(ignore_discard=True,ignore_expires=True)
- print(json.dumps({'ok':True}))
-except Exception:
- print(json.dumps({'error':'VIMEO_COOKIES'}));sys.exit(1)
-`;
-
-export const vimeoCheckpointScript=String.raw`
-def checkpoint():
- if not spec.get('control'):return
- while True:
-  with open(spec['control'],encoding='utf8') as handle:state=json.loads(handle.read(100))
-  if state.get('stopped'):raise Failure('JOB_STOPPED')
-  if not state.get('paused'):return
-  time.sleep(.1)
-`;
-
+import {browserCookiesScript,checkpointScript} from './private-python.js';
+export const vimeoCookiesScript=browserCookiesScript;
+export const vimeoCheckpointScript=checkpointScript;
 export const vimeoApiScript=String.raw`
 import http.cookiejar,json,sys,urllib.parse,re,time
 from curl_cffi import requests

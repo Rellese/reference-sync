@@ -156,7 +156,7 @@ export function buildTitlebar({ onClose }) {
 /* ============================================================
    1 блок — шапка
    ============================================================ */
-export function buildHeader({ version = 'v1.0.1', onLanguage }) {
+export function buildHeader({ version = 'v1.2.0', onLanguage }) {
   const root = el('div', 'rs-header');
 
   const left = el('div', 'rs-header__left');
@@ -825,6 +825,7 @@ export function buildSettings({ onChange, onFolderSearch, onArchive, onArchiveRe
       if (state.settings.downloadMode === 'link') setText(browserHint, L('Браузер нужен для публикаций, доступных после входа. Никнейм владельца ссылки не требуется.'));
       else if (state.settings.platform === 'behance') setText(browserHint, L('Для сохранённых публикаций выберите доски настроения своего аккаунта.'));
       else if (state.settings.platform === 'vimeo') setText(browserHint, L('Без поиска по папкам загружается Favorites (понравившиеся видео). Для Watch Later и подборок включите поиск по папкам.'));
+      else if (state.settings.platform === 'x') setText(browserHint, L('Без поиска по папкам загружаются все закладки X. Папки закладок требуют X Premium.'));
     },
     setUsername(value) {
       accountField.set(value);

@@ -11,6 +11,7 @@
    ============================================================ */
 
 import {vimeoTarget} from './sources/vimeo-target.js';
+import {xTarget} from './sources/x-target.js';
 function clean(value) {
   return String(value ?? '').trim();
 }
@@ -92,11 +93,10 @@ const SOURCE_RULES = [
     code: 'x',
     placeholderPrefix: 'https://x.com/user/status/',
     matchesHost: (hostname) =>
-      isHostOrSubdomain(hostname, 'x.com') ||
-      isHostOrSubdomain(hostname, 'twitter.com'),
+      ['x.com','www.x.com','mobile.x.com','twitter.com','www.twitter.com','mobile.twitter.com'].includes(hostname),
     extractId: (pathname) => {
       const match = pathname.match(
-        /^\/[^/]+\/status\/(\d+)(?:\/|$)/i,
+        /^\/(?:[A-Za-z0-9_]{1,15}\/status|i\/web\/status)\/(\d+)\/?$/i,
       );
 
       return match ? match[1] : '';
@@ -173,9 +173,9 @@ export function parseStopLink(
     expectedSourceCode,
   ).toLowerCase();
 
-  if(rule.code==='vimeo'){
-    try{if(vimeoTarget(originalUrl).type!=='VIDEO')throw Error();}
-    catch{return {ok:false,code:'invalid_publication_url',sourceCode:'vimeo',message:'Вставьте ссылку непосредственно на публикацию.'};}
+  if(['vimeo','x'].includes(rule.code)){
+    try{if(rule.code==='vimeo'&&vimeoTarget(originalUrl).type!=='VIDEO')throw Error();if(rule.code==='x')xTarget(originalUrl);}
+    catch{return {ok:false,code:'invalid_publication_url',sourceCode:rule.code,message:'Вставьте ссылку непосредственно на публикацию.'};}
   }
 
   if (expectedCode && rule.code !== expectedCode) {

@@ -62,3 +62,15 @@ test('abort during asynchronous file open waits for close and removes the partia
   assert.equal(fs.existsSync(destination), false);
   assert.equal(fs.existsSync(destination + '.part'), false);
 });
+
+test('source-scoped media validation rejects cross-host or HTTP redirects before requesting them', async t => {
+ const root=fs.mkdtempSync(path.join(os.tmpdir(),'rs-media-scope-')),original={...nodeApi};
+ t.after(()=>{Object.assign(nodeApi,original);fs.rmSync(root,{recursive:true,force:true});});
+ Object.assign(nodeApi,{fs,path,stream});let calls=0,location='https://evil.test/video.mp4';
+ nodeApi.https={get(url,options,callback){calls++;const request=new EventEmitter();request.setTimeout=()=>{};request.destroy=()=>{};
+  queueMicrotask(()=>{const response=new stream.PassThrough();response.statusCode=302;response.headers={location};callback(response);response.end();});return request;}};
+ const validateUrl=url=>{const u=new URL(url);if(u.protocol!=='https:'||u.hostname!=='video.twimg.com')throw Error('UNSAFE_MEDIA_URL');};
+ for(const next of ['https://evil.test/a','http://video.twimg.com/a']){
+  location=next;calls=0;await assert.rejects(downloadMedia('https://video.twimg.com/a',path.join(root,'1.mp4'),{validateUrl}),/UNSAFE_MEDIA_URL/);assert.equal(calls,1);
+ }
+});

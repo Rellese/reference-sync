@@ -1,4 +1,4 @@
-# Review notes — ReferenceSync 1.1.0
+# Review notes — ReferenceSync 1.2.0
 
 Window plugin with explicit one-button preparation. No manual Python installation
 is required on supported macOS/Windows systems. Startup never downloads Python.
@@ -29,6 +29,10 @@ No interpreter or executable archive is bundled in this .eagleplugin.
    Vimeo: Favorites by default, Watch Later/Showcases via folder selection;
    all three modes, Stop Link, video/showcase HTTPS links and one video per post.
    No archive/carousels/upload-folder scenario. Verify import in a test library.
+   X: all Bookmarks by default, actual Premium bookmark folders when available,
+   all three modes, Stop Link, HTTPS post links, attached photos/video/GIF/carousels.
+   Text-only bookmarks count toward recent N but have no importable media.
+   Archive, Likes and arbitrary profile feeds are not offered. No extension/API key.
 7. Synthetic archive HTTP links become verified-platform canonical HTTPS before
    browser-authenticated download; off-host/userinfo/port links must reject.
 8. Test permissions, stop/recovery and cleanup on Windows and macOS. Supply
@@ -37,7 +41,7 @@ No interpreter or executable archive is bundled in this .eagleplugin.
 ## Data and authentication
 
 Eagle SDK preferred, localhost:41595 fallback disclosed. Browser-authenticated
-Instagram/Pinterest/Behance/Vimeo flows share protected cookie snapshots: directory and
+Instagram/Pinterest/Behance/Vimeo/X flows share protected cookie snapshots: directory and
 file permissions before writing, reserved exporter .tmp, verification after
 export, finally/exit/dead-process cleanup. Windows ACL still needs a real native
 browser export test. Interrupted snapshots may remain until a later cleanup.
@@ -56,10 +60,20 @@ snapshots are private, excluded from arguments/logs/case archives and removed.
 Settings/history/recovery/staging and completed dependencies remain local. See
 PRIVACY.md; removing the plugin does not remove user data/dependencies automatically.
 
+X shares the scoped, preprotected snapshot/control helpers with Vimeo. It reads
+current platform query IDs from verified HTTPS static JS without executing that
+code, uses only GET requests, and never falls back from a folder to all bookmarks.
+Cookies/CSRF remain in the Python process; CDN downloads carry no browser cookies
+and enforce HTTPS/host checks on every redirect. Video is fully FFmpeg-validated.
+macOS Chrome testing found two video bookmarks under N=2 and downloaded/decoded
+one 2.18 MB MP4. Native Eagle import, real Premium folders, Windows and other
+browsers are still pending; the web API may change independently of the plugin.
+
 ## Evidence and release limits
 
-536/536 source unit tests after the Vimeo addition; 92 JS syntax checks and the
-Vimeo/private-snapshot contract passed in Eagle's Node 16.17.1. The earlier
+563/563 source unit tests after the X addition; a further cookie-domain isolation
+contract also passed in the 18/18 X Python helper run. 101 JS syntax checks and the
+X/private-snapshot contract passed in Eagle's Node 16.17.1. The earlier
 45/45 isolated browser regressions predate the Vimeo UI; current source checks
 are recorded in STATUS current.md. Actual macOS ARM64 portable Python and
 the complete setup flow were tested with all system interpreter probes denied in

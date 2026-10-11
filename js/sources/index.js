@@ -19,7 +19,7 @@ import vimeo from './vimeo.js';
 import x from './x.js';
 import layers from './layers.js';
 
-const ALL = [instagram, pinterest, behance, vimeo, dribbble, x, layers];
+const ALL = [instagram, pinterest, behance, vimeo, x, dribbble, layers];
 
 let installed = false;
 

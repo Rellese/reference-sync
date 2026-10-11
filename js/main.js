@@ -1186,7 +1186,7 @@ const profileSession = createProfileSessionController({
 });
 
 function refreshProfileSession() {
-  if (state.settings.source === 'browser' || ['behance','vimeo'].includes(state.settings.platform)) profileSession.refresh(state.settings);
+  if (state.settings.source === 'browser' || ['behance','vimeo','x'].includes(state.settings.platform)) profileSession.refresh(state.settings);
 }
 
 async function requireMatchingInstagramSession(settings, signal) {
@@ -2265,7 +2265,7 @@ async function runImport() {
   if (!onlyLocalArchive && !await ensureToolchain()) return;
   const requiresVideoEngine = ['pinterest', 'behance', 'vimeo'].includes(s.platform) && chosen.some(post => !post.archiveLocal &&
     post.components?.some(component => component.mediaType === 'video') && (s.platform !== 'pinterest' || !pinterestDownloadPlan(post).length));
-  const hasVideo = ['pinterest', 'behance', 'vimeo'].includes(s.platform) && chosen.some(post => !post.archiveLocal && post.components?.some(component => component.mediaType === 'video'));
+  const hasVideo = ['pinterest', 'behance', 'vimeo', 'x'].includes(s.platform) && chosen.some(post => !post.archiveLocal && post.components?.some(component => component.mediaType === 'video'));
   if (hasVideo && !await hasVideoDownloader({ requireHls: requiresVideoEngine, requireBrowserCompatibility: s.platform === 'behance' })) {
     ui.results.engine.setState('error', 'Нужно обновить видеокомпонент', { button: 'Скачать', detail: 'Будут загружены gallery-dl, yt-dlp, FFmpeg и компонент совместимости с браузерами из PyPI.' });
     ui.status.set('Нужно обновить видеокомпонент', 'Нажмите «Скачать», затем повторите импорт.');
@@ -2359,7 +2359,7 @@ async function runImport() {
       ...(s.platform==='behance'&&!isArchiveImport ? {
         beforePost:(post,root,signal)=>guardCaseDownload(root,signal),
         beforePack:guardCasePackaging,onPackReady:rememberDownload,
-      } : s.platform==='vimeo'&&!isArchiveImport ? {
+      } : ['vimeo','x'].includes(s.platform)&&!isArchiveImport ? {
         beforePost:(post,root,signal)=>guardCaseDownload(root,signal),
       } : {}),
       stagingRoot: recoveryState?.stagingRoot || '',
@@ -2640,7 +2640,7 @@ async function runImport() {
     }
 
     ui.status.set('Импорт в Eagle…', `0 из ${items.length}`, true);
-    if(['behance','vimeo'].includes(s.platform)&&!isArchiveImport)await guardEagleBatch(items,state.abortController.signal);
+    if(['behance','vimeo','x'].includes(s.platform)&&!isArchiveImport)await guardEagleBatch(items,state.abortController.signal);
 
     const knownBeforeImport = new Set(state.knownPostIds);
     const {

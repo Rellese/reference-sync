@@ -1,5 +1,6 @@
 import { diagnostics } from './diagnostics.js';
 import { vimeoMessages } from './vimeo.js';
+import { xMessages } from './x.js';
 // Columns: Russian source, English, French, Spanish, Simplified Chinese.
 export const messages = [
   ["Получение видео Behance", "Loading Behance video", "Chargement de la vidéo Behance", "Cargando vídeo de Behance", "正在加载 Behance 视频"],
@@ -12,6 +13,7 @@ export const messages = [
   ["Длительность файла не совпадает с полным видео.", "The file duration does not match the complete video.", "La durée du fichier ne correspond pas à la vidéo complète.", "La duración del archivo no coincide con la del vídeo completo.", "文件时长与完整视频不符。"],
   ...diagnostics,
   ...vimeoMessages,
+  ...xMessages,
   ["Скачать кейс целиком", "Download the whole case", "Télécharger le projet complet", "Descargar el proyecto completo", "下载完整项目"],
   ["Скачать каждый блок отдельно", "Download blocks separately", "Télécharger les blocs séparément", "Descargar los bloques por separado", "分别下载各内容块"],
   ["Для просмотра .rscase нужен отдельный плагин Eagle.", "Viewing .rscase requires a separate Eagle plugin.", "Un plugin Eagle distinct est nécessaire pour afficher les fichiers .rscase.", "Para ver .rscase se necesita un complemento de Eagle independiente.", "查看 .rscase 需要单独的 Eagle 插件。"],

@@ -3,8 +3,9 @@ import { nodeApi } from './node-bridge.js';
 import { throwIfAborted } from './job-control.js';
 
 // Signed CDN URLs do not need the browser's cookies. Never forward cookies across redirects.
-export async function downloadMedia(url, destination, { signal, agent, redirects = 5 } = {}) {
+export async function downloadMedia(url, destination, { signal, agent, redirects = 5, validateUrl } = {}) {
   throwIfAborted(signal);
+  validateUrl?.(url);
   const parsed = new URL(url);
   if (parsed.protocol !== 'https:') throw new Error('MEDIA_HTTPS_REQUIRED');
   const partial = destination + '.part';
@@ -34,7 +35,7 @@ export async function downloadMedia(url, destination, { signal, agent, redirects
           response.resume();
           if (!redirects) { finish(new Error('MEDIA_REDIRECT_LIMIT')); return; }
           downloadMedia(new URL(response.headers.location, parsed).href, destination,
-            { signal, agent, redirects: redirects - 1 }).then(value => finish(null, value), finish);
+            { signal, agent, redirects: redirects - 1, validateUrl }).then(value => finish(null, value), finish);
           return;
         }
         if (status !== 200) { response.resume(); finish(new Error(`HTTP ${status}`)); return; }
