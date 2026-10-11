@@ -1,4 +1,4 @@
-# Review notes — ReferenceSync 1.0.2
+# Review notes — ReferenceSync 1.1.0
 
 Window plugin with explicit one-button preparation. No manual Python installation
 is required on supported macOS/Windows systems. Startup never downloads Python.
@@ -26,6 +26,9 @@ No interpreter or executable archive is bundled in this .eagleplugin.
    media/carousel, import, repeat without duplicates, all three search modes.
 6. Behance: moodboards or project link, three modes, whole .rscase plus blocks;
    separate ReferenceCanvas is needed to view .rscase, not installed by Sync.
+   Vimeo: Favorites by default, Watch Later/Showcases via folder selection;
+   all three modes, Stop Link, video/showcase HTTPS links and one video per post.
+   No archive/carousels/upload-folder scenario. Verify import in a test library.
 7. Synthetic archive HTTP links become verified-platform canonical HTTPS before
    browser-authenticated download; off-host/userinfo/port links must reject.
 8. Test permissions, stop/recovery and cleanup on Windows and macOS. Supply
@@ -34,10 +37,18 @@ No interpreter or executable archive is bundled in this .eagleplugin.
 ## Data and authentication
 
 Eagle SDK preferred, localhost:41595 fallback disclosed. Browser-authenticated
-Instagram/Pinterest/Behance flows share protected cookie snapshots: directory and
+Instagram/Pinterest/Behance/Vimeo flows share protected cookie snapshots: directory and
 file permissions before writing, reserved exporter .tmp, verification after
 export, finally/exit/dead-process cleanup. Windows ACL still needs a real native
 browser export test. Interrupted snapshots may remain until a later cleanup.
+
+The Vimeo adapter exports only Vimeo-domain cookies. Its temporary web JWT is
+used in memory inside Python for authenticated Vimeo API requests, never returned
+to JS or written to logs/files/arguments. Downloads enforce HTTPS before native
+requests/redirects, only Vimeo and its video CDNs, and no external downloader.
+macOS Chrome source testing covered Favorites N=15, Watch Later, known-ID boundary,
+catalog (no Showcases returned), direct video and full FFmpeg validation. A real
+nonempty Showcase, native Eagle import, Windows and other browsers remain pending.
 
 Behance Vimeo recovery uses a temporary isolated player without browser cookies,
 Node or Eagle API access, then validated Vimeo CDN HTTPS downloads. Signed stream
@@ -47,8 +58,10 @@ PRIVACY.md; removing the plugin does not remove user data/dependencies automatic
 
 ## Evidence and release limits
 
-500/500 source unit tests and 45/45 isolated browser regressions; final counts and
-checks are recorded in STATUS current.md. Actual macOS ARM64 portable Python and
+536/536 source unit tests after the Vimeo addition; 92 JS syntax checks and the
+Vimeo/private-snapshot contract passed in Eagle's Node 16.17.1. The earlier
+45/45 isolated browser regressions predate the Vimeo UI; current source checks
+are recorded in STATUS current.md. Actual macOS ARM64 portable Python and
 the complete setup flow were tested with all system interpreter probes denied in
 an isolated Electron 22 environment: Python 3.13.16, gallery-dl 1.32.15,
 video/Curl/AES components ready. No personal library or system installation changed.
@@ -59,7 +72,7 @@ This evidence is not a final .eagleplugin installation test. Export through Eagl
 move/download and install that exact file on supported OS/Eagle builds. Replace
 both live introductions and unreadable covers; the previously inspected draft
 still had version 1.0.0 and the old Python claim, Chinese host returned HTTP 520.
-Use docs/marketplace copy for the implemented 1.0.2 flow; no store/Figma changes
+Use docs/marketplace copy for the implemented one-button setup flow; no store/Figma changes
 were performed.
 
 [Preparation](https://developer.eagle.cool/plugin-api/publishing/prepare) ·

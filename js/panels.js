@@ -47,7 +47,7 @@ import {
   createCheckboxGestureState,
 } from './checkbox-selection.js';
 import { createProgressBar } from './progress.js';
-import { installSources, listSources } from './sources/index.js';
+import { installSources, listSources, getSource } from './sources/index.js';
 
 /* ============================================================
    Тексты подсказок
@@ -731,12 +731,13 @@ export function buildSettings({ onChange, onFolderSearch, onArchive, onArchiveRe
 
       const byLink = next.downloadMode === 'link';
       const isBehance = next.platform === 'behance';
-      const browserOnly = byLink || isBehance;
+      const source = getSource(next.platform);
+      const browserOnly = byLink || isBehance || !source.sourceModes.includes('archive');
       downloadGroup.set(byLink ? 'link' : 'saved');
       if (byLink) setText(browserHint, L('Браузер нужен для публикаций, доступных после входа. Никнейм владельца ссылки не требуется.'));
       linkRow.style.display = byLink ? '' : 'none';
       linkField.set(next.sourceUrl || '');
-      accountRow.style.display = browserOnly ? 'none' : '';
+      accountRow.style.display = byLink || !source.needsAccount ? 'none' : '';
       sourceList.style.display = browserOnly ? 'none' : '';
       step2.style.display = byLink ? 'none' : '';
       searchDivider.style.display = byLink ? 'none' : '';
@@ -795,6 +796,7 @@ export function buildSettings({ onChange, onFolderSearch, onArchive, onArchiveRe
             Boolean(next[key]),
             true,
           );
+          checkbox.row.style.display = source.videoOnly && key !== 'filterVideo' ? 'none' : '';
         },
       );
 
@@ -822,6 +824,7 @@ export function buildSettings({ onChange, onFolderSearch, onArchive, onArchiveRe
       if (label) setText(label, L(platform + '-аккаунт'));
       if (state.settings.downloadMode === 'link') setText(browserHint, L('Браузер нужен для публикаций, доступных после входа. Никнейм владельца ссылки не требуется.'));
       else if (state.settings.platform === 'behance') setText(browserHint, L('Для сохранённых публикаций выберите доски настроения своего аккаунта.'));
+      else if (state.settings.platform === 'vimeo') setText(browserHint, L('Без поиска по папкам загружается Favorites (понравившиеся видео). Для Watch Later и подборок включите поиск по папкам.'));
     },
     setUsername(value) {
       accountField.set(value);

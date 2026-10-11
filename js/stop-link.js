@@ -10,6 +10,7 @@
    добавляется к введённому значению автоматически.
    ============================================================ */
 
+import {vimeoTarget} from './sources/vimeo-target.js';
 function clean(value) {
   return String(value ?? '').trim();
 }
@@ -82,16 +83,9 @@ const SOURCE_RULES = [
     code: 'vimeo',
     placeholderPrefix: 'https://vimeo.com/',
     matchesHost: (hostname) =>
-      isHostOrSubdomain(hostname, 'vimeo.com'),
+      ['vimeo.com','www.vimeo.com','player.vimeo.com'].includes(hostname),
     extractId: (pathname) => {
-      const parts = pathname
-        .split('/')
-        .map(normalizeId)
-        .filter(Boolean);
-
-      return [...parts]
-        .reverse()
-        .find((part) => /^\d+$/.test(part)) || '';
+      return pathname.match(/^\/(?:video\/|channels\/[\w-]+\/|groups\/[\w-]+\/videos\/|showcase\/\d+\/video\/)?(\d+)(?:\/[a-f0-9]{10})?\/?$/i)?.[1] || '';
     },
   },
   {
@@ -178,6 +172,11 @@ export function parseStopLink(
   const expectedCode = clean(
     expectedSourceCode,
   ).toLowerCase();
+
+  if(rule.code==='vimeo'){
+    try{if(vimeoTarget(originalUrl).type!=='VIDEO')throw Error();}
+    catch{return {ok:false,code:'invalid_publication_url',sourceCode:'vimeo',message:'Вставьте ссылку непосредственно на публикацию.'};}
+  }
 
   if (expectedCode && rule.code !== expectedCode) {
     return {

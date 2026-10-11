@@ -1,3 +1,4 @@
+import {vimeoTarget} from './sources/vimeo-target.js';
 // Strict selected-platform routing; never pass arbitrary URLs to the engine.
 const rules = {
   instagram: {hosts:['instagram.com','www.instagram.com'], path:/^\/(?:p\/[\w-]+|reel\/[\w-]+|tv\/[\w-]+|[\w.]+)\/?$/},
@@ -10,6 +11,7 @@ const rules = {
 };
 const reserved = new Set(['accounts','explore','login','logout','signup','settings','search','home','messages','notifications','saved','moodboards','collections','gallery','pin','p','reel','tv']);
 export function validateSourceLink(platform, input) {
+  if(platform==='vimeo')return vimeoTarget(input).url;
   let url;
   try { url = new URL(String(input || '').trim()); } catch { /* rejected below */ }
   const rule = rules[platform];
@@ -23,7 +25,7 @@ export function validateSourceLink(platform, input) {
 export function searchSettings(settings) {
   if (settings.downloadMode === 'link') return {...settings, source:'browser', targetUrl:validateSourceLink(settings.platform, settings.sourceUrl),
     searchMode:'full', folderSearch:false, stopLinkEnabled:false};
-  return {...settings, source:settings.platform === 'behance' ? 'browser' : settings.source, folderSearch:settings.platform === 'behance' || settings.folderSearch};
+  return {...settings, source:['behance','vimeo'].includes(settings.platform) ? 'browser' : settings.source, folderSearch:settings.platform === 'behance' || settings.folderSearch};
 }
 
 export function sourceLinkTarget(platform, input) {

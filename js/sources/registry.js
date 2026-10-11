@@ -120,6 +120,7 @@ function validate(descriptor) {
     sourceModes: modes,
     needsAccount: descriptor.needsAccount !== false,
     needsBrowser: descriptor.needsBrowser !== false,
+    videoOnly: descriptor.videoOnly === true,
     defaultTags: Array.from(new Set(
       (descriptor.defaultTags || [title]).map((v) => String(v).trim())
         .filter(Boolean),

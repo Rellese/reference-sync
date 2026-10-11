@@ -165,6 +165,7 @@ export function buildPinterestTargets({
 }
 
 const pinterestSource = createGallerySource({
+  sourceModes: ['browser', 'archive'],
   code: 'pinterest',
   title: 'Pinterest',
   icon: 'pinterest',

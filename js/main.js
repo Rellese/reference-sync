@@ -1186,7 +1186,7 @@ const profileSession = createProfileSessionController({
 });
 
 function refreshProfileSession() {
-  if (state.settings.source === 'browser' || state.settings.platform === 'behance') profileSession.refresh(state.settings);
+  if (state.settings.source === 'browser' || ['behance','vimeo'].includes(state.settings.platform)) profileSession.refresh(state.settings);
 }
 
 async function requireMatchingInstagramSession(settings, signal) {
@@ -1577,7 +1577,7 @@ async function runSearch() {
     return;
   }
 
-  if (!s.targetUrl && s.platform !== 'behance' && !s.username.trim()) {
+  if (!s.targetUrl && getSource(s.platform).needsAccount && !s.username.trim()) {
     ui.status.set('Не указан аккаунт', 'Введите имя пользователя');
     ui.log.add('Поиск невозможен: не заполнено имя аккаунта.', 'err');
     return;
@@ -1605,7 +1605,7 @@ async function runSearch() {
     `Идёт обращение к ${activeSource.title}`,
     true,
   );
-  ui.log.add(`Поиск: ${s.platform === 'behance' ? 'Behance' : '@' + s.username}, режим ${s.searchMode}`);
+  ui.log.add(`Поиск: ${getSource(s.platform).needsAccount ? '@' + s.username : getSource(s.platform).title}, режим ${s.searchMode}`);
 
   /* Состояние 6 — «Search for Publications»: бегущая полоса
      из начала в конец, пока идёт обращение к Eagle и браузеру */
@@ -1891,6 +1891,7 @@ async function runSearch() {
             knownPostIds: state.knownPostIds,
             stopLink,
             signal: operationController.signal,
+            control,
             onProgress: (progress) => {
               if (
                 progress?.stage !== 'discover'
@@ -2262,9 +2263,9 @@ async function runImport() {
   const isArchiveImport = chosen.some(post => post.archiveLocal || post.archiveLink);
   const onlyLocalArchive = chosen.every(post => post.archiveLocal);
   if (!onlyLocalArchive && !await ensureToolchain()) return;
-  const requiresVideoEngine = ['pinterest', 'behance'].includes(s.platform) && chosen.some(post => !post.archiveLocal &&
+  const requiresVideoEngine = ['pinterest', 'behance', 'vimeo'].includes(s.platform) && chosen.some(post => !post.archiveLocal &&
     post.components?.some(component => component.mediaType === 'video') && (s.platform !== 'pinterest' || !pinterestDownloadPlan(post).length));
-  const hasVideo = ['pinterest', 'behance'].includes(s.platform) && chosen.some(post => !post.archiveLocal && post.components?.some(component => component.mediaType === 'video'));
+  const hasVideo = ['pinterest', 'behance', 'vimeo'].includes(s.platform) && chosen.some(post => !post.archiveLocal && post.components?.some(component => component.mediaType === 'video'));
   if (hasVideo && !await hasVideoDownloader({ requireHls: requiresVideoEngine, requireBrowserCompatibility: s.platform === 'behance' })) {
     ui.results.engine.setState('error', 'Нужно обновить видеокомпонент', { button: 'Скачать', detail: 'Будут загружены gallery-dl, yt-dlp, FFmpeg и компонент совместимости с браузерами из PyPI.' });
     ui.status.set('Нужно обновить видеокомпонент', 'Нажмите «Скачать», затем повторите импорт.');
@@ -2358,6 +2359,8 @@ async function runImport() {
       ...(s.platform==='behance'&&!isArchiveImport ? {
         beforePost:(post,root,signal)=>guardCaseDownload(root,signal),
         beforePack:guardCasePackaging,onPackReady:rememberDownload,
+      } : s.platform==='vimeo'&&!isArchiveImport ? {
+        beforePost:(post,root,signal)=>guardCaseDownload(root,signal),
       } : {}),
       stagingRoot: recoveryState?.stagingRoot || '',
       browser: s.browser,
@@ -2637,7 +2640,7 @@ async function runImport() {
     }
 
     ui.status.set('Импорт в Eagle…', `0 из ${items.length}`, true);
-    if(s.platform==='behance'&&!isArchiveImport)await guardEagleBatch(items,state.abortController.signal);
+    if(['behance','vimeo'].includes(s.platform)&&!isArchiveImport)await guardEagleBatch(items,state.abortController.signal);
 
     const knownBeforeImport = new Set(state.knownPostIds);
     const {
