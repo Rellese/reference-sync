@@ -32,4 +32,3 @@ def checkpoint():
   if not state.get('paused'):return
   time.sleep(.1)
 `;
-
