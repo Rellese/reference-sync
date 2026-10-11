@@ -1,6 +1,7 @@
 import { diagnostics } from './diagnostics.js';
 import { vimeoMessages } from './vimeo.js';
 import { xMessages } from './x.js';
+import { dribbbleMessages } from './dribbble.js';
 // Columns: Russian source, English, French, Spanish, Simplified Chinese.
 export const messages = [
   ["Получение видео Behance", "Loading Behance video", "Chargement de la vidéo Behance", "Cargando vídeo de Behance", "正在加载 Behance 视频"],
@@ -14,6 +15,7 @@ export const messages = [
   ...diagnostics,
   ...vimeoMessages,
   ...xMessages,
+  ...dribbbleMessages,
   ["Скачать кейс целиком", "Download the whole case", "Télécharger le projet complet", "Descargar el proyecto completo", "下载完整项目"],
   ["Скачать каждый блок отдельно", "Download blocks separately", "Télécharger les blocs séparément", "Descargar los bloques por separado", "分别下载各内容块"],
   ["Для просмотра .rscase нужен отдельный плагин Eagle.", "Viewing .rscase requires a separate Eagle plugin.", "Un plugin Eagle distinct est nécessaire pour afficher les fichiers .rscase.", "Para ver .rscase se necesita un complemento de Eagle independiente.", "查看 .rscase 需要单独的 Eagle 插件。"],

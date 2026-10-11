@@ -71,7 +71,7 @@ export function shouldShowProfileSelector(profiles) {
   return Array.isArray(profiles) && profiles.length > 1;
 }
 
-function browserRoot(browser) {
+export function browserRoot(browser) {
   if (!nodeApi.available) return null;
 
   const normalized = normalizeBrowserName(browser);

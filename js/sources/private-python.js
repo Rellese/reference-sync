@@ -1,4 +1,4 @@
-// Cookies are scoped before writing. Shared only by X and Vimeo.
+// Cookies are scoped before writing for each source.
 export const browserCookiesScript=String.raw`
 import http.cookiejar,json,sys
 from yt_dlp.cookies import extract_cookies_from_browser
@@ -6,7 +6,7 @@ class Silent:
  def __getattr__(self,name):return lambda *args,**kwargs:None
 try:
  site=sys.argv[4] if len(sys.argv)>4 else 'vimeo'
- domains={'vimeo':('vimeo.com',),'x':('x.com','twitter.com')}[site]
+ domains={'vimeo':('vimeo.com',),'x':('x.com','twitter.com'),'dribbble':('dribbble.com',)}[site]
  browser,sep,profile=sys.argv[2].partition(':')
  if browser=='file':
   source=http.cookiejar.MozillaCookieJar(sys.argv[3]);source.load(ignore_discard=True,ignore_expires=True)

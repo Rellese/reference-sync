@@ -1207,13 +1207,17 @@ function buildPostNames({
 
     const originalName =
       String(
-        post.username || '@unknown',
+        post.namingName || post.username || '@unknown',
       ).trim();
 
     const originalDescription =
       String(
         post.description || '',
       ).trim();
+
+    const componentOriginalDescription = number => post.useComponentDescriptions
+      ? String(post.components?.find(component => component.index === number)?.description || '').trim()
+      : originalDescription;
 
     const additionalDescription =
       descriptionEnabled && !Array.isArray(descriptions)
@@ -1249,6 +1253,10 @@ function buildPostNames({
         )
         : originalDescription;
 
+    const componentBaseDescription = number => addToDescription
+      ? placeAdditionalText(componentOriginalDescription(number), additionalDescription, descriptionPlacement)
+      : componentOriginalDescription(number);
+
     let name = baseName;
     let description = baseDescription;
 
@@ -1260,7 +1268,7 @@ function buildPostNames({
         name = numberingParts
           .map(
             (part) =>
-              `${post.username} ${part}`,
+              `${originalName} ${part}`,
           )
           .join('\n');
       } else if (
@@ -1276,7 +1284,7 @@ function buildPostNames({
         name = numberingParts
           .map(
             (part) =>
-              `${post.username} ${part}`,
+              `${originalName} ${part}`,
           )
           .join('\n');
 
@@ -1298,8 +1306,9 @@ function buildPostNames({
 
     if (post.componentCount <= 1) {
       componentNames[0] = name;
-      componentDescriptions[0] =
-        description;
+      componentDescriptions[0] = post.useComponentDescriptions
+        ? [destination !== 'name' ? numberingParts.join('\n') : '', componentBaseDescription(1)].filter(Boolean).join('\n\n')
+        : description;
     } else {
       componentNumbers.forEach(
         (componentNumber) => {
@@ -1336,11 +1345,11 @@ function buildPostNames({
             )
               ? [
                 numberingPart,
-                baseDescription,
+                componentBaseDescription(componentNumber),
               ]
                 .filter(Boolean)
                 .join('\n\n')
-              : baseDescription;
+              : componentBaseDescription(componentNumber);
         },
       );
     }
@@ -1350,7 +1359,7 @@ function buildPostNames({
       const rules = descriptionEnabled ? (descriptions ?? [{ text: extraDescription, destination: descriptionDestination, placement: descriptionPlacement }]) : [];
       const numbers = post.componentCount <= 1 ? [1] : componentNumbers;
       for (const number of numbers) {
-        const composed = composeNaming({ name: independent ? originalName : componentNames[number - 1], description: independent ? originalDescription : componentDescriptions[number - 1],
+        const composed = composeNaming({ name: independent ? originalName : componentNames[number - 1], description: independent ? componentOriginalDescription(number) : componentDescriptions[number - 1],
           counters: independent ? activeCounters : [], values: counterValuesByComponent[number - 1], descriptions: rules });
         componentNames[number - 1] = composed.name;
         componentDescriptions[number - 1] = composed.description;
@@ -1358,6 +1367,10 @@ function buildPostNames({
       const base = composeNaming({name:originalName,description:originalDescription,counters:[],descriptions:rules});
       name = numbers.length ? numbers.map(number => componentNames[number - 1]).join('\n') : base.name;
       description = numbers.length ? [...new Set(numbers.map(number => componentDescriptions[number - 1]))].join('\n\n') : base.description;
+    }
+
+    if (post.useComponentDescriptions) {
+      description = [...new Set(componentDescriptions.filter(value => value !== undefined))].join('\n\n');
     }
 
     /*

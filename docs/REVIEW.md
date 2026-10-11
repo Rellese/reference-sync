@@ -1,4 +1,4 @@
-# Review notes — ReferenceSync 1.2.0
+# Review notes — ReferenceSync 1.3.0
 
 Window plugin with explicit one-button preparation. No manual Python installation
 is required on supported macOS/Windows systems. Startup never downloads Python.
@@ -33,6 +33,13 @@ No interpreter or executable archive is bundled in this .eagleplugin.
    all three modes, Stop Link, HTTPS post links, attached photos/video/GIF/carousels.
    Text-only bookmarks count toward recent N but have no importable media.
    Archive, Likes and arbitrary profile feeds are not offered. No extension/API key.
+   Dribbble: all saved collections by default, selected collections with folder
+   search on. Never use Liked Shots or own Work as a saved feed. Three modes and
+   Stop Link; default recent N caps unique shots across collection display order,
+   selected-folder N/boundaries are independent per collection. Shot/collection/
+   public-profile-collections HTTPS links, media carousels and per-media captions.
+   Each text block belongs to the preceding media; the shot title is shared.
+   No compatible saved archive is confirmed. No browser extension or API key.
 7. Synthetic archive HTTP links become verified-platform canonical HTTPS before
    browser-authenticated download; off-host/userinfo/port links must reject.
 8. Test permissions, stop/recovery and cleanup on Windows and macOS. Supply
@@ -41,7 +48,7 @@ No interpreter or executable archive is bundled in this .eagleplugin.
 ## Data and authentication
 
 Eagle SDK preferred, localhost:41595 fallback disclosed. Browser-authenticated
-Instagram/Pinterest/Behance/Vimeo/X flows share protected cookie snapshots: directory and
+Instagram/Pinterest/Behance/Vimeo/X/Dribbble flows share protected cookie snapshots: directory and
 file permissions before writing, reserved exporter .tmp, verification after
 export, finally/exit/dead-process cleanup. Windows ACL still needs a real native
 browser export test. Interrupted snapshots may remain until a later cleanup.
@@ -69,7 +76,27 @@ macOS Chrome testing found two video bookmarks under N=2 and downloaded/decoded
 one 2.18 MB MP4. Native Eagle import, real Premium folders, Windows and other
 browsers are still pending; the web API may change independently of the plugin.
 
+Dribbble reads only scoped, private cookies and read-only HTTPS HTML. It combines
+ordered content-block JSON with the corresponding rendered media URLs, without
+executing scripts or returning unrelated account/payment/CSRF state. The installed
+browser version supplies User-Agent; HTTP 202 asks the user to refresh Dribbble
+in that browser instead of pretending the saved list is empty. CDN downloads have
+no browser cookies and revalidate each redirect. Unknown shot layouts fail clearly.
+macOS Chrome testing: 14 saved collections across catalog pages, default N=2,
+selected-folder N=2, known/Stop boundaries=0, full small folder=8 shots/17 media.
+A real mixed shot produced 5 media with their matching captions and shared title;
+one 798,055-byte MP4 downloaded and fully decoded. Native Eagle import, Windows,
+other browsers and a complete run through every personal folder remain pending.
+
 ## Evidence and release limits
+
+Current Dribbble source checks: 600/600 unit tests, 109 JS syntax checks in Eagle
+Node 16.17.1, plus protected-cookie cleanup and naming contracts in that runtime.
+Browser UI starts with Dribbble active, no archive/account field, and translated
+saved-collection guidance that survives language changes. Separate clean project
+and Git delivery are recorded in STATUS current.md; not an exported package test.
+
+Previous X-only evidence:
 
 563/563 source unit tests after the X addition; a further cookie-domain isolation
 contract also passed in the 18/18 X Python helper run. 101 JS syntax checks and the

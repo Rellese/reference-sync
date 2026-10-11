@@ -12,6 +12,7 @@
 
 import {vimeoTarget} from './sources/vimeo-target.js';
 import {xTarget} from './sources/x-target.js';
+import {dribbbleTarget} from './sources/dribbble-target.js';
 function clean(value) {
   return String(value ?? '').trim();
 }
@@ -58,7 +59,7 @@ const SOURCE_RULES = [
     code: 'dribbble',
     placeholderPrefix: 'https://dribbble.com/shots/',
     matchesHost: (hostname) =>
-      isHostOrSubdomain(hostname, 'dribbble.com'),
+      ['dribbble.com','www.dribbble.com'].includes(hostname),
     extractId: (pathname) => {
       const match = pathname.match(
         /^\/shots\/(\d+)(?:[-/]|$)/i,
@@ -173,8 +174,8 @@ export function parseStopLink(
     expectedSourceCode,
   ).toLowerCase();
 
-  if(['vimeo','x'].includes(rule.code)){
-    try{if(rule.code==='vimeo'&&vimeoTarget(originalUrl).type!=='VIDEO')throw Error();if(rule.code==='x')xTarget(originalUrl);}
+  if(['vimeo','x','dribbble'].includes(rule.code)){
+    try{if(rule.code==='vimeo'&&vimeoTarget(originalUrl).type!=='VIDEO')throw Error();if(rule.code==='x')xTarget(originalUrl);if(rule.code==='dribbble'&&dribbbleTarget(originalUrl).type!=='POST')throw Error();}
     catch{return {ok:false,code:'invalid_publication_url',sourceCode:rule.code,message:'Вставьте ссылку непосредственно на публикацию.'};}
   }
 
