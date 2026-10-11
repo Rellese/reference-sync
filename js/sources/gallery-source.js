@@ -1,6 +1,7 @@
 import {createPrivateCookieFile,copyPrivateCookieFile} from '../private-cookies.js';
 import {validateCaseVideo,retryMissingCaseVideos,isRetryableVideoFailure} from '../case/video-retry.js';
 import {watchCaseProgress} from '../case/progress.js';
+import {isDiskFull,diskSpaceError} from '../disk-space.js';
 import { sourceLinkTarget } from '../source-link.js';
 import { downloadIssue } from '../download-outcome.js';
 /* ============================================================
@@ -1091,6 +1092,7 @@ export function createGallerySource(spec) {
     onStagingReady = null,
     onCompleted = null,
     preparePost = null,
+    beforePost = null,
   } = {}) {
     if (!nodeApi.available) {
       throw new Error('Скачивание доступно только внутри Eagle');
@@ -1152,6 +1154,7 @@ export function createGallerySource(spec) {
       if (control) await control.checkpoint();
 
       const post = posts[index];
+      await beforePost?.(post,stagingRoot,signal);
       const postDir = ensureDir(path.join(stagingRoot,
         String(post.postId).replace(/[^\w.-]+/g, '_')));
 
@@ -1225,9 +1228,11 @@ export function createGallerySource(spec) {
             },
           });
           raw += `\n${result.stdout || ''}\n${result.stderr || ''}`;
+          if(isDiskFull(raw))throw diskSpaceError();
           if (result.code !== 0) error = describeFailure(result, browser, title);
           retryableVideoError=Boolean(error && code==='behance' && isRetryableVideoFailure(raw));
         } catch (runError) {
+          if(isDiskFull(runError))throw diskSpaceError();
           raw += `\n${runError.message}`;
           error = runError.message;
         }

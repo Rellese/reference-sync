@@ -58,7 +58,7 @@ export async function writeCaseZip(destination, entries, {signal, maxBytes=CASE_
         } else chunks = [Buffer.from(entry.data)];
         for await (const chunk of chunks) {
           size += chunk.length;
-          for (const value of chunk) crc = table[(crc ^ value) & 255] ^ (crc >>> 8);
+          for (let i=0;i<chunk.length;i++) crc = table[(crc ^ chunk[i]) & 255] ^ (crc >>> 8);
           await append(chunk);
         }
       } finally { await input?.close(); }

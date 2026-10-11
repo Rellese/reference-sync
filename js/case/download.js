@@ -1,6 +1,7 @@
 import { nodeApi } from '../node-bridge.js';
 import { throwIfAborted } from '../job-control.js';
 import { packageBehanceCase } from './package.js';
+import {compactPackedCase} from './compact.js';
 
 export function caseRegistryId(post) {
   if (post?.source !== 'behance' || !/^behance:\S+$/.test(post.postId || '')) throw new Error('Invalid case source identity');
@@ -47,6 +48,8 @@ export async function downloadWithCases(options, download, pack=packageBehanceCa
     const original = originals.get(entry.post.postId);
     const mode = caseModes(original);
     const result = {...entry,post:original};
+    const chosen = new Set((original.selectedComponents || original.components?.map(c=>c.index) || []).map(Number));
+    result.blockFiles = mode.blocks ? entry.files.filter(file=>chosen.has(Number(path.basename(file).match(/^(\d+)\./)?.[1]))) : [];
     if (mode.whole) {
       try {
         await options.control?.checkpoint();
@@ -54,18 +57,18 @@ export async function downloadWithCases(options, download, pack=packageBehanceCa
         if(entry.error || original.components?.some(component=>!available.has(Number(component.index))))throw new Error(entry.error || 'Кейс не собран: не все блоки скачаны. Повторите загрузку.');
         if (!stagingRoot) throw new Error('Missing case staging directory');
         const destination=path.join(stagingRoot,`case-${crypto.randomBytes(12).toString('hex')}.rscase`);
+        await options.beforePack?.(result,stagingRoot,options.signal);
         const packed=await pack(result,destination,{signal:options.signal});
         result.caseFile=packed.path;
         result.caseComplete=packed.manifest.complete;
+        if(nodeApi.available)await compactPackedCase(result,stagingRoot,{signal:options.signal,onReady:options.onPackReady});
       } catch(error) {
-        if (options.signal?.aborted || error.code === 'JOB_STOPPED') throw error;
+        if (options.signal?.aborted || ['JOB_STOPPED','DISK_SPACE_LOW','ENOSPC'].includes(error.code)) throw error;
         result.caseError=error.message;
       }
     }
     // These are the original downloads, including media used only by the case.
     // Individual import must use blockFiles, never the expanded files array.
-    const chosen = new Set((original.selectedComponents || original.components?.map(c=>c.index) || []).map(Number));
-    result.blockFiles = mode.blocks ? entry.files.filter(file=>chosen.has(Number(path.basename(file).match(/^(\d+)\./)?.[1]))) : [];
     processed.set(original.postId,result);
     await options.onCompleted?.(result);
     return result;

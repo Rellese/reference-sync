@@ -63,6 +63,29 @@ const crcTable = Array.from({ length: 256 }, (_, value) => {
   for (let bit = 0; bit < 8; bit++) value = value & 1 ? 0xedb88320 ^ (value >>> 1) : value >>> 1;
   return value >>> 0;
 });
+// Validate every stored payload without extracting a second copy. Used before
+// discarding source media already contained in a newly assembled case.
+export async function verifyStoredZip(file,{signal}={}) {
+  const {fs}=nodeApi;
+  if(!fs.lstatSync(file).isFile())throw new Error('Invalid case archive');
+  const entries=listZip(file);
+  for(const entry of entries){
+    throwIfAborted(signal);
+    if(entry.directory||entry.method!==0||entry.compressed!==entry.unpacked)throw new Error('Invalid case archive');
+    let bytes=0,crc=0xffffffff;
+    const input=fs.createReadStream(file,{start:entry.dataOffset,end:entry.dataOffset+Math.max(1,entry.compressed)-1,highWaterMark:256*1024});
+    const abort=()=>input.destroy(new Error('Проверка кейса остановлена'));
+    signal?.addEventListener('abort',abort,{once:true});
+    try{
+      if(entry.compressed)for await(const chunk of input){
+        throwIfAborted(signal);bytes+=chunk.length;
+        for(let i=0;i<chunk.length;i++)crc=crcTable[(crc^chunk[i])&255]^(crc>>>8);
+      }
+      if(bytes!==entry.unpacked||((crc^0xffffffff)>>>0)!==entry.crc)throw new Error('Собранный кейс повреждён: контрольная сумма не совпадает. Исходные блоки сохранены.');
+    }finally{input.destroy();signal?.removeEventListener('abort',abort);}
+  }
+  return entries;
+}
 export async function extractZip(file, destination, { signal, onProgress, accept = () => true } = {}) {
   const { fs, path, stream, zlib } = nodeApi;
   const entries = listZip(file).filter(entry => !entry.directory && accept(entry.name));

@@ -1,4 +1,5 @@
 import {cleanupCookieSnapshots} from './private-cookies.js';
+import {guardCaseDownload,guardCasePackaging,guardEagleBatch} from './disk-space.js';
 try { cleanupCookieSnapshots(); } catch { console.warn('ReferenceSync: cookie cleanup unavailable'); }
 import {caseStructure,fitCaseStructureColumn} from './case/structure.js';
 import {caseProgressInfo} from './case/progress.js';
@@ -423,6 +424,7 @@ function recoveryDownloadSnapshot(downloaded) {
     postId: entry.post.postId,
     files: [...entry.files],
     caseFile: entry.caseFile, caseComplete: entry.caseComplete, blockFiles: entry.blockFiles,
+    downloadedFileCount:entry.downloadedFileCount,
   }));
 }
 
@@ -460,6 +462,7 @@ function restoreDownloadedEntries(snapshot) {
       post,
       files,
       caseFile:entry.caseFile, caseComplete:entry.caseComplete, blockFiles:entry.blockFiles,
+      downloadedFileCount:entry.downloadedFileCount,
       error: null,
     });
   }
@@ -506,7 +509,7 @@ function checkpointRecovery(phaseName, extra = {}) {
     ...extra,
   };
 
-  saveRecoveryState(recoveryState);
+  return saveRecoveryState(recoveryState);
 }
 
 function discardRecovery() {
@@ -2336,6 +2339,11 @@ async function runImport() {
     );
 
     const completedDownloads = [...restoredResults];
+    const rememberDownload = entry => {
+      const index=completedDownloads.findIndex(saved=>saved.post.postId===entry.post.postId);
+      if(index<0)completedDownloads.push(entry);else completedDownloads[index]=entry;
+      return checkpointRecovery('downloading',{downloaded:recoveryDownloadSnapshot(completedDownloads)});
+    };
 
     const runDownload =
     isInstagramImport
@@ -2347,6 +2355,10 @@ async function runImport() {
       stopReason: downloadStopReason,
     } = await (isArchiveImport ? options => downloadArchivePosts(options, runDownload) : runDownload)({
       posts: postsToDownload,
+      ...(s.platform==='behance'&&!isArchiveImport ? {
+        beforePost:(post,root,signal)=>guardCaseDownload(root,signal),
+        beforePack:guardCasePackaging,onPackReady:rememberDownload,
+      } : {}),
       stagingRoot: recoveryState?.stagingRoot || '',
       browser: s.browser,
       browserProfile: s.browserProfile,
@@ -2387,11 +2399,7 @@ async function runImport() {
         checkpointRecovery('downloading', { stagingRoot });
       },
       onCompleted: (completedEntry) => {
-        completedDownloads.push(completedEntry);
-
-        checkpointRecovery('downloading', {
-          downloaded: recoveryDownloadSnapshot(completedDownloads),
-        });
+        rememberDownload(completedEntry);
       },
     });
 
@@ -2426,7 +2434,7 @@ async function runImport() {
       const post = state.posts.find(post => post.postId === entry.post.postId);
       if (post) post.downloadIssue = (entry.error || entry.caseError) ? (entry.issue || { label: 'Ошибка загрузки — можно повторить', detail: entry.error || entry.caseError }) : null;
     }
-    ui.log.add(`Скачивание завершено: проверено ${results.length} публикаций; полностью скачано ${results.length - failedDownloads.length}; с ошибками ${failedDownloads.length}; файлов ${downloaded.reduce((sum, entry) => sum + entry.files.length, 0)}.`, failedDownloads.length ? 'warn' : 'ok');
+    ui.log.add(`Скачивание завершено: проверено ${results.length} публикаций; полностью скачано ${results.length - failedDownloads.length}; с ошибками ${failedDownloads.length}; файлов ${downloaded.reduce((sum, entry) => sum + (entry.downloadedFileCount ?? entry.files.length), 0)}.`, failedDownloads.length ? 'warn' : 'ok');
 
     failedDownloads.forEach((entry) => {
       ui.log.add(`Не скачано: ${entry.post.url} — ${entry.error || entry.caseError}`, 'err');
@@ -2629,6 +2637,7 @@ async function runImport() {
     }
 
     ui.status.set('Импорт в Eagle…', `0 из ${items.length}`, true);
+    if(s.platform==='behance'&&!isArchiveImport)await guardEagleBatch(items,state.abortController.signal);
 
     const knownBeforeImport = new Set(state.knownPostIds);
     const {
