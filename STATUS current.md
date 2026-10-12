@@ -61,8 +61,16 @@ Behance: список own Appreciations N=2/25 с пагинацией; known=0,
 существующего Saved-пути. Challenge не обходится. Пагинация/границы/ошибки
 проверены синтетическими фикстурами; успешную живую загрузку Likes не заявляем.
 [~] Реальный новый .eagleplugin/Native import/Windows/остальные браузеры требуют
-приёмки; успешные тесты и Node runtime не подменяют её. Git/Downloads/чистовой
-проект ещё готовятся; статус поставки обновится после проверки файлов.
+приёмки; успешные тесты и Node runtime не подменяют её.
+
+Поставка кода: **d388e291198715cf3d5b62faa29a130866fa75e5**, ветка
+`fix/m1-t09z-selection`, отправлена в `Rellese/reference-sync`; Downloads clone
+обновлён fast-forward без сброса файлов. Отдельный чистовой проект:
+`/Users/mbp16/Documents/Codex/Plugin releases/2026-10-12/ReferenceSync-1.5.0`.
+**154 файла / 1 998 222 bytes**, содержимое/SHA-256 каждого совпало с коммитом
+кода и inventory. Это проект Eagle, не готовый .eagleplugin; packageTested и
+releaseReady не заявлены. Код Canvas не менялся. Остатки личных тестовых данных
+и медиа удалены; временные cookie snapshots удалялись в finally.
 
 # M6-T17 — Layers
 
