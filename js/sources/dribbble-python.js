@@ -32,7 +32,21 @@ def read(url,fragment=False):
    url=urllib.parse.urljoin(url,response.headers.get('Location',''))
    if resource(safe_url(url))!=expected:raise Failure('DRIBBBLE_URL')
    continue
-  if response.status_code==202:raise Failure('DRIBBBLE_CHALLENGE')
+  if response.status_code==202:
+   if expected[0]!='POST' or not spec.get('browserReply'):raise Failure('DRIBBBLE_CHALLENGE')
+   with open(spec['browserReply'],'w',encoding='utf8') as handle:handle.write('{}')
+   print(json.dumps({'event':'browser-page','url':url}),flush=True);remaining=60
+   while remaining>0:
+    checkpoint();tick=time.monotonic()
+    try:
+     with open(spec['browserReply'],encoding='utf8') as handle:reply=json.loads(handle.read(32*1024*1024))
+    except (ValueError,FileNotFoundError):reply={}
+    if reply.get('url')==url:
+     html=reply.get('html')
+     if reply.get('error') or not isinstance(html,str) or len(html)>16*1024*1024:raise Failure('DRIBBBLE_CHALLENGE')
+     return html
+    time.sleep(.1);remaining-=time.monotonic()-tick
+   raise Failure('DRIBBBLE_CHALLENGE')
   if response.status_code in (401,403):raise Failure('DRIBBBLE_AUTH')
   if response.status_code==429:raise Failure('DRIBBBLE_RATE_LIMIT')
   if response.status_code!=200:raise Failure('DRIBBBLE_HTTP_'+str(response.status_code))

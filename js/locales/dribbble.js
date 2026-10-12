@@ -1,4 +1,6 @@
 export const dribbbleMessages=[
+ ['Открываем страницу публикации…','Opening the post page…','Ouverture de la publication…','Abriendo la publicación…','正在打开帖子页面…'],
+ ['Пропустить','Skip','Ignorer','Omitir','跳过'],
  ['Dribbble запросил проверку браузера. Откройте сайт в выбранном профиле, обновите страницу и повторите поиск.','Dribbble requested a browser check. Open the site in the selected profile, refresh the page and search again.','Dribbble demande une vérification du navigateur. Ouvrez le site dans le profil sélectionné, actualisez la page puis relancez la recherche.','Dribbble solicitó una comprobación del navegador. Abre el sitio en el perfil seleccionado, actualiza la página y repite la búsqueda.','Dribbble 要求进行浏览器检查。请在所选个人资料中打开网站，刷新页面并重新搜索。'],
  ['Сохранённые коллекции','Saved collections','Collections enregistrées','Colecciones guardadas','已保存的合集'],
  ['Вставьте HTTPS-ссылку на шот, коллекцию или профиль Dribbble.','Paste an HTTPS link to a Dribbble shot, collection or profile.','Collez un lien HTTPS vers un shot, une collection ou un profil Dribbble.','Pega un enlace HTTPS a un shot, colección o perfil de Dribbble.','请粘贴 Dribbble 作品、合集或个人主页的 HTTPS 链接。'],

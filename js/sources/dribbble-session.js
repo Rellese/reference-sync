@@ -3,6 +3,7 @@ import {makeStopError} from '../job-control.js';
 import {withBrowserSession,requestPrivatePython} from './private-session.js';
 import {dribbbleApiScript} from './dribbble-python.js';
 import {dribbbleBrowserIdentity} from './dribbble-browser.js';
+import {dribbblePageAvailable,readDribbblePage} from './dribbble-page.js';
 export function dribbbleFailure(code){
  if(code==='JOB_STOPPED')return makeStopError();
  const message=code==='DRIBBBLE_AUTH'?'В выбранном профиле браузера вход в Dribbble не выполнен или запрос заблокирован. Проверьте доступ в браузере и повторите поиск.'
@@ -14,7 +15,8 @@ export function dribbbleFailure(code){
  return Object.assign(Error(message),{code:code==='DRIBBBLE_AUTH'?'DRIBBBLE_SESSION_INVALID':code,sourceTitle:'Dribbble'});
 }
 export const withDribbbleSession=(options,action,run=runEnginePython)=>withBrowserSession('dribbble',options,action,run,dribbbleFailure);
-export const requestDribbble=(spec,options,run=runEnginePython)=>requestPrivatePython('dribbble',{...spec,identity:options.requestIdentity||dribbbleBrowserIdentity(options.browser,options.browserProfile)},options,run,dribbbleApiScript,dribbbleFailure);
+export const requestDribbble=(spec,options,run=runEnginePython)=>requestPrivatePython('dribbble',{...spec,identity:options.requestIdentity||dribbbleBrowserIdentity(options.browser,options.browserProfile)},
+ {...options,readBrowserPage:options.readBrowserPage||(dribbblePageAvailable()?readDribbblePage:undefined)},run,dribbbleApiScript,dribbbleFailure);
 export async function probeDribbble(options){
  return withDribbbleSession(options,async next=>{
   try{const data=await requestDribbble({operation:'probe'},next);

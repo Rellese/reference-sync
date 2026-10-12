@@ -13,7 +13,7 @@ function modern(id,{badType=false,malformed=false,placeholder=false}={}){
  return nav+'<h1 class="shot-header__title">Shared title</h1><a class="user-sticky-header__avatar" href="/artist"></a><div id="ssr-app">'+rendered+'</div><script>window.__INITIAL_STATE__='+ (malformed?'invalid':JSON.stringify({props:{contentBlocks:{results:blocks.reverse()}}}))+';</script>';
 }
 const curl=String.raw`
-import json,os,urllib.parse
+import json,os,urllib.parse,time,threading
 fixture=json.load(open(os.environ['DRIB_FIXTURE']))
 class Response:
  def __init__(self,value):
@@ -22,7 +22,17 @@ class Session:
  def __init__(self,**kwargs):pass
  def get(self,url,**kwargs):
   with open(os.environ['DRIB_CALLS'],'a') as file:file.write(json.dumps({'url':url,'redirects':kwargs.get('allow_redirects')})+'\n')
-  return Response(fixture.get(url,{'status':404}))
+  value=fixture.get(url,{'status':404})
+  if 'browserHTML' in value and os.environ.get('DRIB_REPLY'):
+   def answer():
+    for _ in range(100):
+     time.sleep(.02)
+     try:
+      if json.load(open(os.environ['DRIB_REPLY']))!={}:continue
+      json.dump({'url':url,'html':value['browserHTML']},open(os.environ['DRIB_REPLY'],'w'));return
+     except (ValueError,FileNotFoundError):pass
+   threading.Thread(target=answer,daemon=True).start()
+  return Response(value)
 `;
 function fixture(t,overrides={}){
  const root=fs.mkdtempSync(path.join(os.tmpdir(),'rs-drib-python-'));t.after(()=>fs.rmSync(root,{recursive:true,force:true}));
@@ -39,12 +49,20 @@ function fixture(t,overrides={}){
  };
  const data=put('fixture.json',JSON.stringify(urls)),cookies=put('cookies.txt','# Netscape HTTP Cookie File\n.dribbble.com\tTRUE\t/\tTRUE\t0\tfixture\tsynthetic-private\n');
  return spec=>{
-  const calls=path.join(root,'calls.jsonl'),file=put('spec.json',JSON.stringify({...spec,cookies}));
-  const result=spawnSync('python3',['-c',dribbbleApiScript,file],{encoding:'utf8',env:{...process.env,PYTHONPATH:root,DRIB_FIXTURE:data,DRIB_CALLS:calls},timeout:10000});
+  const reply=spec.browserReply?put('browser-reply.json','{}'):'',calls=path.join(root,'calls.jsonl'),file=put('spec.json',JSON.stringify({...spec,browserReply:reply||undefined,cookies}));
+  const result=spawnSync('python3',['-c',dribbbleApiScript,file],{encoding:'utf8',env:{...process.env,PYTHONPATH:root,DRIB_FIXTURE:data,DRIB_CALLS:calls,DRIB_REPLY:reply},timeout:10000});
   assert.ifError(result.error);assert.ok(result.stdout.trim(),result.stderr);assert.ok(!result.stdout.includes('synthetic-private'));
   return {status:result.status,data:JSON.parse(result.stdout.trim().split('\n').pop()),calls:fs.existsSync(calls)?fs.readFileSync(calls,'utf8').trim().split('\n').map(JSON.parse):[]};
  };
 }
+test('Dribbble 202 public shot can use bounded native HTML without executing site scripts in Python',t=>{
+ const url='https://dribbble.com/shots/1-Shot',r=fixture(t,{[url]:{status:202,browserHTML:modern(1)}})({operation:'discover',target:{id:'1',type:'POST',name:'Link',url},browserReply:true});
+ assert.equal(r.status,0,JSON.stringify(r.data));assert.equal(r.data.posts.length,1);assert.equal(r.data.posts[0].components.length,3);assert.equal(r.data.posts[0].components[0].description,'First\n\nMore');
+});
+test('Dribbble native recovery cannot turn oversized HTML into a partial shot',t=>{
+ const url='https://dribbble.com/shots/1-Shot',r=fixture(t,{[url]:{status:202,browserHTML:'x'.repeat(16*1024*1024+1)}})({operation:'discover',target:{id:'1',type:'POST',url},browserReply:true});
+ assert.equal(r.data.error,'DRIBBBLE_CHALLENGE');
+});
 test('Dribbble default searches all saved collections, pages, deduplicates and never reads Likes or Work',t=>{
  const r=fixture(t)({operation:'discover'});assert.equal(r.status,0);assert.deepEqual(r.data.posts.map(p=>p.id),['1','2','3','4']);
  assert.deepEqual(r.data.posts[1].collections.map(c=>c.id),['10','20']);assert.equal(r.calls.filter(c=>c.url.includes('/shots/2-')).length,1);
