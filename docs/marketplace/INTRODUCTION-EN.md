@@ -18,8 +18,9 @@ Sign in to the selected service in your browser, choose that browser/profile, se
 - Behance blocks, complete projects as .rscase, or both. **Install the separate ReferenceCanvas plugin to view .rscase in Eagle.** ReferenceSync does not install it.
 - Supported Instagram/Pinterest ZIP, JSON and HTML archive metadata. Publication links are resolved online; having an archive does not guarantee media access without login or internet.
 - Vimeo Favorites by default, Watch Later and Showcases via folder selection; X Bookmarks and eligible Premium bookmark folders.
-- Dribbble and Layers saved collections, with folder selection. Dribbble supports multiple media and captions for each block; Layers has one media per work. Likes and own uploads are excluded. No compatible saved archive is confirmed for these four sources.
-- Search new posts, all saved posts or a limited number of recent posts. Apply optional numbering before import. Library-specific history helps avoid duplicates.
+- Dribbble and Layers saved collections, with folder selection. Dribbble supports multiple media and captions for each block; Layers has one media per work. Likes are separate from saved collections; own uploads are excluded. No compatible saved archive is confirmed for these four sources.
+- A separate Liked posts choice for Instagram, Behance (Appreciations), Vimeo, X, Dribbble and Layers, using your signed-in browser account without archives or folder selection. Pinterest heart reactions are not a saved-history feed. Vimeo Likes overlaps the existing Favorites default.
+- Search new posts, all saved or liked posts, or a limited number of recent posts. Apply optional numbering before import. Library-specific history helps avoid duplicates.
 
 Website changes, browser cookie protection, account access, unavailable media and rate limits can prevent online downloads.
 

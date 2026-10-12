@@ -104,3 +104,18 @@ test('Dribbble cookies are scoped before export and exclude other social session
  const data=fs.readFileSync(output,'utf8');assert.ok(data.includes('synthetic-0')&&data.includes('synthetic-1'));for(const i of [2,3,4])assert.ok(!data.includes('synthetic-'+i));
  if(process.platform!=='win32')assert.equal(fs.statSync(output).mode&0o777,0o600);
 });
+
+const fragment=ids=>grid(ids).replace('<ol class="shots-grid">','').replace('</ol>','');
+test('Dribbble Likes follows the native AJAX fragment pager without reading Saved collections',t=>{
+ const url='https://dribbble.com/collector/likes';
+ const r=fixture(t,{[url]:{html:nav+grid([1,2])+'<a href="#" class="form-btn load-more">Load more work</a>'},[url+'?page=2&per_page=24']:{html:fragment([3])},[url+'?page=3&per_page=24']:{html:'  \n'}})({operation:'discover',feed:'liked'});
+ assert.equal(r.status,0);assert.deepEqual(r.data.posts.map(p=>p.id),['1','2','3']);assert.ok(r.data.posts.every(p=>p.collections.length===0&&p.feed==='liked'));
+ assert.ok(!r.calls.some(c=>c.url.includes('/collector/collections')));
+});
+for(const [spec,count] of [[{limit:1},1],[{known:['1']},0],[{stopId:'1'},0]])test('Dribbble Likes bound stops before AJAX pagination: '+JSON.stringify(spec),t=>{
+ const url='https://dribbble.com/collector/likes';const r=fixture(t,{[url]:{html:nav+grid([1,2])+'<a class="load-more" href="#">Next</a>'}})({operation:'discover',feed:'liked',...spec});
+ assert.equal(r.status,0);assert.equal(r.data.posts.length,count);assert.ok(!r.calls.some(c=>c.url.includes('per_page')));
+});
+for(const html of ['<html><form>Sign in</form></html>','Unauthorized','<div>challenge</div>',fragment([1,2])])test('Dribbble Likes does not mistake an error/repeated fragment for completion: '+html.slice(0,20),t=>{
+ const url='https://dribbble.com/collector/likes';const r=fixture(t,{[url]:{html:nav+grid([1,2])+'<a class="load-more" href="#">Next</a>'},[url+'?page=2&per_page=24']:{html}})({operation:'discover',feed:'liked'});assert.equal(r.status,1);assert.ok(['DRIBBBLE_RESPONSE','DRIBBBLE_PAGING'].includes(r.data.error));
+});

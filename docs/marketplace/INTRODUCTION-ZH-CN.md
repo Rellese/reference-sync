@@ -18,8 +18,9 @@
 - Behance 内容块、以 .rscase 保存的整个项目，或同时导入两者。**在 Eagle 中查看 .rscase 需要另行安装 ReferenceCanvas。** ReferenceSync 不会安装该插件。
 - 支持的 Instagram/Pinterest ZIP、JSON 或 HTML 归档元数据。帖子链接仍需联网解析；归档不保证无需登录或网络就能下载媒体。
 - Vimeo 默认搜索 Favorites，可选择 Watch Later 和 Showcases；X 支持 Bookmarks 及符合条件的 Premium 书签文件夹。
-- Dribbble 和 Layers 的已保存合集，可按文件夹选择。Dribbble 支持多个媒体及每个内容块的描述；Layers 每个作品只有一个媒体。不包含点赞或自行发布的作品。这四个来源尚未确认兼容的收藏归档格式。
-- 查找新帖子、检查全部收藏或限制最近帖子的数量。导入前可选用编号；素材库专属导入记录帮助避免重复。
+- Dribbble 和 Layers 的已保存合集，可按文件夹选择。Dribbble 支持多个媒体及每个内容块的描述；Layers 每个作品只有一个媒体。点赞为独立模式，不与已保存合集混合；不包含自行发布的作品。这四个来源尚未确认兼容的收藏归档格式。
+- Instagram、Behance（Appreciations）、Vimeo、X、Dribbble 和 Layers 提供独立的点赞模式，使用浏览器中已登录的账号，不使用数据归档或文件夹选择。Pinterest 爱心反应不是收藏历史列表。Vimeo 点赞与原有的默认 Favorites 相同。
+- 查找新帖子、检查全部收藏或点赞内容，或限制最近帖子的数量。导入前可选用编号；素材库专属导入记录帮助避免重复。
 
 网站变更、浏览器 Cookie 保护、账号权限、无法访问的媒体或请求频率限制，都可能导致下载失败。
 

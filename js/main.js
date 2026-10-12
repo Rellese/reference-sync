@@ -5,7 +5,7 @@ import {caseStructure,fitCaseStructureColumn} from './case/structure.js';
 import {caseProgressInfo} from './case/progress.js';
 import { isPostImported, caseModes, caseRegistryId, caseImportItem, pendingCase } from './case/download.js';
 import {caseOutputName,caseNamingHistory} from './case/naming.js';
-import { searchSettings } from './source-link.js';
+import { searchSettings,effectiveFolderSearch } from './source-link.js';
 import { sessionErrorTitle } from './session-account.js';
 import { summarizeImportOutcome } from './download-outcome.js';
 import { pinterestDownloadPlan } from './pinterest-media.js';
@@ -129,6 +129,8 @@ import {
   reconcileImportRecords,
   recordCreatedEagleItems,
   saveImportRecords,
+  knownForScenario,
+  recordDiscoveredFeed,
   selectImportablePosts,
   summarizeMissingComponents,
 } from './import-registry.js';
@@ -1526,9 +1528,10 @@ async function runSearch() {
   await refreshImportRegistry();
   let s;
   try { s = searchSettings(state.settings); }
-  catch (error) { ui.status.set('Проверьте ссылку', error.message); return; }
+  catch (error) { ui.status.set(state.settings.downloadMode==='link'?'Проверьте ссылку':'Проверьте настройки', error.message); return; }
 
   let activeSource;
+  const searchKnownPostIds=knownForScenario(state.knownPostIds,state.importRecords,s.downloadMode);
 
   try {
     activeSource = getSource(
@@ -1577,7 +1580,7 @@ async function runSearch() {
     return;
   }
 
-  if (!s.targetUrl && getSource(s.platform).needsAccount && !s.username.trim()) {
+  if (s.downloadMode!=='liked'&&!s.targetUrl && getSource(s.platform).needsAccount && !s.username.trim()) {
     ui.status.set('Не указан аккаунт', 'Введите имя пользователя');
     ui.log.add('Поиск невозможен: не заполнено имя аккаунта.', 'err');
     return;
@@ -1834,7 +1837,7 @@ async function runSearch() {
         state.collections = [];
       }
 
-      const runDiscover = isInstagram
+      const runDiscover = s.downloadMode==='liked'?activeSource.discoverLiked:isInstagram
         ? discoverSaved
         : activeSource.discover;
 
@@ -1846,7 +1849,7 @@ async function runSearch() {
           mode: 'search',
           messages: [
             'Ищем публикации',
-            'Проверяем сохранённые материалы',
+            s.downloadMode==='liked'?'Проверяем понравившиеся публикации':'Проверяем сохранённые материалы',
             'Собираем данные публикаций',
           ],
           trail: 'Найдено: 0',
@@ -1865,6 +1868,7 @@ async function runSearch() {
       try {
         discoveryResult =
           await runDiscover({
+            downloadMode:s.downloadMode,
             targetUrl: s.targetUrl,
             username: s.username,
             browser: s.browser,
@@ -1888,7 +1892,7 @@ async function runSearch() {
                       collection.searchTarget !== false,
                   )
                 : [],
-            knownPostIds: state.knownPostIds,
+            knownPostIds: searchKnownPostIds,
             stopLink,
             signal: operationController.signal,
             control,
@@ -1982,7 +1986,7 @@ async function runSearch() {
       const boundary =
         applyDiscoveryBoundary(
           posts,
-          state.knownPostIds,
+          searchKnownPostIds,
           {
             stopAtKnown:
               s.searchMode === SEARCH_MODES.RECENT ||
@@ -2023,6 +2027,8 @@ async function runSearch() {
 
     state.posts = posts;
     alignCurrentImportCounts();
+    state.importRecords=recordDiscoveredFeed(state.importRecords,state.knownPostIds,posts,s.downloadMode);
+    saveImportRecords(state.importRecords);
     state.selected = new Set(
       posts.map((post) => post.postId),
     );
@@ -2200,7 +2206,7 @@ async function runImport() {
   }
   renderTable();
   syncFooterActionAvailability();
-  const s = { ...state.settings, folderSearch: state.settings.downloadMode === 'link' ? false : state.settings.platform === 'behance' || state.settings.folderSearch };
+  const s = { ...state.settings,...(state.settings.downloadMode==='liked'?{username:''}:{}), folderSearch: effectiveFolderSearch(state.settings) };
   const advanceNumbering = createNumberingProgress(s, state.generated);
   const confirmNumbering = entry => {
     const patch = advanceNumbering(settingsForPlatform(s.platform), entry.item);
@@ -2490,7 +2496,7 @@ async function runImport() {
       const selectedFiles = selectedDownloadedFiles({...entry,files:entry.post.source === 'behance' && !caseModes(entry.post).blocks ? [] : entry.files}, selection);
       const caseItem=pendingCase(entry.post,state.knownPostIds) ? caseImportItem(entry) : null;
       if (caseItem && !state.knownPostIds.has(caseItem.postId)) {
-        items.push({...caseItem,name:caseOutputName({names,nameOverride,fallback:caseItem.name}),
+        items.push({...caseItem,discoveryMode:s.downloadMode==='liked'?'liked':'saved',name:caseOutputName({names,nameOverride,fallback:caseItem.name}),
           annotation:descOverride ?? names?.caseDescription ?? annotation,numberingValues:names?.caseCounterValues});
       }
 
@@ -2525,6 +2531,7 @@ async function runImport() {
             ...(activeImportSource.defaultTags || [s.platform]),
           ].filter(Boolean),
           postId: entry.post.postId,
+          discoveryMode:s.downloadMode==='liked'?'liked':'saved',
           component: String(componentIndex),
           componentCount:
             entry.post.componentCount || entry.files.length,
@@ -5197,8 +5204,7 @@ function renderTable() {
   const posts = visiblePosts();
 
   const folderTableEnabled =
-    state.settings.downloadMode !== 'link' &&
-    (state.settings.platform === 'behance' || state.settings.folderSearch === true) &&
+    effectiveFolderSearch(state.settings) &&
     state.collections.length > 0;
 
   updateTableSelectionTitle(posts);

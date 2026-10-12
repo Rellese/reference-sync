@@ -35,7 +35,7 @@ export async function requestPrivatePython(site,spec,options,run,script,failure)
   }
   nodeApi.fs.writeFileSync(file,JSON.stringify({...spec,cookies:options.cookieFile,control:controlFile,speed:options.speedProfile}));verifyPrivateCookieFile(file);
   let buffer='';
-  const result=await run(script,[file],{signal:controller.signal,timeout:spec.operation==='download'||['dribbble','layers'].includes(site)&&spec.operation==='discover'?3600000:300000,onStdout:chunk=>{
+  const result=await run(script,[file],{signal:controller.signal,timeout:spec.operation==='download'||['dribbble','layers','instagram'].includes(site)&&spec.operation==='discover'?3600000:300000,onStdout:chunk=>{
    buffer+=chunk;const lines=buffer.split('\n');buffer=lines.pop();
    for(const line of lines)try{const data=JSON.parse(line);if(data.event==='progress')options.onProgress?.(data.found,data.ids);}catch{}
   }});

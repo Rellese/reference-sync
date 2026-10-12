@@ -204,6 +204,7 @@ export function serializeImportRecords(records) {
     .map(([postId, record]) => ({
       postId: String(postId),
       componentCount: Number(record?.componentCount) || 0,
+      ...(Array.isArray(record?.feeds)?{feeds:record.feeds.filter(v=>['saved','liked'].includes(v))}:{}),
       components: [...(record?.components || new Map()).entries()]
         .map(([component, eagleId]) => [
           String(component),
@@ -250,6 +251,7 @@ export function parseImportRecords(serialized) {
       records.set(postId, {
         componentCount,
         components,
+        ...(Array.isArray(post.feeds)?{feeds:post.feeds.filter(v=>['saved','liked'].includes(v))}:{}),
       });
     });
 
@@ -319,6 +321,7 @@ export function reconcileImportRecords(records, eagleItems) {
     reconciledRecords.set(postId, {
       componentCount,
       components,
+      ...(Array.isArray(record.feeds)?{feeds:[...record.feeds]}:{}),
     });
 
     if (missing.size) {
@@ -375,6 +378,7 @@ export function recordCreatedEagleItems(records, created) {
     updated.set(postId, {
       componentCount: record.componentCount,
       components: new Map(record.components),
+      ...(Array.isArray(record.feeds)?{feeds:[...record.feeds]}:{}),
     });
   }
 
@@ -404,6 +408,10 @@ export function recordCreatedEagleItems(records, created) {
     );
 
     record.components.set(component, eagleId);
+    if(['saved','liked'].includes(entry.item.discoveryMode)){
+      const previous=existing?(record.feeds||['saved']):[];
+      record.feeds=[...new Set([...previous,entry.item.discoveryMode])];
+    }
     updated.set(postId, record);
   }
 
@@ -419,8 +427,27 @@ export function alignPinterestRecordCounts(records, posts) {
     if (!String(post.postId).startsWith('pinterest:') || !post.components?.length || post.components.length !== post.componentCount) continue;
     const record = updated.get(post.postId);
     if (!record || record.componentCount === post.componentCount) continue;
-    updated.set(post.postId, { componentCount: post.componentCount,
+    updated.set(post.postId, { ...record,componentCount: post.componentCount,
       components: new Map([...record.components].filter(([index]) => Number(index) >= 0 && Number(index) < post.componentCount)) });
   }
   return updated;
+}
+// Import IDs stay shared for deduplication; search boundaries belong to a feed.
+// Legacy records retain Saved semantics and cannot stop the first Likes search.
+export function knownForScenario(known,records,mode='saved'){
+ const feed=mode==='liked'?'liked':'saved';
+ return new Set([...(known||[])].filter(id=>(records?.get(id)?.feeds||['saved']).includes(feed)));
+}
+// Seeing a complete existing item in another feed registers that boundary without
+// creating a second Eagle item. Partial/deleted imports remain eligible for repair.
+export function recordDiscoveredFeed(records,known,posts,mode='saved'){
+ const updated=new Map(records),feed=mode==='liked'?'liked':'saved';
+ for(const post of posts||[]){
+  for(const id of [post.postId,...(post.source==='behance'?['case:v1:'+post.postId]:[])]){
+   const record=updated.get(id);
+   if(!known?.has(id)||!record)continue;
+   updated.set(id,{...record,feeds:[...new Set([...(record.feeds||['saved']),feed])]});
+  }
+ }
+ return updated;
 }

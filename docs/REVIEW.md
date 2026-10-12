@@ -1,4 +1,4 @@
-# Review notes — ReferenceSync 1.4.0
+# Review notes — ReferenceSync 1.5.0
 
 Window plugin with explicit one-button preparation. No manual Python installation
 is required on supported macOS/Windows systems. Startup never downloads Python.
@@ -11,6 +11,34 @@ ReferenceSync working directories; system Python/PATH/registry are not modified.
 Windows ARM64 uses x64 emulation and requires Windows 11. Read MANAGED-PYTHON.md
 for versions, source, redirects, permissions, cancellation and retention.
 No interpreter or executable archive is bundled in this .eagleplugin.
+
+## Liked posts (M6-T18)
+
+1.5.0 checks: 680/680 automated tests, 117 JS modules parsed by Eagle Node
+16.17.1, local Chrome UI including EN/Chinese and reload/source changes. Live
+Instagram N=10 with pagination and complete carousel metadata; first known/Stop
+both return zero before detail. Instagram liked photo downloaded (362,004 bytes).
+Layers liked video/photo downloaded and validated (18,671,556 / 49,986 bytes).
+Behance own Appreciations list paged to 25, N=1 resolves a 12-block case. X/Vimeo
+N=2 and known/Stop checked. Dribbble HTML/UI and fixture pagination checked, but
+the live helper still receives HTTP 202; live acceptance stays pending.
+No personal Eagle library was modified for these tests.
+
+Step 1 offers a separate Liked posts mode on Instagram, Behance (Appreciations),
+Vimeo, X, Dribbble and Layers. Browser owner only; archives/folders/manual account
+and stale link targets are ignored. Full/smart/recent N and Stop Link keep their
+usual boundaries. Import IDs are shared across Saved/Likes; search history is
+separate, including cold reload, partial imports and deleted Eagle components.
+Pinterest hearts are reactions, not a fabricated browsable saved-history feed.
+Vimeo /me/likes overlaps the previously requested Favorites default.
+
+Instagram requests only the website's fixed read-only Likes screen, refresh and
+pagination handlers. It decodes bounded typed literals, never executes remote
+JavaScript, Bloks actions or callbacks and never calls unlike. Web protocol version
+is read from an official public static bundle using a separate cookie-free client.
+See PRIVACY.md for endpoint/owner/filter checks and temporary cookie protection.
+Dribbble uses native AJAX fragment pagination; HTTP 202 remains a site access
+challenge and is not bypassed. Actual package/native OS acceptance is separate.
 
 ## Reproduce setup and main flow
 
@@ -32,7 +60,7 @@ No interpreter or executable archive is bundled in this .eagleplugin.
    X: all Bookmarks by default, actual Premium bookmark folders when available,
    all three modes, Stop Link, HTTPS post links, attached photos/video/GIF/carousels.
    Text-only bookmarks count toward recent N but have no importable media.
-   Archive, Likes and arbitrary profile feeds are not offered. No extension/API key.
+   Archive and arbitrary profile feeds are not offered. Likes is a separate Step 1 choice. No extension/API key.
    Dribbble: all saved collections by default, selected collections with folder
    search on. Never use Liked Shots or own Work as a saved feed. Three modes and
    Stop Link; default recent N caps unique shots across collection display order,

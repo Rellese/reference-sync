@@ -2,6 +2,7 @@ import {vimeoTarget} from './sources/vimeo-target.js';
 import {xTarget} from './sources/x-target.js';
 import {dribbbleTarget} from './sources/dribbble-target.js';
 import {layersTarget} from './sources/layers-target.js';
+import {getSource} from './sources/registry.js';
 // Strict selected-platform routing; never pass arbitrary URLs to the engine.
 const rules = {
   instagram: {hosts:['instagram.com','www.instagram.com'], path:/^\/(?:p\/[\w-]+|reel\/[\w-]+|tv\/[\w-]+|[\w.]+)\/?$/},
@@ -28,8 +29,13 @@ export function validateSourceLink(platform, input) {
 export function searchSettings(settings) {
   if (settings.downloadMode === 'link') return {...settings, source:'browser', targetUrl:validateSourceLink(settings.platform, settings.sourceUrl),
     searchMode:'full', folderSearch:false, stopLinkEnabled:false};
+  if(settings.downloadMode==='liked'){
+    if(!getSource(settings.platform).discoverLiked)throw Error('Поиск понравившихся публикаций недоступен для этой сети.');
+    return {...settings,source:'browser',targetUrl:'',username:'',folderSearch:false};
+  }
   return {...settings, source:['behance','vimeo','x','dribbble','layers'].includes(settings.platform) ? 'browser' : settings.source, folderSearch:settings.platform === 'behance' || settings.folderSearch};
 }
+export const effectiveFolderSearch=settings=>settings.downloadMode!=='link'&&settings.downloadMode!=='liked'&&(settings.platform==='behance'||settings.folderSearch===true);
 
 export function sourceLinkTarget(platform, input) {
   const url = new URL(validateSourceLink(platform, input));

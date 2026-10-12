@@ -21,7 +21,7 @@ export function normalizeVimeo(item,target) {
    collectionType:'COLLECTION',parentId:'',parentName:'',isDuplicate:false}]};
 }
 export async function discoverVimeo(options,{session=withVimeoSession,request=requestVimeo}={}) {
- const targets=options.targetUrl?[vimeoTarget(options.targetUrl)]:options.collections?.length?
+ const targets=options.downloadMode==='liked'?[vimeoSavedLists[0]]:options.targetUrl?[vimeoTarget(options.targetUrl)]:options.collections?.length?
   options.collections.map(vimeoCollection):[vimeoSavedLists[0]];
  const mode=options.searchMode||'smart',known=mode==='full'?[]:[...(options.knownPostIds||[])].map(id=>String(id).replace(/^vimeo:/,'')).filter(id=>/^\d+$/.test(id));
  const limit=mode==='recent'?Math.max(1,Math.trunc(Number(options.limit)||1)):0;
@@ -60,4 +60,4 @@ export async function listVimeoCollections(options,{session=withVimeoSession,req
 export default {code:'vimeo',title:'Vimeo',icon:'vimeo',ready:true,needsAccount:false,sourceModes:['browser'],
  videoOnly:true,containerTypes:['ROOT','COLLECTION'],containerLabels:{root:'Сохранённые видео',level1:'Подборка',level2:'Подборка'},
  defaultTags:['Vimeo'],nameMarker:'vimorder',jobPrefix:'vimeo',urlPattern:/(?:^|\/\/)(?:www\.|player\.)?vimeo\.com\//i,
- discover:discoverVimeo,download:downloadVimeo,listContainers:listVimeoCollections,probe:probeVimeo};
+ discover:discoverVimeo,discoverLiked:options=>discoverVimeo({...options,downloadMode:'liked'}),download:downloadVimeo,listContainers:listVimeoCollections,probe:probeVimeo};

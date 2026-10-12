@@ -15,7 +15,7 @@ export function normalizeLayers(item){
   if(!['COLLECTION','POST'].includes(value.type)||value.id!==String(ref.id))throw Error('LAYERS_RESPONSE');
   return {...value,name:String(ref.name||value.name)};
  });
- const postId='layers:'+id,title=String(item.title||author),first=refs[0]||{id:'link',name:'Layers'};
+ const postId='layers:'+id,title=String(item.title||author),first=refs[0]||(item.feed==='liked'?{id:'liked',name:'Понравившиеся публикации'}:{id:'link',name:'Layers'});
  return {source:'layers',postId,externalId:id,shortcode:id,url:target.url,username:'@'+author,plainUsername:author,
   title,namingName:title,description:String(item.description||''),takenAt:Date.parse(item.created)/1000||0,
   components,selectedComponents:[1],componentCount:1,type:components[0].mediaType==='video'?'Видео':'Фото',
@@ -25,12 +25,12 @@ export function normalizeLayers(item){
    collectionType:'COLLECTION',parentId:'',parentName:'',isDuplicate:false}))};
 }
 export async function discoverLayers(options,{session=withLayersSession,request=requestLayers}={}){
- const target=options.targetUrl?layersTarget(options.targetUrl):null,collections=target?[]:(options.collections||[]).map(layersCollection);
+ const liked=options.downloadMode==='liked',target=!liked&&options.targetUrl?layersTarget(options.targetUrl):null,collections=liked||target?[]:(options.collections||[]).map(layersCollection);
  const mode=options.searchMode||'smart',known=mode==='full'?[]:[...(options.knownPostIds||[])].map(id=>String(id).match(/^layers:([a-z0-9]{10,40})$/)?.[1]).filter(Boolean);
  const limit=mode==='recent'?Math.max(1,Math.trunc(Number(options.limit)||1)):0;
  return session(options,async next=>{
   await options.control?.checkpoint();throwIfAborted(options.signal);
-  const data=await request({operation:'discover',target,collections,perFolder:!!collections.length,known,limit,stopId:options.stopLink?.publicationId||''},
+  const data=await request({operation:'discover',feed:liked?'liked':'saved',target,collections,perFolder:!!collections.length,known,limit,stopId:options.stopLink?.publicationId||''},
    {...next,onProgress:count=>options.onProgress?.({stage:'discover',found:count,collection:'Layers'})});
   throwIfAborted(options.signal);if(!Array.isArray(data.posts))throw layersFailure('LAYERS_RESPONSE');
   return {...data,posts:data.posts.map(normalizeLayers)};
@@ -46,4 +46,4 @@ export const downloadLayers=(options,deps)=>downloadDirectMedia(options,{code:'l
 export default {code:'layers',title:'Layers.to',icon:'layers',ready:true,needsAccount:false,sourceModes:['browser'],singleMediaOnly:true,
  containerTypes:['ROOT','COLLECTION'],containerLabels:{root:'Сохранённые коллекции',level1:'Коллекция',level2:'Коллекция'},
  defaultTags:['Layers'],nameMarker:'layorder',jobPrefix:'layers',urlPattern:/(?:^|\/\/)(?:www\.)?layers\.to\//i,
- discover:discoverLayers,download:downloadLayers,listContainers:listLayersCollections,probe:probeLayers};
+ discover:discoverLayers,discoverLiked:options=>discoverLayers({...options,downloadMode:'liked'}),download:downloadLayers,listContainers:listLayersCollections,probe:probeLayers};

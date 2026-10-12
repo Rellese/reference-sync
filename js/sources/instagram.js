@@ -7,6 +7,7 @@
    ============================================================ */
 
 import { discoverSaved, downloadPosts, verifyInstagramSession } from '../instagram.js';
+import {discoverInstagramLiked} from './instagram-liked.js';
 
 import {
   listInstagramCollections,
@@ -41,6 +42,8 @@ export default {
 
   discover: (options) =>
     discoverSaved(options),
+
+  discoverLiked: discoverInstagramLiked,
 
   probe: options => verifyInstagramSession(options),
 

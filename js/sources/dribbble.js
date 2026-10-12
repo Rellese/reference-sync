@@ -15,7 +15,7 @@ export function normalizeDribbble(item){
   if(!['COLLECTION','POST'].includes(value.type)||value.id!==String(ref.id))throw Error('DRIBBBLE_RESPONSE');
   return {...value,name:String(ref.name||value.name)};
  });
- const postId='dribbble:'+id,title=String(item.title),first=refs[0]||{id:'link',name:'Dribbble'};
+ const postId='dribbble:'+id,title=String(item.title),first=refs[0]||(item.feed==='liked'?{id:'liked',name:'Понравившиеся публикации'}:{id:'link',name:'Dribbble'});
  return {source:'dribbble',postId,externalId:id,shortcode:id,url:target.url,username:'@'+author,plainUsername:author,
   title,namingName:title,useComponentDescriptions:true,description:String(item.description||''),
   introDescription:String(item.introDescription||''),takenAt:0,
@@ -28,14 +28,14 @@ export function normalizeDribbble(item){
    collectionType:'COLLECTION',parentId:'',parentName:'',isDuplicate:false}))};
 }
 export async function discoverDribbble(options,{session=withDribbbleSession,request=requestDribbble}={}){
- const target=options.targetUrl?dribbbleTarget(options.targetUrl):null;
- const collections=target?[]:(options.collections||[]).map(dribbbleCollection);
+ const liked=options.downloadMode==='liked',target=!liked&&options.targetUrl?dribbbleTarget(options.targetUrl):null;
+ const collections=liked||target?[]:(options.collections||[]).map(dribbbleCollection);
  const mode=options.searchMode||'smart';
  const known=mode==='full'?[]:[...(options.knownPostIds||[])].map(id=>String(id).match(/^dribbble:(\d+)$/)?.[1]).filter(Boolean);
  const limit=mode==='recent'?Math.max(1,Math.trunc(Number(options.limit)||1)):0;
  return session(options,async next=>{
   await options.control?.checkpoint();throwIfAborted(options.signal);
-  const data=await request({operation:'discover',target,collections,perFolder:!!collections.length,known,limit,stopId:options.stopLink?.publicationId||''},
+  const data=await request({operation:'discover',feed:liked?'liked':'saved',target,collections,perFolder:!!collections.length,known,limit,stopId:options.stopLink?.publicationId||''},
    {...next,onProgress:(count)=>options.onProgress?.({stage:'discover',found:count,collection:'Dribbble'})});
   throwIfAborted(options.signal);
   if(!Array.isArray(data.posts))throw dribbbleFailure('DRIBBBLE_RESPONSE');
@@ -53,4 +53,4 @@ export const downloadDribbble=(options,deps)=>downloadDirectMedia(options,{code:
 export default {code:'dribbble',title:'Dribbble',icon:'dribbble',ready:true,needsAccount:false,sourceModes:['browser'],
  containerTypes:['ROOT','COLLECTION'],containerLabels:{root:'Сохранённые коллекции',level1:'Коллекция',level2:'Коллекция'},
  defaultTags:['Dribbble'],nameMarker:'driborder',jobPrefix:'dribbble',urlPattern:/(?:^|\/\/)(?:www\.)?dribbble\.com\//i,
- discover:discoverDribbble,download:downloadDribbble,listContainers:listDribbbleCollections,probe:probeDribbble};
+ discover:discoverDribbble,discoverLiked:options=>discoverDribbble({...options,downloadMode:'liked'}),download:downloadDribbble,listContainers:listDribbbleCollections,probe:probeDribbble};

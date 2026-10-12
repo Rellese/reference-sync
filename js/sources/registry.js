@@ -136,6 +136,7 @@ function validate(descriptor) {
 
     /* Методы */
     discover: descriptor.discover || null,
+    discoverLiked: typeof descriptor.discoverLiked==='function'?descriptor.discoverLiked:null,
     download: descriptor.download || null,
     listContainers: descriptor.listContainers || null,
     probe: descriptor.probe || null,

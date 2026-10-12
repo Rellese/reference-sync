@@ -19,7 +19,7 @@ class Session:
   if settings.get('status'):return Response({},settings['status'])
   if settings.get('redirect'):return Response({},302,headers={'Location':settings['redirect']})
   if path=='/explore':
-   user=None if settings.get('signedOut') else {'id':ident(99),'username':'collector','fullName':'Collector','email':'private-fixture-email'}
+   user=None if settings.get('signedOut') else {'id':settings.get('owner') or ident(99),'username':'collector','fullName':'Collector','email':'private-fixture-email'}
    root={'user':user,'csrfToken':None if settings.get('noCsrf') else 'fixture-private-secret'}
    return Response('<script>window.__remixContext = '+json.dumps({'state':{'loaderData':{'root':root}}})+';</script>',html=True)
   if not headers.get('X-CSRF-Token')=='fixture-private-secret':return Response({'error':{'code':'UNAUTHORIZED'}},401)
@@ -34,6 +34,10 @@ class Session:
    ext='mp4' if n==2 else 'svg' if n==3 else 'gif' if n==4 else 'png'
    return {'id':ident(n),'title':'Title '+str(n),'description':'Caption '+str(n),'createdAt':'2026-01-01T00:00:00Z','user':{'username':'artist','email':'must-not-return'},'imageUrl':settings.get('mediaUrl') or 'https://layers-uploads-prod.s3.eu-west-2.amazonaws.com/'+str(n)+'.'+ext,'posterUrl':'https://layers-r2.com/poster.png' if n==2 else None}
   if path=='/api/v1/layers':
+   if q.get('likerId'):
+    if q['likerId']!=[settings.get('owner') or ident(99)] or q.get('groupId'):return Response({},400)
+    more=not q.get('cursor')
+    return Response({'data':[layer(n) for n in ([1,2] if more else [3])],'pagination':{'nextCursor':ident(2) if more else None,'hasMore':more}})
    if not q.get('groupId'):return Response({'error':'must not fetch Explore or Likes'},400)
    first=q['groupId'][0]==ident(10);more=first and not q.get('cursor')
    data=[layer(n) for n in ([1,2] if more else [1,2] if settings.get('repeat') else [3] if first else [2,4])]
@@ -97,3 +101,9 @@ test('Layers cookie export restricts domains before writing and excludes other p
  const r=spawnSync('python3',['-c',browserCookiesScript,output,'file',input,'layers'],{encoding:'utf8',env:{...process.env,PYTHONPATH:root}});assert.equal(r.status,0,r.stderr);const content=fs.readFileSync(output,'utf8');assert.ok(content.includes('synthetic-0')&&content.includes('synthetic-1'));for(const i of [2,3,4,5])assert.ok(!content.includes('synthetic-'+i));
  if(process.platform!=='win32')assert.equal(fs.statSync(output).mode&0o777,0o600);
 });
+
+test('Layers Likes scopes the live UUID owner, pages, and never reads groups or public Explore results',t=>{
+ const owner='11111111-2222-3333-4444-555555555555';const r=fixture(t,{owner})({operation:'discover',feed:'liked'});assert.equal(r.status,0);assert.deepEqual(r.data.posts.map(p=>p.id),[id(1),id(2),id(3)]);
+ const calls=r.calls.filter(c=>c.path==='/api/v1/layers');assert.equal(calls.length,2);assert.ok(calls.every(c=>c.query.likerId[0]===owner&&!c.query.groupId));assert.ok(!r.calls.some(c=>c.path==='/api/v1/groups'));assert.ok(r.data.posts.every(p=>p.collections.length===0&&p.feed==='liked'));
+});
+for(const field of ['known','stopId'])test('Layers Likes excludes '+field+' before more pages',t=>{const r=fixture(t)({operation:'discover',feed:'liked',[field]:field==='known'?[id(1)]:id(1)});assert.equal(r.status,0);assert.equal(r.data.posts.length,0);assert.equal(r.calls.filter(c=>c.path==='/api/v1/layers').length,1);});

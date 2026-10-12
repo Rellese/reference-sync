@@ -41,7 +41,8 @@ def resolve_queries():
  home=read('https://x.com/home').text
  urls=re.findall(r'<script[^>]+src=["\'](https://abs\.twimg\.com/responsive-web/client-web/[^"\']+\.js)["\']',home)
  result={};bundles=[home]
- wanted={'Bookmarks','BookmarkFoldersSlice','BookmarkFolderTimeline','TweetResultByRestId'}
+ liked=spec.get('feed')=='liked'
+ wanted={'Likes'} if liked else {'Bookmarks','BookmarkFoldersSlice','BookmarkFolderTimeline','TweetResultByRestId'}
  for url in urls[:8]:
   if '/main.' not in url:continue
   bundles.append(read(url).text)
@@ -51,7 +52,7 @@ def resolve_queries():
  # X may put folder operations in a lazy bundle. Resolve only Bookmarks chunks
  # from the verified main chunk table, with bounded requests and strict URLs.
  for bundle in bundles:
-  names=dict(re.findall(r'(\d+):"([A-Za-z0-9_.~]*Bookmark[A-Za-z0-9_.~]*)"',bundle))
+  names=dict(re.findall(r'(\d+):"([A-Za-z0-9_.~]*(?:Like|Profile)[A-Za-z0-9_.~]*)"' if liked else r'(\d+):"([A-Za-z0-9_.~]*Bookmark[A-Za-z0-9_.~]*)"',bundle))
   hashes=dict(re.findall(r'(\d+):"([a-f0-9]{8,32})"',bundle))
   for id,name in list(names.items())[:8]:
    if wanted.issubset(result):break

@@ -6,6 +6,7 @@ import { validateSourceLink } from '../source-link.js';
 import {postMatchesStopLink} from '../stop-link.js';
 // Saved moodboards and explicit links share the same media-block importer.
 import { listBehanceCollections } from './behance-collections.js';
+import {collectBehanceLiked} from './behance-liked.js';
 import { runGallery } from '../toolchain.js';
 import { throwIfAborted } from '../job-control.js';
 import { createGallerySource, parseDumpJson } from './gallery-source.js';
@@ -65,6 +66,7 @@ export default {
   ...behanceMediaSource,
   packageCase: packageBehanceCase,
   discover: discoverBehance,
+  discoverLiked: options=>discoverBehance({...options,downloadMode:'liked',targetUrl:'',collections:[]}),
   download(options) {
     if (!options.posts?.length) return behanceMediaSource.download(options);
     const target = behanceTarget(options.posts[0].url);
@@ -77,8 +79,10 @@ export default {
 export async function discoverBehance(options, {
   session = withBehanceSession, run = runGallery, refresh = refreshBehanceChallenge,
   discoverProject = next => behanceMediaSource.discover(next),
+  likedProjects=collectBehanceLiked,
 } = {}) {
-  const targets = options.targetUrl ? [{id:'link',name:'Behance',url:validateSourceLink('behance',options.targetUrl)}] : buildBehanceTargets(options);
+  const liked=options.downloadMode==='liked';
+  const targets = liked?[{id:'liked',name:'Понравившиеся публикации',url:'https://www.behance.net/'}]:options.targetUrl ? [{id:'link',name:'Behance',url:validateSourceLink('behance',options.targetUrl)}] : buildBehanceTargets(options);
   const searchMode=options.searchMode || 'smart';
   const limit=searchMode==='recent' ? Math.max(0,Math.trunc(Number(options.limit)||0)) : 0;
   // Whole cases and separately imported blocks have independent registry IDs.
@@ -92,7 +96,11 @@ export async function discoverBehance(options, {
     throwIfAborted(options.signal);
     await session(options, target.url, async next => {
       let projectUrls;
-      if (/\/gallery\/\d+/.test(target.url)) projectUrls = [behanceTarget(target.url).url];
+      if(liked){
+        const result=await likedProjects(next);projectUrls=result.urls;
+        stoppedEarly ||= result.stoppedEarly;
+        if(result.stopLinkReached)stopLinkTargets.push('liked');
+      }else if (/\/gallery\/\d+/.test(target.url)) projectUrls = [behanceTarget(target.url).url];
       else {
         const engineUrl = target.url.replace('/moodboard/', '/collection/');
         const result = await run(['--config-ignore','--no-input','--cookies',next.cookieFile,

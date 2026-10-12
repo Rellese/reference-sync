@@ -156,7 +156,7 @@ export function buildTitlebar({ onClose }) {
 /* ============================================================
    1 блок — шапка
    ============================================================ */
-export function buildHeader({ version = 'v1.4.0', onLanguage }) {
+export function buildHeader({ version = 'v1.5.0', onLanguage }) {
   const root = el('div', 'rs-header');
 
   const left = el('div', 'rs-header__left');
@@ -267,6 +267,7 @@ export function buildSettings({ onChange, onFolderSearch, onArchive, onArchiveRe
   const downloadGroup = createRadioGroup([
     {value:'saved', label:L('Скачивание ваших сохранённых')},
     {value:'link', label:L('Скачивание по ссылке')},
+    {value:'liked', label:L('Понравившиеся публикации')},
   ], {value:s.downloadMode || 'saved', onChange(value) {
     if (!canChangeScenario()) { downloadGroup.set(state.settings.downloadMode || 'saved'); return; }
     setSetting('downloadMode', value);
@@ -277,6 +278,7 @@ export function buildSettings({ onChange, onFolderSearch, onArchive, onArchiveRe
   for (const [value, tip] of [
     ['saved', 'Скачайте **публикации, которые вы сохранили в своём аккаунте**. Выберите браузер с выполненным входом. Для Instagram и Pinterest также укажите свой никнейм.'],
     ['link', 'Скачайте **публикацию или публикации профиля** по ссылке. Выберите соответствующую социальную сеть.'],
+    ['liked', 'Скачайте **публикации, которым вы поставили отметку «Нравится»** в выбранной соцсети. В Behance это Appreciations. Используется аккаунт выбранного браузера.'],
   ]) {
     const row = el('div', 'rs-switch-row');
     row.append(downloadGroup.rowOf(value), el('span', 'rs-switch-row__gap'), createInfo(L(tip)).node);
@@ -729,19 +731,23 @@ export function buildSettings({ onChange, onFolderSearch, onArchive, onArchiveRe
       const next =
         nextSettings || state.settings;
 
-      const byLink = next.downloadMode === 'link';
-      const isBehance = next.platform === 'behance';
       const source = getSource(next.platform);
-      const browserOnly = byLink || isBehance || !source.sourceModes.includes('archive');
-      downloadGroup.set(byLink ? 'link' : 'saved');
+      if(next.downloadMode==='liked'&&!source.discoverLiked){if(next===state.settings)setSetting('downloadMode','saved');else next.downloadMode='saved';}
+      const byLink = next.downloadMode === 'link',liked=next.downloadMode==='liked';
+      const isBehance = next.platform === 'behance';
+      const browserOnly = byLink || liked || isBehance || !source.sourceModes.includes('archive');
+      downloadGroup.rowOf('liked').parentElement.style.display=source.discoverLiked?'':'none';
+      downloadGroup.set(byLink ? 'link' : liked?'liked':'saved');
+      setUiText(modeGroup.rowOf(SEARCH_MODES.FULL).querySelector('.rs-radio-row__label'),liked?'Проверить все понравившиеся':'Проверить все сохранённые');
+      setUiText(modeFull.querySelector('.rs-hint'),liked?'Проверяет весь доступный список публикаций с отметкой «Нравится». Ограничения сайта сохраняются.':'Полный анализ всего раздела Saved без ограничения по количеству. Подходит для первого переноса.');
       if (byLink) setText(browserHint, L('Браузер нужен для публикаций, доступных после входа. Никнейм владельца ссылки не требуется.'));
       linkRow.style.display = byLink ? '' : 'none';
       linkField.set(next.sourceUrl || '');
-      accountRow.style.display = byLink || !source.needsAccount ? 'none' : '';
+      accountRow.style.display = byLink || liked || !source.needsAccount ? 'none' : '';
       sourceList.style.display = browserOnly ? 'none' : '';
       step2.style.display = byLink ? 'none' : '';
       searchDivider.style.display = byLink ? 'none' : '';
-      folderRow.style.display = next.platform === 'behance' ? 'none' : '';
+      folderRow.style.display = liked||next.platform === 'behance' ? 'none' : '';
       sourceGroup.set(next.source);
       setUiText(sourceGroup.rowOf('meta').querySelector('.rs-radio-row__label'), 'Из архива');
 
@@ -823,6 +829,7 @@ export function buildSettings({ onChange, onFolderSearch, onArchive, onArchiveRe
       const label = accountLabel.querySelector('.rs-field-label__text');
       if (label) setText(label, L(platform + '-аккаунт'));
       if (state.settings.downloadMode === 'link') setText(browserHint, L('Браузер нужен для публикаций, доступных после входа. Никнейм владельца ссылки не требуется.'));
+      else if(state.settings.downloadMode==='liked') bindTextRender(browserHint,'profile-hint',L('Поиск идёт по вашим отметкам «Нравится» в выбранном браузере. Архив и выбор папок для этого сценария не используются.'),(node,value)=>{node.textContent=value;});
       else if (state.settings.platform === 'behance') setText(browserHint, L('Для сохранённых публикаций выберите доски настроения своего аккаунта.'));
       else if (state.settings.platform === 'vimeo') setText(browserHint, L('Без поиска по папкам загружается Favorites (понравившиеся видео). Для Watch Later и подборок включите поиск по папкам.'));
       else if (state.settings.platform === 'layers') bindTextRender(browserHint, 'profile-hint', L('Без выбора папок Layers ищет во всех ваших сохранённых коллекциях. Лайки не включаются. Лимит N общий; с выбором папок — N в каждой.'), (node, value) => { node.textContent = value; });

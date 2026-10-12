@@ -7,7 +7,9 @@ def unwrap(item):
  return item
 def timeline(data,folder):
  try:
-  node=data['data']['bookmark_collection_timeline' if folder else 'bookmark_timeline_v2']['timeline']
+  if spec.get('feed')=='liked':
+   result=data['data']['user']['result'];node=(result.get('timeline_v2') or result.get('timeline'))['timeline']
+  else:node=data['data']['bookmark_collection_timeline' if folder else 'bookmark_timeline_v2']['timeline']
   instructions=node['instructions']
  except (KeyError,TypeError):raise Failure('X_RESPONSE')
  if not isinstance(instructions,list):raise Failure('X_RESPONSE')
@@ -36,7 +38,7 @@ def timeline(data,folder):
 def discover():
  result=[];seen=set();visited=set();cursor=None;checked=0;stopped=False;reached=False
  limit=max(0,int(spec.get('limit',0)));known=set(spec.get('known',[]));boundary=str(spec.get('stopId') or '')
- folder=str(spec.get('folder') or '');post_id=str(spec.get('postId') or '')
+ liked=spec.get('feed')=='liked';folder='' if liked else str(spec.get('folder') or '');post_id='' if liked else str(spec.get('postId') or '')
  if folder and not re.fullmatch(r'\d+',folder):raise Failure('X_FOLDERS')
  for page in range(10000):
   checkpoint()
@@ -46,9 +48,10 @@ def discover():
    tweet=unwrap((data.get('data') or {}).get('tweetResult',{}).get('result',{}));batch=[tweet] if tweet else [];following=None
   else:
    variables={'count':50,'includePromotedContent':False}
-   if folder:variables['bookmark_collection_id']=folder
+   if liked:variables.update({'userId':uid[1],'withClientEventToken':False,'withBirdwatchNotes':False,'withVoice':True})
+   elif folder:variables['bookmark_collection_id']=folder
    if cursor:variables['cursor']=cursor
-   batch,following=timeline(graph('BookmarkFolderTimeline' if folder else 'Bookmarks',variables),bool(folder))
+   batch,following=timeline(graph('Likes' if liked else 'BookmarkFolderTimeline' if folder else 'Bookmarks',variables),bool(folder))
   ids=[]
   for tweet in batch:
    id=str(tweet['rest_id'])

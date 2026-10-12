@@ -45,8 +45,9 @@ def pagination(root,current,page):
  p=safe_url(next);previous=urllib.parse.urlsplit(current);query=urllib.parse.parse_qs(p.query)
  if p.path!=previous.path or set(query)!={'page'} or len(query['page'])!=1 or not re.fullmatch(r'[1-9]\d*',query['page'][0]) or int(query['page'][0])<=page:raise Failure('DRIBBBLE_PAGING')
  return next
-def cards(root):
+def cards(root,fragment=False):
  grid=first(root,lambda n:n.tag=='ol' and n.has('shots-grid'))
+ if not grid and fragment and all((isinstance(n,str) and not n.strip()) or (isinstance(n,Node) and n.tag in {'li','script'}) for n in root.children):grid=root
  if not grid:raise Failure('DRIBBBLE_RESPONSE')
  result=[]
  for card in grid.children:

@@ -13,7 +13,7 @@ class Session:
   f=json.load(open(os.environ['X_FIXTURE']));p=urllib.parse.urlsplit(url)
   with open(os.environ['X_CALLS'],'a') as handle:handle.write(json.dumps({'host':p.hostname,'path':p.path,'params':params,'auth':bool(headers)})+'\n')
   if p.path=='/home':return Response('<script src="https://abs.twimg.com/responsive-web/client-web/main.fixture.js"></script>')
-  if p.hostname=='abs.twimg.com':return Response(','.join('queryId:"fixture",operationName:"'+n+'"' for n in ('Bookmarks','BookmarkFoldersSlice','BookmarkFolderTimeline','TweetResultByRestId')))
+  if p.hostname=='abs.twimg.com':return Response(','.join('queryId:"fixture",operationName:"'+n+'"' for n in ('Likes','Bookmarks','BookmarkFoldersSlice','BookmarkFolderTimeline','TweetResultByRestId')))
   if f.get('status'):return Response({},f['status'])
   if f.get('redirect'):return Response({},302,f['redirect'])
   name=p.path.split('/')[-1]
@@ -30,6 +30,7 @@ class Session:
    entries.append({'entryId':'tweet-'+str(id),'content':{'itemContent':{'tweet_results':{'result':{'__typename':'TweetWithVisibilityResults','tweet':tweet}}}}})
   if page<len(pages)-1:entries.append({'entryId':'cursor-bottom','content':{'cursorType':'Bottom','value':f.get('cursor',str(page+1))}})
   key='bookmark_collection_timeline' if name=='BookmarkFolderTimeline' else 'bookmark_timeline_v2'
+  if name=='Likes':return Response({'data':{'user':{'result':{'timeline_v2':{'timeline':{'instructions':[{'type':'TimelineAddEntries','entries':entries}]}}}}}})
   return Response({'data':{key:{'timeline':{'instructions':[{'type':'TimelineAddEntries','entries':entries}]}}}})
 `;
 const gallery=String.raw`
@@ -108,3 +109,9 @@ test('X cookie export scopes domains before writing and excludes other platform 
  for(const i of [0,1,2])assert.ok(content.includes('synthetic-'+i));for(const i of [3,4,5])assert.ok(!content.includes('synthetic-'+i));
  if(process.platform!=='win32')assert.equal(fs.statSync(output).mode&0o777,0o600);
 });
+
+test('X Likes selects the authenticated twid owner and pages the private Likes connection',t=>{
+ const r=fixture(t)({operation:'discover',feed:'liked'});assert.equal(r.status,0);assert.deepEqual(r.data.posts.map(p=>p.id),['1','2','3','4']);
+ const calls=r.calls.filter(c=>c.path.endsWith('/Likes'));assert.equal(calls.length,2);assert.ok(calls.every(c=>JSON.parse(c.params.variables).userId==='7'));assert.ok(!r.calls.some(c=>c.path.endsWith('/Bookmarks')));
+});
+for(const field of ['known','stopId'])test('X Likes stops at '+field+' before pagination',t=>{const r=fixture(t)({operation:'discover',feed:'liked',[field]:field==='known'?['1']:'1'});assert.equal(r.status,0);assert.equal(r.data.posts.length,0);assert.equal(r.calls.filter(c=>c.path.endsWith('/Likes')).length,1);});

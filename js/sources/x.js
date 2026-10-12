@@ -21,14 +21,15 @@ export function normalizeX(item,target){
    collectionType:'COLLECTION',parentId:'',parentName:'',isDuplicate:false}]};
 }
 export async function discoverX(options,{session=withXSession,request=requestX}={}){
- const targets=options.targetUrl?[xTarget(options.targetUrl)]:options.collections?.length?options.collections.map(xCollection):[xBookmarks];
+ const liked=options.downloadMode==='liked';
+ const targets=liked?[{id:'liked',name:'Понравившиеся публикации',type:'LIKED'}]:options.targetUrl?[xTarget(options.targetUrl)]:options.collections?.length?options.collections.map(xCollection):[xBookmarks];
  const mode=options.searchMode||'smart',known=mode==='full'?[]:[...(options.knownPostIds||[])].map(id=>String(id).replace(/^x:/,'')).filter(id=>/^\d+$/.test(id));
  const limit=mode==='recent'?Math.max(1,Math.trunc(Number(options.limit)||1)):0;
  const posts=new Map(),stopLinkTargets=[];let stoppedEarly=false,checked=0,skippedText=0;
  await session(options,async next=>{
   for(const target of targets){
    await options.control?.checkpoint();throwIfAborted(options.signal);const foundIds=new Set(posts.keys());
-   const data=await request({operation:'discover',folder:target.type==='POST'||target.id==='bookmarks'?'':target.id,
+   const data=await request({operation:'discover',feed:liked?'liked':'saved',folder:liked||target.type==='POST'||target.id==='bookmarks'?'':target.id,
     postId:target.type==='POST'?target.id:'',limit,known,stopId:options.stopLink?.publicationId||''},
     {...next,onProgress:(count,ids)=>{for(const id of ids||[])if(/^\d+$/.test(String(id)))foundIds.add('x:'+id);
      options.onProgress?.({stage:'discover',found:foundIds.size,collection:target.name});}});
@@ -51,4 +52,4 @@ export async function listXCollections(options,{session=withXSession,request=req
 export default {code:'x',title:'X',icon:'x',ready:true,needsAccount:false,sourceModes:['browser'],
  containerTypes:['ROOT','COLLECTION'],containerLabels:{root:'Все закладки',level1:'Подборка',level2:'Подборка'},
  defaultTags:['X'],nameMarker:'xorder',jobPrefix:'x',urlPattern:/(?:^|\/\/)(?:www\.|mobile\.)?(?:x|twitter)\.com\//i,
- discover:discoverX,download:downloadX,listContainers:listXCollections,probe:probeX};
+ discover:discoverX,discoverLiked:options=>discoverX({...options,downloadMode:'liked'}),download:downloadX,listContainers:listXCollections,probe:probeX};

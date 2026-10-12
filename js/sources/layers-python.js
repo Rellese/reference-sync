@@ -9,6 +9,9 @@ ID=r'[a-z0-9]{10,40}'
 def valid_id(value):
  if not isinstance(value,str) or not re.fullmatch(ID,value):raise Failure('LAYERS_RESPONSE')
  return value
+def owner_id(value):
+ if not isinstance(value,str) or not re.fullmatch(ID+r'|[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}',value):raise Failure('LAYERS_RESPONSE')
+ return value
 def safe_url(url):
  p=urllib.parse.urlsplit(url)
  if p.scheme!='https' or p.hostname not in {'layers.to','www.layers.to'} or p.username or p.password or p.port:raise Failure('LAYERS_URL')
@@ -67,10 +70,10 @@ def pages(resource,filters):
   visited.add(next);cursor=next
  raise Failure('LAYERS_PAGING')
 def catalog(owner):
- result={};owner_id=valid_id(owner.get('id'))
- for batch in pages('groups',{'userId':owner_id}):
+ result={};uid=owner_id(owner.get('id'))
+ for batch in pages('groups',{'userId':uid}):
   for item in batch:
-   if item.get('userId')!=owner_id:raise Failure('LAYERS_RESPONSE')
+   if item.get('userId')!=uid:raise Failure('LAYERS_RESPONSE')
    id=valid_id(item.get('id'));name=item.get('name')
    if not isinstance(name,str) or not name.strip():raise Failure('LAYERS_RESPONSE')
    result[id]={'id':id,'name':name[:1000],'url':'https://layers.to/collections/'+id}
@@ -100,13 +103,15 @@ try:
  jar=http.cookiejar.MozillaCookieJar(spec['cookies']);jar.load(ignore_discard=True,ignore_expires=True)
  session=requests.Session(cookies=jar,impersonate='chrome');csrf='';user,csrf=bootstrap()
  operation=spec.get('operation');target=spec.get('target') or {}
- if (operation in {'probe','catalog'} or not target) and (not isinstance(user,dict) or not user.get('username')):raise Failure('LAYERS_AUTH')
+ liked=spec.get('feed')=='liked'
+ if (liked or operation in {'probe','catalog'} or not target) and (not isinstance(user,dict) or not user.get('username')):raise Failure('LAYERS_AUTH')
  if operation=='probe':
   print(json.dumps({'session':{'username':user['username'],'name':str(user.get('fullName') or user['username'])[:500]}}))
  elif operation=='catalog':print(json.dumps({'containers':catalog(user)}))
  elif operation=='discover':
   targets=spec.get('collections') or []
-  if target.get('type')=='POST':targets=[target]
+  if liked:targets=[{'id':owner_id(user.get('id')),'type':'LIKED','name':'Likes'}]
+  elif target.get('type')=='POST':targets=[target]
   elif target.get('type')=='COLLECTION':targets=[target]
   elif target.get('type')=='ROOT':
    username=target.get('username','')
@@ -119,8 +124,8 @@ try:
   posts={};known=set(spec.get('known',[]));boundary=str(spec.get('stopId') or '');limit=max(0,int(spec.get('limit',0)))
   per_folder=bool(spec.get('perFolder'));stop_targets=[];stopped=False;checked=0
   for container in targets:
-   id=valid_id(container.get('id'));count=0;seen=set();stop=False
-   batches=[[read('https://layers.to/api/v1/layers/'+id)]] if container.get('type')=='POST' else pages('layers',{'groupId':id})
+   id=owner_id(container.get('id')) if liked else valid_id(container.get('id'));count=0;seen=set();stop=False
+   batches=[[read('https://layers.to/api/v1/layers/'+id)]] if container.get('type')=='POST' else pages('layers',{'likerId':id} if liked else {'groupId':id})
    for batch in batches:
     for item in batch:
      post_id=valid_id(item.get('id'))
@@ -131,8 +136,8 @@ try:
       break
      if post_id in seen:continue
      seen.add(post_id);checked+=1;count+=1
-     if post_id not in posts:posts[post_id]={**layer(item),'collections':[]}
-     if not any(ref['id']==id for ref in posts[post_id]['collections']):posts[post_id]['collections'].append({'id':id,'name':str(container.get('name') or id),'url':'https://layers.to/'+('layers/' if container.get('type')=='POST' else 'collections/')+id})
+     if post_id not in posts:posts[post_id]={**layer(item),'collections':[],**({'feed':'liked'} if liked else {})}
+     if not liked and not any(ref['id']==id for ref in posts[post_id]['collections']):posts[post_id]['collections'].append({'id':id,'name':str(container.get('name') or id),'url':'https://layers.to/'+('layers/' if container.get('type')=='POST' else 'collections/')+id})
      print(json.dumps({'event':'progress','found':len(posts),'ids':[post_id]}),flush=True)
      if limit and (count>=limit if per_folder else len(posts)>=limit):stop=True;break
     if stop:break
