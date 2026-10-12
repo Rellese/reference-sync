@@ -44,13 +44,32 @@ def shot_blocks(root,source,id):
   if not isinstance(state,dict) or str(state.get('shotId'))!=id:raise Failure('DRIBBBLE_RESPONSE')
   return (state.get('contentBlocks') or {}).get('results')
  raise Failure('DRIBBBLE_FORMAT')
+def slideshow(node,content,start,block):
+ slides=content.get('slides');media=content.get('media')
+ if not isinstance(slides,list) or not slides or not isinstance(media,list):raise Failure('DRIBBBLE_FORMAT')
+ if any(not isinstance(v,dict) for v in slides+media):raise Failure('DRIBBBLE_FORMAT')
+ positions=[v.get('position') for v in slides];ids=[v.get('mediaId') for v in slides]
+ if any(type(v)!=int or v<0 for v in positions) or len(set(positions))!=len(slides):raise Failure('DRIBBBLE_FORMAT')
+ if any(not isinstance(v,str) or not v for v in ids) or len(set(ids))!=len(slides):raise Failure('DRIBBBLE_FORMAT')
+ sources={v.get('id'):v for v in media}
+ if len(sources)!=len(media) or set(sources)!=set(ids):raise Failure('DRIBBBLE_FORMAT')
+ carousel=first(node,lambda n:n.attrs.get('data-test')=='base-carousel')
+ if carousel is None:raise Failure('DRIBBBLE_FORMAT')
+ rendered=[n for n in carousel.children if isinstance(n,Node) and n.has('block-media-wrapper')]
+ if len(rendered)!=len(slides):raise Failure('DRIBBBLE_FORMAT')
+ result=[]
+ for slide,render in zip(sorted(slides,key=lambda v:v['position']),rendered):
+  source=sources[slide['mediaId']];value=component(render,start+len(result),str(block)+':'+slide['mediaId'])
+  if value['mediaType']!=source.get('type') or value['extension']!=str(source.get('fileExtension','')).lower():raise Failure('DRIBBBLE_FORMAT')
+  result.append(value)
+ return result
 def shot(item):
  source=read(item['url']);root=Tree(source).root;title=first(root,lambda n:n.has('shot-header__title'))
  if title is None:raise Failure('DRIBBBLE_RESPONSE')
  author=first(root,lambda n:n.tag=='a' and n.has('user-sticky-header__avatar'))
  author=(author.attrs.get('href','').strip('/') if author else '')
  if not re.fullmatch(r'[A-Za-z0-9_-]{1,80}',author):raise Failure('DRIBBBLE_RESPONSE')
- result=[];texts=[];intro=[]
+ result=[];texts=[];intro=[];last_media=[]
  ssr=first(root,lambda n:n.attrs.get('id')=='ssr-app')
  if ssr is not None:
   blocks=shot_blocks(root,source,item['id'])
@@ -63,14 +82,19 @@ def shot(item):
    kind=block.get('contentType');content=block.get('content') or {};block_id=block.get('id')
    if kind=='text':
     caption=clean_text(rich_text(content.get('text') or {}));texts.append(caption)
-    if result:result[-1]['description']=clean_text(result[-1]['description']+'\n\n'+caption)
+    if last_media:
+     for media in last_media:media['description']=clean_text(media['description']+'\n\n'+caption)
     else:intro.append(caption)
    elif kind in {'image','video'}:
     node=rendered.get('content-block-'+str(block_id))
     if not node:raise Failure('DRIBBBLE_FORMAT')
     media=component(node,len(result)+1,block_id)
     if media['mediaType']!=kind:raise Failure('DRIBBBLE_FORMAT')
-    result.append(media)
+    result.append(media);last_media=[media]
+   elif kind=='slideshow':
+    node=rendered.get('content-block-'+str(block_id))
+    if not node:raise Failure('DRIBBBLE_FORMAT')
+    last_media=slideshow(node,content,len(result)+1,block_id);result.extend(last_media)
    else:raise Failure('DRIBBBLE_FORMAT')
  else:
   node=first(root,lambda n:n.has('shot-media-container'))

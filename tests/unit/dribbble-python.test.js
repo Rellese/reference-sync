@@ -19,6 +19,16 @@ function configShot(id,{wrongId=false,malformed=false}={}){
  return html.replace(/<script>window\.__INITIAL_STATE__=.*;<\/script>/,
   '<script>var config = Dribbble.JsConfig || {};\nDribbble.JsConfig = Object.assign(config, {\n shotData: '+literal+'\n});</script>');
 }
+function slideshowShot({missing=false,wrongType=false,duplicatePosition=false,foreignMedia=false}={}){
+ let html=modern(1);const state=JSON.parse(html.match(/window\.__INITIAL_STATE__=(.*);<\/script>/)[1]);
+ const block=state.props.contentBlocks.results.find(b=>b.id===104);block.contentType='slideshow';
+ block.content={slides:[{mediaId:'c',position:2},{mediaId:'a',position:0},{mediaId:'b',position:duplicatePosition?0:1}],
+  media:['a','b','c'].map(id=>({id,type:id==='b'?'video':'image',fileExtension:id==='b'?'mp4':'png'}))};
+ if(wrongType)block.content.media[1].type='image';if(foreignMedia)block.content.media[0].id='foreign';
+ const render=['a','b','c'].slice(0,missing?2:3).map(id=>'<div class="block-media-wrapper">'+(id==='b'?'<video src="https://cdn.dribbble.com/userupload/1/file/b.mp4"></video>':`<img data-src="https://cdn.dribbble.com/userupload/1/file/${id}.png?resize=100x">`)+'</div>').join('');
+ html=html.replace(/<div data-test="content-block-104">.*?<\/div>/,'<div data-test="content-block-104"><div data-test="base-carousel">'+render+'</div><div class="thumbnails-list"><img src="https://cdn.dribbble.com/userupload/1/file/a.png?resize=24x"></div></div>');
+ return html.replace(/window\.__INITIAL_STATE__=.*;<\/script>/,'window.__INITIAL_STATE__='+JSON.stringify(state)+';</script>');
+}
 const curl=String.raw`
 import json,os,urllib.parse,time,threading
 fixture=json.load(open(os.environ['DRIB_FIXTURE']))
@@ -76,6 +86,16 @@ for(const status of [200,202])test('Dribbble JsConfig shotData keeps ordered med
 for(const [settings,error] of [[{wrongId:true},'DRIBBBLE_RESPONSE'],[{malformed:true},'DRIBBBLE_FORMAT']])test('JsConfig refuses foreign shot data and executable expressions: '+error,t=>{
  const url='https://dribbble.com/shots/1-Shot',r=fixture(t,{[url]:{html:configShot(1,settings)}})({operation:'discover',target:{id:'1',type:'POST',url}});
  assert.equal(r.status,1);assert.equal(r.data.error,error);
+});
+test('nested slideshow expands complete ordered media and shares its following caption, excluding thumbnails',t=>{
+ const r=fixture(t,{'https://dribbble.com/shots/1-Shot':{html:slideshowShot()}})({operation:'discover',limit:1});
+ assert.equal(r.status,0,JSON.stringify(r.data));const media=r.data.posts[0].components;
+ assert.deepEqual(media.map(c=>[c.index,c.mediaType,c.description]),[[1,'video','First\n\nMore'],[2,'image','Second'],[3,'video','Second'],[4,'image','Second'],[5,'image','']]);
+ assert.ok(media[1].url.endsWith('/a.png'));assert.ok(media[3].url.endsWith('/c.png'));assert.equal(new Set(media.map(c=>c.blockId)).size,5);
+});
+for(const options of [{missing:true},{wrongType:true},{duplicatePosition:true},{foreignMedia:true}])test('slideshow cannot publish incomplete, mismatched or ambiguous media: '+JSON.stringify(options),t=>{
+ const r=fixture(t,{'https://dribbble.com/shots/1-Shot':{html:slideshowShot(options)}})({operation:'discover',limit:1});
+ assert.equal(r.status,1);assert.equal(r.data.error,'DRIBBBLE_FORMAT');assert.equal(r.data.posts,undefined);
 });
 test('Dribbble native recovery cannot turn oversized HTML into a partial shot',t=>{
  const url='https://dribbble.com/shots/1-Shot',r=fixture(t,{[url]:{status:202,browserHTML:'x'.repeat(16*1024*1024+1)}})({operation:'discover',target:{id:'1',type:'POST',url},browserReply:true});
