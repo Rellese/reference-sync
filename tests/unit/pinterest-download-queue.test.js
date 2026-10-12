@@ -81,7 +81,7 @@ test('Pinterest downloads discovered MP4 directly when the HLS downloader is una
   Object.assign(nodeApi, { stream, https: {
     Agent: class { destroy() {} },
     get(url, options, callback) {
-      assert.equal(url.href, 'https://cdn.example/video.mp4');
+      assert.equal(url, 'https://cdn.example/video.mp4');
       const request = new EventEmitter(); request.setTimeout = () => {}; request.destroy = () => {};
       queueMicrotask(() => {
         const response = new PassThrough(); response.statusCode = 200;

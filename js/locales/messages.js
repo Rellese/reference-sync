@@ -5,6 +5,19 @@ import { dribbbleMessages } from './dribbble.js';
 import { layersMessages } from './layers.js';
 // Columns: Russian source, English, French, Spanish, Simplified Chinese.
 export const messages = [
+  ["Компонент {0}: {1}", "Component {0}: {1}", "Élément {0} : {1}", "Componente {0}: {1}", "组件 {0}：{1}"],
+  ["Не удалось скачать компонент {0}. {1} Повторите загрузку публикации.", "Could not download {0} media. {1} Download the post again.", "Impossible de télécharger le média {0}. {1} Relancez le téléchargement de la publication.", "No se pudo descargar el contenido de {0}. {1} Descarga la publicación de nuevo.", "无法下载 {0} 媒体。{1} 请重新下载该帖子。"],
+  ["Сервер медиа вернул HTTP {0}.", "The media server returned HTTP {0}.", "Le serveur de médias a renvoyé HTTP {0}.", "El servidor multimedia devolvió HTTP {0}.", "媒体服务器返回 HTTP {0}。"],
+  ["Адрес медиа должен использовать HTTPS.", "The media address must use HTTPS.", "L’adresse du média doit utiliser HTTPS.", "La dirección multimedia debe usar HTTPS.", "媒体地址必须使用 HTTPS。"],
+  ["Слишком много перенаправлений медиа.", "Too many media redirects.", "Trop de redirections de médias.", "Demasiadas redirecciones multimedia.", "媒体重定向次数过多。"],
+  ["Вместо медиа сервер вернул страницу или JSON.", "The server returned a page or JSON instead of media.", "Le serveur a renvoyé une page ou du JSON au lieu d’un média.", "El servidor devolvió una página o JSON en lugar de contenido multimedia.", "服务器返回了网页或 JSON，而非媒体。"],
+  ["Сервер вернул неполный файл.", "The server returned an incomplete file.", "Le serveur a renvoyé un fichier incomplet.", "El servidor devolvió un archivo incompleto.", "服务器返回的文件不完整。"],
+  ["Сайт вернул неподдерживаемый адрес медиа.", "The site returned an unsupported media address.", "Le site a renvoyé une adresse de média non prise en charge.", "El sitio devolvió una dirección multimedia no compatible.", "网站返回了不受支持的媒体地址。"],
+  ["Ошибка загрузчика ({0}).", "Download engine error ({0}).", "Erreur du moteur de téléchargement ({0}).", "Error del motor de descarga ({0}).", "下载引擎错误（{0}）。"],
+  ["Не удалось проверить сертификат сервера медиа.", "Could not verify the media server certificate.", "Impossible de vérifier le certificat du serveur de médias.", "No se pudo verificar el certificado del servidor multimedia.", "无法验证媒体服务器证书。"],
+  ["Проверка скачанного видео не пройдена.", "The downloaded video failed validation.", "La vidéo téléchargée n’a pas passé la validation.", "El vídeo descargado no superó la validación.", "下载的视频未通过验证。"],
+  ["Неизвестная ошибка загрузчика.", "Unknown download engine error.", "Erreur inconnue du moteur de téléchargement.", "Error desconocido del motor de descarga.", "未知的下载引擎错误。"],
+
   ["Понравившиеся публикации", "Liked posts", "Publications aimées", "Publicaciones que te gustan", "点赞的帖子"],
   ["Проверить все понравившиеся", "Check all liked posts", "Vérifier toutes les publications aimées", "Revisar todas las publicaciones que te gustan", "检查所有点赞帖子"],
   ["Проверяем понравившиеся публикации", "Checking liked posts", "Vérification des publications aimées", "Revisando publicaciones que te gustan", "正在检查点赞帖子"],

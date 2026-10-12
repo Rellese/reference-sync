@@ -1,4 +1,4 @@
-# Review notes — ReferenceSync 1.5.0
+# Review notes — ReferenceSync 1.5.1
 
 Window plugin with explicit one-button preparation. No manual Python installation
 is required on supported macOS/Windows systems. Startup never downloads Python.
@@ -11,6 +11,20 @@ ReferenceSync working directories; system Python/PATH/registry are not modified.
 Windows ARM64 uses x64 emulation and requires Windows 11. Read MANAGED-PYTHON.md
 for versions, source, redirects, permissions, cancellation and retention.
 No interpreter or executable archive is bundled in this .eagleplugin.
+
+## Direct media compatibility (M6-T19)
+
+Eagle Node 16.17.1 reproduces ERR_INVALID_ARG_TYPE for the legacy HTTPS call
+with a foreign browser-style URL object. Download now passes the validated HTTPS
+string to Node, including for redirects. The same real Layers video and photo
+passed download/validation using the patched downloader and that URL model
+(18,671,556 / 49,986 bytes); temporary media was removed. Tests cover foreign
+URL objects, redirect allowlists, incomplete content, abort cleanup, Pinterest
+MP4 fallback and safe diagnostic translations. Only fixed reasons/codes are
+logged; raw error text, signed URL queries, paths and credentials are excluded.
+691/691 automated tests passed; 118 JS modules parsed in Eagle Node 16.17.1.
+Actual window/native import and
+Windows acceptance remain pending, not replaced by CLI compatibility checks.
 
 ## Liked posts (M6-T18)
 

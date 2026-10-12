@@ -27,14 +27,16 @@ export async function downloadMedia(url, destination, { signal, agent, redirects
         }
         else resolve(value);
       };
-      const request = https.get(parsed, { agent, headers: { 'User-Agent': 'ReferenceSync/1.0.1' } }, response => {
+      // A renderer's window.URL is not Node's URL class. Passing the HTTPS
+      // string lets Node parse it in its own realm, including in Eagle windows.
+      const request = https.get(parsed.href, { agent, headers: { 'User-Agent': 'ReferenceSync/1.0.1' } }, response => {
         if (settled) { response.destroy(); return; }
         activeResponse = response;
         const status = response.statusCode || 0;
         if (status >= 300 && status < 400 && response.headers.location) {
           response.resume();
           if (!redirects) { finish(new Error('MEDIA_REDIRECT_LIMIT')); return; }
-          downloadMedia(new URL(response.headers.location, parsed).href, destination,
+          downloadMedia(new URL(response.headers.location, parsed.href).href, destination,
             { signal, agent, redirects: redirects - 1, validateUrl }).then(value => finish(null, value), finish);
           return;
         }

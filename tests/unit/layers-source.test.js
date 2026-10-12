@@ -61,3 +61,8 @@ test('Layers cancellation, recovery and staging boundaries use the existing cont
  await assert.rejects(downloadLayers({posts:[normalizeLayers(item())],stagingRoot:path.join(root,'foreign')}),/Unsafe staging directory/);
  const {normalizeRecoveryState}=await import('../../js/job-recovery.js');const p=normalizeLayers(item()),restored=normalizeRecoveryState({jobId:'fixture',phase:'downloaded',posts:[p]}).posts[0];assert.equal(restored.namingName,'Work title');assert.equal(restored.components[0].index,1);
 });
+test('Layers reports a safe download/validation cause without signed URLs or request secrets',async t=>{
+ home(t);const logs=[];
+ const r=await downloadLayers({posts:[normalizeLayers(item())],onLog:line=>logs.push(line)},{download:async()=>{throw Object.assign(Error('private token=https://layers-r2.com/a?secret=PRIVATE'),{code:'ERR_INVALID_ARG_TYPE'});}});
+ assert.equal(r.results[0].files.length,0);assert.ok(r.results[0].error.includes('ERR_INVALID_ARG_TYPE'));assert.ok(logs[0].includes('Компонент 1'));assert.ok(!logs[0].includes('PRIVATE'));assert.ok(!r.results[0].error.includes('secret'));
+});
