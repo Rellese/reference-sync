@@ -141,7 +141,7 @@ try:
      print(json.dumps({'event':'progress','found':len(posts),'ids':[post_id]}),flush=True)
      if limit and (count>=limit if per_folder else len(posts)>=limit):stop=True;break
     if stop:break
-   if limit and not per_folder and len(posts)>=limit:break
+   if not per_folder and (stopped or limit and len(posts)>=limit):break
   print(json.dumps({'posts':list(posts.values()),'checked':checked,'stoppedEarly':stopped,'stopLinkReached':bool(stop_targets),'stopLinkTargets':stop_targets}))
  else:raise Failure('LAYERS_OPERATION')
 except Failure as error:

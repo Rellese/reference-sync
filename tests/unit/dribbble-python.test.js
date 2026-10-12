@@ -119,3 +119,9 @@ for(const [spec,count] of [[{limit:1},1],[{known:['1']},0],[{stopId:'1'},0]])tes
 for(const html of ['<html><form>Sign in</form></html>','Unauthorized','<div>challenge</div>',fragment([1,2])])test('Dribbble Likes does not mistake an error/repeated fragment for completion: '+html.slice(0,20),t=>{
  const url='https://dribbble.com/collector/likes';const r=fixture(t,{[url]:{html:nav+grid([1,2])+'<a class="load-more" href="#">Next</a>'},[url+'?page=2&per_page=24']:{html}})({operation:'discover',feed:'liked'});assert.equal(r.status,1);assert.ok(['DRIBBBLE_RESPONSE','DRIBBBLE_PAGING'].includes(r.data.error));
 });
+
+for(const field of ['known','stopId'])test('Dribbble default '+field+' boundary stops later collections, selected folders remain independent',t=>{
+ const spec={operation:'discover',[field]:field==='known'?['1']:'1'};
+ const global=fixture(t)(spec);assert.equal(global.data.posts.length,0);assert.equal(global.data.stoppedEarly,true);assert.ok(!global.calls.some(c=>c.url.includes('/collections/20-')));
+ const selected=fixture(t)({...spec,collections:[collection(10),collection(20)],perFolder:true});assert.deepEqual(selected.data.posts.map(p=>p.id),['2','4']);
+});

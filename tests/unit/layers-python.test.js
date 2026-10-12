@@ -58,6 +58,11 @@ function fixture(t,settings={}){
   return {status:r.status,data:JSON.parse(r.stdout.trim().split('\n').pop()),calls:fs.readFileSync(calls,'utf8').trim().split('\n').map(JSON.parse)};
  };
 }
+for(const field of ['known','stopId'])test('Layers default '+field+' boundary stops later collections, selected folders remain independent',t=>{
+ const spec={operation:'discover',[field]:field==='known'?[id(1)]:id(1)};
+ const global=fixture(t)(spec);assert.equal(global.data.posts.length,0);assert.equal(global.data.stoppedEarly,true);assert.equal(global.calls.filter(c=>c.path==='/api/v1/layers').length,1);
+ const selected=fixture(t)({...spec,collections:[group(10),group(20)],perFolder:true});assert.deepEqual(selected.data.posts.map(p=>p.id),[id(2),id(4)]);
+});
 test('Layers full saved search scopes owned collections, pages and merges duplicate membership',t=>{
  const r=fixture(t)({operation:'discover'});assert.equal(r.status,0);assert.deepEqual(r.data.posts.map(p=>p.id),[id(1),id(2),id(3),id(4)]);
  assert.deepEqual(r.data.posts[1].collections.map(c=>c.id),[id(10),id(20)]);assert.ok(r.calls.filter(c=>c.path==='/api/v1/groups').every(c=>c.query.userId[0]===owner));
