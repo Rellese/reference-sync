@@ -45,7 +45,7 @@ for (const mode of ['all', 'last-rate-limit', 'half-fail']) {
       assert.equal(result.results.length, 80);
       assert.equal(result.stopReason, mode === 'last-rate-limit' ? INSTAGRAM_RATE_LIMITED : null);
       let adds = 0;
-      globalThis.fetch = async () => ({ ok: true, json: async () => ({ status: 'success', data: `fixture-${++adds}` }) });
+      globalThis.fetch = async (url,options) => ({ok:true,json:async()=>({status:'success',data:options?.method==='POST'?`fixture-${++adds}`:{id:new URL(url).searchParams.get('id'),size:7}})});
       const imported = await importToEagle({ items: result.results.flatMap(entry => entry.files.map(file => ({ path: file, postId: entry.post.postId }))) });
       assert.equal(imported.created.length, result.completed.length);
       assert.equal(imported.failed.length, 0);

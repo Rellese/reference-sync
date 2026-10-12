@@ -10,6 +10,7 @@ import { sessionErrorTitle } from './session-account.js';
 import { summarizeImportOutcome } from './download-outcome.js';
 import { pinterestDownloadPlan } from './pinterest-media.js';
 import { pendingEagleWrite, recoverAcknowledgedEagleWrite, retireIntermediateEagleWrite } from './eagle-write-guard.js';
+import {httpEagleItemReady} from './eagle-http-confirmation.js';
 import { createNumberingProgress } from './numbering-progress.js';
 import { joinText, L, setText, setUiText, setLocalizedProperty, setLanguage } from './i18n.js';
 import { startPickerDrag } from './picker-drag.js';
@@ -2193,7 +2194,7 @@ function startProgressMessageRotation({
 /* ---------- Скачивание и импорт ---------- */
 async function runImport() {
   if (retireIntermediateEagleWrite()) ui.log.add('Старая запись промежуточной дорожки исключена из очереди. Файлы в Eagle не изменены.', 'warn');
-  recoverAcknowledgedEagleWrite(recordConfirmedImport);
+  await recoverAcknowledgedEagleWrite(recordConfirmedImport,httpEagleItemReady);
   if (pendingEagleWrite()) {
     ui.status.set('Ожидание подтверждения Eagle', 'Предыдущий файл ещё не подтверждён. Повторный импорт заблокирован, чтобы не создать дубль.');
     return;

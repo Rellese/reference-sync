@@ -1,4 +1,5 @@
 import { guardedEagleWrite } from './eagle-write-guard.js';
+import {waitForHttpEagleItem} from './eagle-http-confirmation.js';
 import { composeNaming } from './naming-compose.js';
 import {caseNamingPlan,orderCaseNamingUnits} from './case/naming.js';
 /* ============================================================
@@ -540,7 +541,7 @@ export async function ensureEagleFolderRoute({
 /* ------------------------------------------------------------
    Добавление одного файла
    ------------------------------------------------------------ */
-async function addItem({ path, name, website, annotation, tags, folders }) {
+async function addItem({ path, name, website, annotation, tags, folders },onQueued) {
   /* Способ 1 — API плагина Eagle */
   if (eagleApi?.item?.addFromPath) {
     const item = await eagleApi.item.addFromPath(path, {
@@ -557,7 +558,8 @@ async function addItem({ path, name, website, annotation, tags, folders }) {
   }
 
   /* Способ 2 — локальный HTTP API */
-  const response = await fetch(`${API_URL}/api/v2/item/add`, {
+  let response;
+  try { response = await fetch(`${API_URL}/api/v2/item/add`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
@@ -568,20 +570,23 @@ async function addItem({ path, name, website, annotation, tags, folders }) {
       tags: tags || [],
       folders: folders || [],
     }),
-  });
+  }); } catch { throw Object.assign(new Error('Eagle не подтвердил запрос добавления'),{unconfirmed:true}); }
 
   if (!response.ok) {
-    throw new Error(`Eagle ответил кодом ${response.status}`);
+    throw Object.assign(new Error(`Eagle ответил кодом ${response.status}`),{unconfirmed:response.status>=500});
   }
 
-  const payload = await response.json();
+  let payload;
+  try { payload=await response.json(); }
+  catch { throw Object.assign(new Error('Eagle не подтвердил запрос добавления'),{unconfirmed:true}); }
   if (payload?.status !== 'success') {
     throw new Error(`Eagle отклонил элемент: ${JSON.stringify(payload)}`);
   }
 
   const id = findCreatedId(payload);
-  if (!id) throw new Error('Eagle сообщил об успехе, но не вернул ID');
-  return id;
+  if (!id) throw Object.assign(new Error('Eagle сообщил об успехе, но не вернул ID'),{unconfirmed:true});
+  onQueued?.(id);
+  return waitForHttpEagleItem(id);
 }
 
 /* Перенос find_created_id() — ID может лежать на разных уровнях */
@@ -700,14 +705,14 @@ export async function importToEagle({
 
     try {
       onLog?.(`Eagle: начало добавления ${index + 1}/${items.length}; публикация ${item.postId}; компонент ${item.component}; файл ${nodeApi.available ? nodeApi.path.basename(item.path) : item.path}`);
-      const id = await guardedEagleWrite(() => addItem({
+      const id = await guardedEagleWrite(onQueued => addItem({
         path: item.path,
         name: item.name,
         website: item.website,
         annotation: item.annotation,
         tags: item.tags,
         folders,
-      }), { item, signal, timeoutMs: writeTimeoutMs, onLateCreated, onLog,
+      },onQueued), { item, signal, timeoutMs: writeTimeoutMs, onLateCreated, onLog,
         onConfirmed: async entry => {
           created.push(entry);
           await onCreated?.(entry, created.length);

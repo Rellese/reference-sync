@@ -19,8 +19,13 @@ export async function guardedEagleWrite(execute, { item, signal, timeoutMs = 120
     globalThis.localStorage?.removeItem(KEY);
     active = null;
   };
-  const operation = Promise.resolve().then(execute).then(async id => {
+  const queued=id=>{
+    pending.id=id;pending.confirmed=false;
+    globalThis.localStorage?.setItem(KEY,JSON.stringify(pending));
+  };
+  const operation = Promise.resolve().then(()=>execute(queued)).then(async id => {
     pending.id = id;
+    pending.confirmed=true;
     globalThis.localStorage?.setItem(KEY, JSON.stringify(pending));
     if (detached) {
       await onLateCreated?.({ id, item });
@@ -29,7 +34,13 @@ export async function guardedEagleWrite(execute, { item, signal, timeoutMs = 120
     else await onConfirmed?.({ id, item });
     clear();
     return id;
-  }, error => { clear(); throw error; });
+  }, error => {
+    if(pending.confirmed===false||error.unconfirmed){
+      pending.confirmed=false;
+      globalThis.localStorage?.setItem(KEY,JSON.stringify(pending));active=null;
+    }else clear();
+    throw error;
+  });
   const boundary = new Promise((resolve, reject) => {
     abort = () => { detached = true; reject(new Error(message)); };
     timer = setTimeout(abort, timeoutMs);
@@ -46,11 +57,12 @@ export async function guardedEagleWrite(execute, { item, signal, timeoutMs = 120
 
 // A completed native write may survive in the journal if the window closed
 // between acknowledgement and saving the registry. Its returned ID is proof.
-export function recoverAcknowledgedEagleWrite(confirm) {
+export async function recoverAcknowledgedEagleWrite(confirm,verify) {
   if (active) return false;
   const pending = pendingEagleWrite();
   if (!pending?.id) return false;
-  confirm({ id: pending.id, item: pending.item });
+  if(pending.confirmed===false&&(!verify||!await verify(pending.id)))return false;
+  await confirm({ id: pending.id, item: pending.item });
   globalThis.localStorage?.removeItem(KEY);
   return true;
 }
