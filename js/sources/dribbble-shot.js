@@ -25,6 +25,25 @@ def component(node,index,block):
  ext=urllib.parse.urlsplit(url).path.rsplit('.',1)[-1].lower()
  if ext not in ({'mp4','webm','mov'} if kind=='video' else {'jpg','jpeg','png','gif','webp','avif'}):raise Failure('DRIBBBLE_FORMAT')
  return {'index':index,'blockId':str(block),'mediaType':kind,'url':url,'previewUrl':preview,'extension':ext,'description':''}
+def shot_blocks(root,source,id):
+ match=re.search(r'window\.__INITIAL_STATE__\s*=\s*',source)
+ if match:
+  try:state,end=json.JSONDecoder().raw_decode(source[match.end():])
+  except (ValueError,TypeError):raise Failure('DRIBBBLE_FORMAT')
+  return (state.get('props',{}).get('contentBlocks') or {}).get('results')
+ # Public SSR pages also place the same block JSON in JsConfig.shotData.
+ # Decode that literal only; never evaluate Object.assign or website code.
+ for script in nodes(root):
+  if script.tag!='script':continue
+  text=''.join(c for c in script.children if isinstance(c,str))
+  config=re.search(r'Dribbble\.JsConfig\s*=\s*Object\.assign\(\s*config\s*,\s*\{',text)
+  match=re.search(r'(?:^|\n)\s*shotData\s*:\s*',text[config.end():]) if config else None
+  if not match:continue
+  try:state,end=json.JSONDecoder().raw_decode(text[config.end()+match.end():])
+  except (ValueError,TypeError):raise Failure('DRIBBBLE_FORMAT')
+  if not isinstance(state,dict) or str(state.get('shotId'))!=id:raise Failure('DRIBBBLE_RESPONSE')
+  return (state.get('contentBlocks') or {}).get('results')
+ raise Failure('DRIBBBLE_FORMAT')
 def shot(item):
  source=read(item['url']);root=Tree(source).root;title=first(root,lambda n:n.has('shot-header__title'))
  if title is None:raise Failure('DRIBBBLE_RESPONSE')
@@ -32,12 +51,9 @@ def shot(item):
  author=(author.attrs.get('href','').strip('/') if author else '')
  if not re.fullmatch(r'[A-Za-z0-9_-]{1,80}',author):raise Failure('DRIBBBLE_RESPONSE')
  result=[];texts=[];intro=[]
- ssr=first(root,lambda n:n.attrs.get('id')=='ssr-app');match=re.search(r'window\.__INITIAL_STATE__\s*=\s*',source)
+ ssr=first(root,lambda n:n.attrs.get('id')=='ssr-app')
  if ssr is not None:
-  if not match:raise Failure('DRIBBBLE_FORMAT')
-  try:state,end=json.JSONDecoder().raw_decode(source[match.end():])
-  except (ValueError,TypeError):raise Failure('DRIBBBLE_FORMAT')
-  blocks=(state.get('props',{}).get('contentBlocks') or {}).get('results')
+  blocks=shot_blocks(root,source,item['id'])
   if not isinstance(blocks,list) or not blocks:raise Failure('DRIBBBLE_FORMAT')
   positions=[b.get('position') for b in blocks]
   if any(type(n)!=int or n<0 for n in positions) or len(set(positions))!=len(positions):raise Failure('DRIBBBLE_FORMAT')

@@ -12,6 +12,13 @@ function modern(id,{badType=false,malformed=false,placeholder=false}={}){
  const rendered=defs.map(([kind],i)=>kind==='text'?'':`<div data-test="content-block-${100+i}">${kind==='video'?'<video src="https://cdn.dribbble.com/userupload/1/file/large-a.mp4" poster="https://cdn.dribbble.com/userupload/1/file/still-a.png"></video>':`<img ${placeholder?'src="data:image/png;base64,AA" data-src':'src'}="https://cdn.dribbble.com/userupload/${i}/file/a.jpg?resize=752x&amp;vertical=center">`}</div>`).join('');
  return nav+'<h1 class="shot-header__title">Shared title</h1><a class="user-sticky-header__avatar" href="/artist"></a><div id="ssr-app">'+rendered+'</div><script>window.__INITIAL_STATE__='+ (malformed?'invalid':JSON.stringify({props:{contentBlocks:{results:blocks.reverse()}}}))+';</script>';
 }
+function configShot(id,{wrongId=false,malformed=false}={}){
+ const html=modern(id,{placeholder:true});
+ const state=JSON.parse(html.match(/window\.__INITIAL_STATE__=(.*);<\/script>/)[1]);
+ const literal=malformed?'JSON.parse("untrusted")':JSON.stringify({shotId:wrongId?Number(id)+1:Number(id),contentBlocks:state.props.contentBlocks});
+ return html.replace(/<script>window\.__INITIAL_STATE__=.*;<\/script>/,
+  '<script>var config = Dribbble.JsConfig || {};\nDribbble.JsConfig = Object.assign(config, {\n shotData: '+literal+'\n});</script>');
+}
 const curl=String.raw`
 import json,os,urllib.parse,time,threading
 fixture=json.load(open(os.environ['DRIB_FIXTURE']))
@@ -58,6 +65,17 @@ function fixture(t,overrides={}){
 test('Dribbble 202 public shot can use bounded native HTML without executing site scripts in Python',t=>{
  const url='https://dribbble.com/shots/1-Shot',r=fixture(t,{[url]:{status:202,browserHTML:modern(1)}})({operation:'discover',target:{id:'1',type:'POST',name:'Link',url},browserReply:true});
  assert.equal(r.status,0,JSON.stringify(r.data));assert.equal(r.data.posts.length,1);assert.equal(r.data.posts[0].components.length,3);assert.equal(r.data.posts[0].components[0].description,'First\n\nMore');
+});
+for(const status of [200,202])test('Dribbble JsConfig shotData keeps ordered media/captions, HTTP '+status,t=>{
+ const url='https://dribbble.com/shots/1-Shot',html=configShot(1);
+ const r=fixture(t,{[url]:status===202?{status,browserHTML:html}:{html}})({operation:'discover',target:{id:'1',type:'POST',name:'Link',url},browserReply:status===202});
+ assert.equal(r.status,0,JSON.stringify(r.data));const post=r.data.posts[0];assert.equal(post.introDescription,'Intro');
+ assert.deepEqual(post.components.map(c=>[c.mediaType,c.description]),[['video','First\n\nMore'],['image','Second'],['image','']]);
+ assert.ok(post.components[1].url.endsWith('/a.jpg'));
+});
+for(const [settings,error] of [[{wrongId:true},'DRIBBBLE_RESPONSE'],[{malformed:true},'DRIBBBLE_FORMAT']])test('JsConfig refuses foreign shot data and executable expressions: '+error,t=>{
+ const url='https://dribbble.com/shots/1-Shot',r=fixture(t,{[url]:{html:configShot(1,settings)}})({operation:'discover',target:{id:'1',type:'POST',url}});
+ assert.equal(r.status,1);assert.equal(r.data.error,error);
 });
 test('Dribbble native recovery cannot turn oversized HTML into a partial shot',t=>{
  const url='https://dribbble.com/shots/1-Shot',r=fixture(t,{[url]:{status:202,browserHTML:'x'.repeat(16*1024*1024+1)}})({operation:'discover',target:{id:'1',type:'POST',url},browserReply:true});
