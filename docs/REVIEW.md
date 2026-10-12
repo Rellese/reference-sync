@@ -1,4 +1,4 @@
-# Review notes — ReferenceSync 1.5.1
+# Review notes — ReferenceSync 1.5.2
 
 Window plugin with explicit one-button preparation. No manual Python installation
 is required on supported macOS/Windows systems. Startup never downloads Python.
@@ -11,6 +11,52 @@ ReferenceSync working directories; system Python/PATH/registry are not modified.
 Windows ARM64 uses x64 emulation and requires Windows 11. Read MANAGED-PYTHON.md
 for versions, source, redirects, permissions, cancellation and retention.
 No interpreter or executable archive is bundled in this .eagleplugin.
+
+## Current acceptance (M6-T20–T26, 1.5.2)
+
+Authorized macOS/Chrome checks used production adapters in Eagle Node 16.17.1.
+X: 30 media bookmarks and 48 media Likes; Layers: 4 Saved and 67 Likes;
+Vimeo: 511 Favorites/Likes and one Watch Later video. Recent N, known/Stop
+boundaries, links and available folder selection passed. X Premium folders
+were unavailable in this account; ordinary bookmarks passed. Real files were
+downloaded/decoded, imported into a dedicated test folder, read back by ID,
+and shared Saved/Link/Likes import IDs were checked. One Layers and one Dribbble
+duplicate were cancelled by the owner in Eagle; neither was re-added or counted
+as a live file. The dedicated folder retains 21 verified items, including 12
+Dribbble blocks. Reconciliation keeps both cancelled components incomplete;
+complete posts have zero repeat imports across Saved/Link/Likes.
+
+HTTP add returns a queued ID before the file exists. Its fallback now waits
+for read confirmation; uncertain writes remain blocked, including after reload.
+Native addFromPath still uses Eagle's own completion acknowledgement.
+Without selected folders, Dribbble/Layers known/Stop boundaries now stop the
+whole saved search; selected-folder boundaries remain independent.
+
+Dribbble public shot HTTP 202 can use a temporary, isolated Eagle webview.
+No browser extension/profile/cookies, preload, Node or popups are passed to
+the remote page. Standard page JavaScript runs in the sandbox; the plugin
+does not separately execute challenge code or automatically solve CAPTCHAs.
+Only the exact public HTTPS shot may be captured. Bounded DOM HTML is passed
+through a precreated 0600 file in a 0700 directory, then removed with the guest.
+Python still parses block JSON and media without executing scripts. Authenticated
+bootstrap defines the owner; public collection links/grids validate subsequent
+pages even when their navbar is hydrated later. Login/error HTML is not an empty feed.
+
+Native Dribbble: catalog 14, Saved/Likes recent=2, known/Stop first=0, two links,
+selected-folder recent=2 and full=8; four sample posts downloaded as 13 media.
+12 accepted blocks were read back with names, per-block annotations and URLs.
+Both INITIAL_STATE and JsConfig.shotData are decoded as strict JSON only, with
+shot/block ID and completeness checks. Extended Likes pagination returned
+25 unique shots over two native Likes pages, including nested
+slideshows expanded completely without thumbnail duplicates. The following
+slideshow caption belongs to each slide. 721 automated checks and 120 JS modules
+parsed in Eagle Node 16.17.1 passed; these do not replace unperformed live checks.
+Read-only smoke: Pinterest Saved recent=1 returned one pin; Behance catalog=25
+and selected-board recent=1 returned one 125-component case. Instagram has no
+valid session in the selected Chrome profile; live smoke awaits the owner login.
+Windows and other browser profiles were not live-tested in this acceptance;
+the exported .eagleplugin remains a separate release check. Earlier results
+below are historical and do not supersede this section or STATUS.
 
 ## Direct media compatibility (M6-T19)
 
