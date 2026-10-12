@@ -50,7 +50,8 @@ def collection_pages(target):
   if url in visited or len(visited)>=10000:raise Failure('DRIBBBLE_PAGING')
   visited.add(url);fragment=target.get('type')=='LIKED' and page>1
   root=Tree(read(url,fragment)).root
-  if not fragment:identity(root)
+  # The verified profile/collection URL and a real shots grid define this feed.
+  # Navbar hydration must not turn a valid public response into a sign-out.
   batch=cards(root,fragment)
   ids={item['id'] for item in batch}
   if batch and not ids-previous:raise Failure('DRIBBBLE_PAGING')

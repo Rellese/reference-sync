@@ -62,7 +62,7 @@ def catalog(profile):
  url='https://dribbble.com/'+profile+'/collections';visited=set();result={};page=1
  while url:
   if url in visited or len(visited)>=10000:raise Failure('DRIBBBLE_PAGING')
-  visited.add(url);root=Tree(read(url)).root;identity(root)
+  visited.add(url);root=Tree(read(url)).root
   # Only the requested profile's collection links can enter the catalog.
   found=[]
   for node in nodes(root):
@@ -72,6 +72,9 @@ def catalog(profile):
    name=clean_text(plain(node));name=re.split(r'\s+\d+\s+Shots?\b',name)[0].strip()
    item={'id':match[1],'name':name or match[1],'url':'https://dribbble.com'+node.attrs['href']};found.append(item)
    if item['id'] not in result or result[item['id']]['name']==item['id']:result[item['id']]=item
+  # The owner came from authenticated bootstrap. Public collection pages may
+  # hydrate their navbar later; exact owner links/grid validate this response.
+  if not found and not first(root,lambda n:n.has('collections-grid')):identity(root)
   next=pagination(root,url,page)
   if next and not found:raise Failure('DRIBBBLE_RESPONSE')
   url=next;page=int(urllib.parse.parse_qs(urllib.parse.urlsplit(url).query)['page'][0]) if url else page

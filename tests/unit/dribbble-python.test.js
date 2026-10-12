@@ -125,3 +125,12 @@ for(const field of ['known','stopId'])test('Dribbble default '+field+' boundary 
  const global=fixture(t)(spec);assert.equal(global.data.posts.length,0);assert.equal(global.data.stoppedEarly,true);assert.ok(!global.calls.some(c=>c.url.includes('/collections/20-')));
  const selected=fixture(t)({...spec,collections:[collection(10),collection(20)],perFolder:true});assert.deepEqual(selected.data.posts.map(p=>p.id),['2','4']);
 });
+
+test('authenticated bootstrap scopes public collections even when their navbar is hydrated later',t=>{
+ const r=fixture(t,{
+  'https://dribbble.com/collector/collections':{html:'<ol class="collections-grid"><a href="/collector/collections/10-Folder">Folder 3 Shots</a></ol>'},
+  [collection(10).url]:{html:grid([1,2])},
+ })({operation:'discover',limit:2});
+ assert.equal(r.status,0,JSON.stringify(r.data));assert.deepEqual(r.data.posts.map(p=>p.id),['1','2']);
+ assert.ok(r.calls.every(c=>!c.url.includes('/other/')));
+});
