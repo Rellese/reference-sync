@@ -1,6 +1,6 @@
 # ReferenceSync
 
-将 Instagram、Pinterest 和 Behance 参考素材导入 Eagle。先查看结果、选择媒体，再自定义名称和描述，并保留来源链接与标签。
+将 Instagram、Pinterest、Behance、Vimeo、X、Dribbble 和 Layers 的已保存参考素材导入 Eagle。先查看结果、选择媒体，再自定义名称和描述，并保留来源链接与标签。
 
 ## 开始使用
 
@@ -17,9 +17,11 @@
 - Instagram 收藏帖子和 Pinterest 图钉，支持收藏夹筛选与单个媒体选择。
 - Behance 内容块、以 .rscase 保存的整个项目，或同时导入两者。**在 Eagle 中查看 .rscase 需要另行安装 ReferenceCanvas。** ReferenceSync 不会安装该插件。
 - 支持的 Instagram/Pinterest ZIP、JSON 或 HTML 归档元数据。帖子链接仍需联网解析；归档不保证无需登录或网络就能下载媒体。
+- Vimeo 默认搜索 Favorites，可选择 Watch Later 和 Showcases；X 支持 Bookmarks 及符合条件的 Premium 书签文件夹。
+- Dribbble 和 Layers 的已保存合集，可按文件夹选择。Dribbble 支持多个媒体及每个内容块的描述；Layers 每个作品只有一个媒体。不包含点赞或自行发布的作品。这四个来源尚未确认兼容的收藏归档格式。
 - 查找新帖子、检查全部收藏或限制最近帖子的数量。导入前可选用编号；素材库专属导入记录帮助避免重复。
 
-本版本的 Dribbble、Vimeo、X 和 Layers 来源按钮不可用。网站变更、浏览器 Cookie 保护、账号权限、无法访问的媒体或请求频率限制，都可能导致下载失败。
+网站变更、浏览器 Cookie 保护、账号权限、无法访问的媒体或请求频率限制，都可能导致下载失败。
 
 ## 数据与访问权限
 

@@ -13,6 +13,7 @@
 import {vimeoTarget} from './sources/vimeo-target.js';
 import {xTarget} from './sources/x-target.js';
 import {dribbbleTarget} from './sources/dribbble-target.js';
+import {layersTarget} from './sources/layers-target.js';
 function clean(value) {
   return String(value ?? '').trim();
 }
@@ -29,6 +30,7 @@ function isHostOrSubdomain(hostname, domain) {
 }
 
 const SOURCE_RULES = [
+  {code:'layers',placeholderPrefix:'https://layers.to/layers/',matchesHost:hostname=>['layers.to','www.layers.to'].includes(hostname),extractId:pathname=>pathname.match(/^\/layers\/([a-z0-9]{10,40})(?:-[^/]+)?\/?$/)?.[1]||''},
   {
     code: 'instagram',
     placeholderPrefix: 'https://www.instagram.com/p/',
@@ -174,8 +176,8 @@ export function parseStopLink(
     expectedSourceCode,
   ).toLowerCase();
 
-  if(['vimeo','x','dribbble'].includes(rule.code)){
-    try{if(rule.code==='vimeo'&&vimeoTarget(originalUrl).type!=='VIDEO')throw Error();if(rule.code==='x')xTarget(originalUrl);if(rule.code==='dribbble'&&dribbbleTarget(originalUrl).type!=='POST')throw Error();}
+  if(['vimeo','x','dribbble','layers'].includes(rule.code)){
+    try{if(rule.code==='vimeo'&&vimeoTarget(originalUrl).type!=='VIDEO')throw Error();if(rule.code==='x')xTarget(originalUrl);if(rule.code==='dribbble'&&dribbbleTarget(originalUrl).type!=='POST')throw Error();if(rule.code==='layers'&&layersTarget(originalUrl).type!=='POST')throw Error();}
     catch{return {ok:false,code:'invalid_publication_url',sourceCode:rule.code,message:'Вставьте ссылку непосредственно на публикацию.'};}
   }
 

@@ -1,4 +1,4 @@
-# Review notes — ReferenceSync 1.3.0
+# Review notes — ReferenceSync 1.4.0
 
 Window plugin with explicit one-button preparation. No manual Python installation
 is required on supported macOS/Windows systems. Startup never downloads Python.
@@ -40,6 +40,12 @@ No interpreter or executable archive is bundled in this .eagleplugin.
    public-profile-collections HTTPS links, media carousels and per-media captions.
    Each text block belongs to the preceding media; the shot title is shared.
    No compatible saved archive is confirmed. No browser extension or API key.
+   Layers: all saved collections of the signed-in owner by default, selected
+   collections with folder search. Never fall back to Likes/Explore/own uploads.
+   Full/smart/recent and Stop Link; one image/GIF/video per work, work title and
+   description, author separately. Default N caps unique works in collection
+   order, selected-folder N/boundaries are independent. HTTPS work/collection/
+   public-profile-collections links; no archive or carousel controls.
 7. Synthetic archive HTTP links become verified-platform canonical HTTPS before
    browser-authenticated download; off-host/userinfo/port links must reject.
 8. Test permissions, stop/recovery and cleanup on Windows and macOS. Supply
@@ -48,7 +54,7 @@ No interpreter or executable archive is bundled in this .eagleplugin.
 ## Data and authentication
 
 Eagle SDK preferred, localhost:41595 fallback disclosed. Browser-authenticated
-Instagram/Pinterest/Behance/Vimeo/X/Dribbble flows share protected cookie snapshots: directory and
+Instagram/Pinterest/Behance/Vimeo/X/Dribbble/Layers flows share protected cookie snapshots: directory and
 file permissions before writing, reserved exporter .tmp, verification after
 export, finally/exit/dead-process cleanup. Windows ACL still needs a real native
 browser export test. Interrupted snapshots may remain until a later cleanup.
@@ -88,9 +94,29 @@ A real mixed shot produced 5 media with their matching captions and shared title
 one 798,055-byte MP4 downloaded and fully decoded. Native Eagle import, Windows,
 other browsers and a complete run through every personal folder remain pending.
 
+Layers uses scoped preprotected cookies and read-only platform HTTPS APIs.
+Its Remix bootstrap JSON supplies CSRF only in Python memory; page code is
+never executed and unrelated account fields are discarded. Collection lists
+use a flat nextCursor; layer lists use pagination.nextCursor/hasMore. Repeated
+or invalid cursors fail instead of silently truncating. Only exact platform
+storage hosts are allowed for downloads, without browser cookies; the video
+object key follows the website's R2 mapping. Video is fully FFmpeg-validated.
+Current live checks and remaining native/browser limitations: STATUS current.md.
+
 ## Evidence and release limits
 
-Current Dribbble source checks: 600/600 unit tests, 109 JS syntax checks in Eagle
+Layers 1.4.0: 632/632 unit tests, 113 JS syntax checks in Eagle Node 16.17.1,
+plus protected-cookie cleanup and title/description contracts. Signed-in Chrome
+and the platform both confirmed an empty personal catalog. A public collection
+and its known/Stop boundaries were tested with the production adapter; a real
+2,577,334-byte PNG and 7,225,893-byte MP4 downloaded, the video fully decoded.
+The actual UI starts with Layers active, hides archive/account/carousel filter,
+and retains the translated saved-collection hint when switching languages.
+A nonempty personal catalog, native import including SVG, Windows/other browsers
+and the final .eagleplugin remain unverified. No personal library was modified.
+
+
+Previous Dribbble source checks: 600/600 unit tests, 109 JS syntax checks in Eagle
 Node 16.17.1, plus protected-cookie cleanup and naming contracts in that runtime.
 Browser UI starts with Dribbble active, no archive/account field, and translated
 saved-collection guidance that survives language changes. Separate clean project

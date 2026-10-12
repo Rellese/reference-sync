@@ -3,7 +3,7 @@ import { throwIfAborted } from './job-control.js';
 
 // Only the final gallery-dl filename is importable. yt-dlp's .f<format>,
 // .part and fragment files are intermediate streams, even when they end in MP4.
-export const finalMediaName = name => /^\d+\.(?:jpe?g|png|webp|gif|avif|heic|bmp|tiff|mp4|mov|webm|mkv|m4v|avi)$/i.test(name);
+export const finalMediaName = name => /^\d+\.(?:jpe?g|png|webp|gif|avif|heic|bmp|tiff|svg|mp4|mov|webm|mkv|m4v|avi)$/i.test(name);
 function completeMp4(file) {
   const { fs } = nodeApi;
   const length = fs.statSync(file).size;
