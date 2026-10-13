@@ -15,8 +15,14 @@ export function dribbbleFailure(code){
  return Object.assign(Error(message),{code:code==='DRIBBBLE_AUTH'?'DRIBBBLE_SESSION_INVALID':code,sourceTitle:'Dribbble'});
 }
 export const withDribbbleSession=(options,action,run=runEnginePython)=>withBrowserSession('dribbble',options,action,run,dribbbleFailure);
-export const requestDribbble=(spec,options,run=runEnginePython)=>requestPrivatePython('dribbble',{...spec,identity:options.requestIdentity||dribbbleBrowserIdentity(options.browser,options.browserProfile)},
- {...options,readBrowserPage:options.readBrowserPage||(dribbblePageAvailable()?readDribbblePage:undefined)},run,dribbbleApiScript,dribbbleFailure);
+export function requestDribbble(spec,options,run=runEnginePython){
+ // Reuse one isolated public-page session within this operation only. Each
+ // guest is destroyed after capture; selected-browser cookies stay in Python.
+ const partition=!options.readBrowserPage&&spec.operation==='discover'&&dribbblePageAvailable()
+  ?'reference-sync-dribbble-'+window.crypto.randomUUID():null;
+ return requestPrivatePython('dribbble',{...spec,identity:options.requestIdentity||dribbbleBrowserIdentity(options.browser,options.browserProfile)},
+  {...options,readBrowserPage:options.readBrowserPage||(partition?((url,control)=>readDribbblePage(url,{...control,partition})):undefined)},run,dribbbleApiScript,dribbbleFailure);
+}
 export async function probeDribbble(options){
  return withDribbbleSession(options,async next=>{
   try{const data=await requestDribbble({operation:'probe'},next);

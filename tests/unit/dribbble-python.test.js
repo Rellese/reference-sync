@@ -46,8 +46,20 @@ function uploadsShot({slides=false,missing=false,foreign=false,mismatch=false}={
  return nav+'<h1 class="shot-header__title">Shared title</h1><a class="user-sticky-header__avatar" href="/artist"></a><div id="ssr-app"></div><script>window.__INITIAL_STATE__='+JSON.stringify(state)+';</script>';
 }
 const curl=String.raw`
-import json,os,urllib.parse,time,threading
+import json,os,sys,urllib.parse,time,threading
 fixture=json.load(open(os.environ['DRIB_FIXTURE']))
+class Output:
+ def __init__(self,stream):self.stream=stream
+ def write(self,text):
+  try:
+   data=json.loads(text)
+   if data.get('event')=='browser-page' and os.environ.get('DRIB_REPLY'):
+    value=fixture.get(data['url'],{});html=value.get('browserHTML')
+    if html is not None:json.dump({'url':data['url'],'html':html},open(os.environ['DRIB_REPLY'],'w'))
+  except (ValueError,TypeError):pass
+  return self.stream.write(text)
+ def flush(self):self.stream.flush()
+sys.stdout=Output(sys.stdout)
 class Response:
  def __init__(self,value):
   self.status_code=value.get('status',200);self.headers={'Content-Type':'text/html',**value.get('headers',{})};self.text=value.get('html','');self.content=self.text.encode()
@@ -56,15 +68,6 @@ class Session:
  def get(self,url,**kwargs):
   with open(os.environ['DRIB_CALLS'],'a') as file:file.write(json.dumps({'url':url,'redirects':kwargs.get('allow_redirects')})+'\n')
   value=fixture.get(url,{'status':404})
-  if 'browserHTML' in value and os.environ.get('DRIB_REPLY'):
-   def answer():
-    for _ in range(100):
-     time.sleep(.02)
-     try:
-      if json.load(open(os.environ['DRIB_REPLY']))!={}:continue
-      json.dump({'url':url,'html':value['browserHTML']},open(os.environ['DRIB_REPLY'],'w'));return
-     except (ValueError,FileNotFoundError):pass
-   threading.Thread(target=answer,daemon=True).start()
   return Response(value)
 `;
 function fixture(t,overrides={}){
@@ -92,7 +95,11 @@ test('Dribbble 202 public shot can use bounded native HTML without executing sit
  const url='https://dribbble.com/shots/1-Shot',r=fixture(t,{[url]:{status:202,browserHTML:modern(1)}})({operation:'discover',target:{id:'1',type:'POST',name:'Link',url},browserReply:true});
  assert.equal(r.status,0,JSON.stringify(r.data));assert.equal(r.data.posts.length,1);assert.equal(r.data.posts[0].components.length,3);assert.equal(r.data.posts[0].components[0].description,'First\n\nMore');
 });
-
+test('after public HTTP 202 the remaining shots use the page reader without repeated failed HTTP requests',t=>{
+ const r=fixture(t,Object.fromEntries([1,2].map(id=>['https://dribbble.com/shots/'+id+'-Shot',{status:202,browserHTML:modern(id)}])))({operation:'discover',limit:2,browserReply:true});
+ assert.equal(r.status,0,JSON.stringify(r.data));assert.deepEqual(r.data.posts.map(p=>p.id),['1','2']);
+ assert.equal(r.calls.filter(c=>c.url.includes('/shots/')).length,1);assert.ok(r.calls.some(c=>c.url===collection(10).url));
+});
 for(const status of [200,202])test('Dribbble JsConfig shotData keeps ordered media/captions, HTTP '+status,t=>{
  const url='https://dribbble.com/shots/1-Shot',html=configShot(1);
  const r=fixture(t,{[url]:status===202?{status,browserHTML:html}:{html}})({operation:'discover',target:{id:'1',type:'POST',name:'Link',url},browserReply:status===202});

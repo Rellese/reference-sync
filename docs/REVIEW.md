@@ -1,4 +1,36 @@
-# Review notes — ReferenceSync 1.5.3
+# Review notes — ReferenceSync 1.5.4
+
+## Dribbble discovery recovery (M6-T27–T28, 1.5.4)
+
+Modern block JSON supplies original uploads, matched to declared media IDs and
+ordered slides. Lazy DOM rendering is no longer required when this complete
+metadata is present. Missing, ambiguous or foreign uploads reject the whole shot.
+Format failures retain other complete posts and identify failed shot URLs. Recent N
+counts unique attempted shots, including failures. Access/rate/network interruptions
+stop the queue, retain complete posts and show an explicit warning. User stop and
+URL/integrity failures are not disguised as successful discovery.
+
+Public-page rendering has no modal or focus. Each guest remains sandboxed without
+selected-profile cookies, Node, preload or popups. One nonpersistent partition is
+used within an operation; after the first public HTTP 202, subsequent public shots
+are read through it without repeating failed HTTP requests. Authenticated lists
+still use scoped cookies from the selected browser. This does not control Chrome,
+Firefox, Edge or Yandex themselves. CAPTCHA/access refusal is never solved silently.
+
+Native Eagle / Chrome Profile 1: Saved recent=10 returned 10 shots / 19 components;
+known/Stop first returned 0 before metadata; two selected collections recent=1
+returned 2; one selected collection full returned 8; Likes recent=25 returned 25
+across two pages. Short/full links to a slideshow returned five components.
+One image and one video original were downloaded and validated without importing
+new library items. A controlled second-page refusal retained the real first shot,
+reported its interruption and cleaned guests/private files. One earlier link check
+received a transient challenge; both later address forms passed. The owner's exact
+historical FORMAT failure was not reproduced, so its unique cause is not claimed.
+
+738/738 tests; 120 JS modules parsed in Eagle Node 16.17.1. Full default-history,
+other browsers, Windows and the final installed package remain pending. A single
+live timing comparison for safe Saved=10 changed from about 126 to 72 seconds;
+this is not a fixed performance guarantee.
 
 Window plugin with explicit one-button preparation. No manual Python installation
 is required on supported macOS/Windows systems. Startup never downloads Python.

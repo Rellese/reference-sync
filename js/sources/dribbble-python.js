@@ -20,8 +20,23 @@ def resource(p):
  match=re.fullmatch(r'/([A-Za-z0-9_-]{1,80})/likes/?',p.path)
  if match:return ('LIKES',match[1])
  return ('HOME',)
+def browser_page(url):
+ if resource(safe_url(url))[0]!='POST' or not spec.get('browserReply'):raise Failure('DRIBBBLE_CHALLENGE')
+ with open(spec['browserReply'],'w',encoding='utf8') as handle:handle.write('{}')
+ print(json.dumps({'event':'browser-page','url':url}),flush=True);remaining=60
+ while remaining>0:
+  checkpoint();tick=time.monotonic()
+  try:
+   with open(spec['browserReply'],encoding='utf8') as handle:reply=json.loads(handle.read(32*1024*1024))
+  except (ValueError,FileNotFoundError):reply={}
+  if reply.get('url')==url:
+   html=reply.get('html')
+   if reply.get('error') or not isinstance(html,str) or len(html)>16*1024*1024:raise Failure('DRIBBBLE_CHALLENGE')
+   return html
+  time.sleep(.1);remaining-=time.monotonic()-tick
+ raise Failure('DRIBBBLE_CHALLENGE')
 def read(url,fragment=False):
- global current_url
+ global browser_posts,current_url
  current_url=url
  expected=resource(safe_url(url))
  for attempt in range(4):
@@ -29,6 +44,9 @@ def read(url,fragment=False):
   if resource(safe_url(url))!=expected:raise Failure('DRIBBBLE_URL')
   until=time.monotonic()+{'safe':2,'balanced':1}.get(spec.get('speed'),0)
   while time.monotonic()<until:checkpoint();time.sleep(.1)
+  # Once public shots require page rendering, avoid repeating the rejected
+  # HTTP request for every shot. Account/collection/Likes requests stay scoped.
+  if expected[0]=='POST' and browser_posts:return browser_page(url)
   try:response=session.get(url,headers={'X-Requested-With':'XMLHttpRequest'} if fragment else {},timeout=30,allow_redirects=False)
   except Exception:raise Failure('DRIBBBLE_NETWORK')
   if response.status_code in (301,302,303,307,308):
@@ -37,19 +55,7 @@ def read(url,fragment=False):
    continue
   if response.status_code==202:
    if expected[0]!='POST' or not spec.get('browserReply'):raise Failure('DRIBBBLE_CHALLENGE')
-   with open(spec['browserReply'],'w',encoding='utf8') as handle:handle.write('{}')
-   print(json.dumps({'event':'browser-page','url':url}),flush=True);remaining=60
-   while remaining>0:
-    checkpoint();tick=time.monotonic()
-    try:
-     with open(spec['browserReply'],encoding='utf8') as handle:reply=json.loads(handle.read(32*1024*1024))
-    except (ValueError,FileNotFoundError):reply={}
-    if reply.get('url')==url:
-     html=reply.get('html')
-     if reply.get('error') or not isinstance(html,str) or len(html)>16*1024*1024:raise Failure('DRIBBBLE_CHALLENGE')
-     return html
-    time.sleep(.1);remaining-=time.monotonic()-tick
-   raise Failure('DRIBBBLE_CHALLENGE')
+   browser_posts=True;return browser_page(url)
   if response.status_code in (401,403):raise Failure('DRIBBBLE_AUTH')
   if response.status_code==429:raise Failure('DRIBBBLE_RATE_LIMIT')
   if response.status_code!=200:raise Failure('DRIBBBLE_HTTP_'+str(response.status_code))
@@ -84,6 +90,7 @@ def collection_pages(target):
   url=next;page=int(urllib.parse.parse_qs(urllib.parse.urlsplit(url).query)['page'][0]) if url else page
 try:
  spec=json.load(open(sys.argv[1],encoding='utf8'))
+ browser_posts=False
  jar=http.cookiejar.MozillaCookieJar(spec['cookies']);jar.load(ignore_discard=True,ignore_expires=True)
  identity_spec=spec.get('identity') or {};headers=identity_spec.get('headers') or {}
  if any(k not in {'User-Agent','sec-ch-ua','sec-ch-ua-platform'} or not isinstance(v,str) or len(v)>500 or '\n' in v or '\r' in v for k,v in headers.items()):raise Failure('DRIBBBLE_RESPONSE')
