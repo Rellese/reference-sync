@@ -3,6 +3,15 @@ import {dribbbleTarget,dribbbleCollection,dribbbleMediaUrl} from './dribbble-tar
 import {downloadDirectMedia} from './direct-media.js';
 import {throwIfAborted} from '../job-control.js';
 const extensions=['jpg','jpeg','png','webp','gif','avif','mp4','webm','mov'];
+function discoveryFailures(items,options){
+ if(!Array.isArray(items))throw dribbbleFailure('DRIBBBLE_RESPONSE');
+ return items.map(item=>{
+  const value=dribbbleTarget(item.url);
+  if(value.type!=='POST'||value.id!==String(item.id)||item.code!=='DRIBBBLE_FORMAT')throw dribbbleFailure('DRIBBBLE_RESPONSE');
+  const failure={url:value.url,code:item.code,message:dribbbleFailure(item.code).message};
+  options.onLog?.(`Не прочитано: ${failure.url} — ${failure.message}`);return failure;
+ });
+}
 export function normalizeDribbble(item){
  const id=String(item.id||''),target=dribbbleTarget(item.url),author=String(item.author||'');
  if(target.type!=='POST'||target.id!==id||!/^[A-Za-z0-9_-]{1,80}$/.test(author)||!item.title||!Array.isArray(item.components)||!item.components.length)throw Error('DRIBBBLE_RESPONSE');
@@ -35,11 +44,19 @@ export async function discoverDribbble(options,{session=withDribbbleSession,requ
  const limit=mode==='recent'?Math.max(1,Math.trunc(Number(options.limit)||1)):0;
  return session(options,async next=>{
   await options.control?.checkpoint();throwIfAborted(options.signal);
-  const data=await request({operation:'discover',feed:liked?'liked':'saved',target,collections,perFolder:!!collections.length,known,limit,stopId:options.stopLink?.publicationId||''},
-   {...next,onProgress:(count)=>options.onProgress?.({stage:'discover',found:count,collection:'Dribbble'})});
+  let data;
+  try{data=await request({operation:'discover',feed:liked?'liked':'saved',target,collections,perFolder:!!collections.length,known,limit,stopId:options.stopLink?.publicationId||''},
+   {...next,onProgress:(count)=>options.onProgress?.({stage:'discover',found:count,collection:'Dribbble'})});}
+  catch(error){if(error.discoveryFailures)discoveryFailures(error.discoveryFailures,options);throw error;}
   throwIfAborted(options.signal);
   if(!Array.isArray(data.posts))throw dribbbleFailure('DRIBBBLE_RESPONSE');
-  return {...data,posts:data.posts.map(normalizeDribbble)};
+  const failures=discoveryFailures(data.failures||[],options);
+  if(data.interruption){
+   const {code,url}=data.interruption;
+   if(!['DRIBBBLE_CHALLENGE','DRIBBBLE_AUTH','DRIBBBLE_RATE_LIMIT','DRIBBBLE_NETWORK','DRIBBBLE_HTTP_502','DRIBBBLE_HTTP_503','DRIBBBLE_HTTP_504'].includes(code)||url&&dribbbleTarget(url).type!=='POST')throw dribbbleFailure('DRIBBBLE_RESPONSE');
+   options.onLog?.(`Поиск прерван: ${url?dribbbleTarget(url).url+' — ':''}${dribbbleFailure(code).message}`);
+  }
+  return {...data,failures,posts:data.posts.map(normalizeDribbble)};
  });
 }
 export async function listDribbbleCollections(options,{session=withDribbbleSession,request=requestDribbble}={}){

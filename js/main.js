@@ -1967,6 +1967,7 @@ async function runSearch() {
     }
 
     let { posts, stoppedEarly } = discoveryResult;
+    const incompleteDiscovery = Boolean(discoveryResult.failures?.length||discoveryResult.interruption);
     const stopLinkReached = Boolean(discoveryResult.stopLinkReached);
     if (stopLink && !stopLinkReached) {
       ui.log.add('Stop Link не встретился в проверенном диапазоне. Действуют выбранный режим поиска и лимит.');
@@ -2071,12 +2072,14 @@ async function runSearch() {
     ui.footer.action.setLabel('Скачать и добавить в Eagle');
     ui.status.showProgress(false);
     ui.status.set(`Найдено публикаций: ${posts.length}`,
-      stopLinkReached
+      incompleteDiscovery
+        ? 'Некоторые публикации не удалось прочитать. Подробности — в техническом журнале.'
+        : stopLinkReached
         ? 'Достигнута ссылка остановки (Stop Link)'
         : stoppedEarly
           ? 'Остановлено на границе прошлой синхронизации'
           : 'Проверьте выбор и нажмите «Скачать и добавить в Eagle»');
-    ui.log.add(`Поиск завершён: ${posts.length} публикаций.`, 'ok');
+    ui.log.add(`Поиск завершён: ${posts.length} публикаций.`, incompleteDiscovery?'warn':'ok');
   } catch (error) {
     phase = 'idle';
 

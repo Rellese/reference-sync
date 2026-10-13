@@ -26,6 +26,24 @@ for(const mode of ['full','smart','recent'])test(`Dribbble ${mode} defaults to a
  let spec;const r=await discoverDribbble({searchMode:mode,limit:15,knownPostIds:['dribbble:2','x:3']},{session,request:async s=>{spec=s;return {posts:[item()]};}});
  assert.equal(spec.target,null);assert.deepEqual(spec.collections,[]);assert.equal(spec.perFolder,false);assert.equal(spec.limit,mode==='recent'?15:0);assert.deepEqual(spec.known,mode==='full'?[]:['2']);assert.equal(r.posts[0].postId,'dribbble:1');
 });
+test('complete discoveries remain selectable while failed shot URLs are reported explicitly',async()=>{
+ const logs=[],failure={id:'2',url:'https://dribbble.com/shots/2-Unsupported',code:'DRIBBBLE_FORMAT'};
+ const result=await discoverDribbble({onLog:line=>logs.push(line)},{session,request:async()=>({posts:[item()],failures:[failure]})});
+ assert.equal(result.posts[0].postId,'dribbble:1');assert.equal(result.failures.length,1);assert.equal(logs.length,1);assert.ok(logs[0].includes(failure.url));
+ assert.ok(result.failures[0].message.includes('не будет импортирована частично'));
+ await assert.rejects(discoverDribbble({},{session,request:async()=>({posts:[item()],failures:[{...failure,url:'https://evil.test/shots/2'}]})}));
+});
+test('when every shot fails the technical log still identifies the failed publication',async()=>{
+ const logs=[],failure={id:'2',url:'https://dribbble.com/shots/2-Unsupported',code:'DRIBBBLE_FORMAT'};
+ await assert.rejects(discoverDribbble({onLog:line=>logs.push(line)},{session,request:async()=>{throw Object.assign(Error('unsupported'),{code:'DRIBBBLE_FORMAT',discoveryFailures:[failure]});}}),{code:'DRIBBBLE_FORMAT'});
+ assert.equal(logs.length,1);assert.ok(logs[0].includes(failure.url));
+});
+test('access interruption preserves complete results and reports the actual stop reason',async()=>{
+ const logs=[],interruption={code:'DRIBBBLE_RATE_LIMIT',url:'https://dribbble.com/shots/2-Rate-limited'};
+ const result=await discoverDribbble({onLog:line=>logs.push(line)},{session,request:async()=>({posts:[item()],interruption})});
+ assert.equal(result.posts.length,1);assert.equal(result.interruption.code,'DRIBBBLE_RATE_LIMIT');assert.ok(logs[0].includes('Очередь остановлена'));
+ await assert.rejects(discoverDribbble({},{session,request:async()=>({posts:[item()],interruption:{code:'DRIBBBLE_URL',url:'https://evil.test'}})}));
+});
 test('selected collections retain verified IDs/URLs and get an independent N; catalog has no builtin Likes',async()=>{
  let spec;await discoverDribbble({collections:[collection],searchMode:'recent',limit:2,stopLink:parseStopLink('https://dribbble.com/shots/4','dribbble')},{session,request:async s=>{spec=s;return {posts:[]};}});
  assert.equal(spec.perFolder,true);assert.equal(spec.limit,2);assert.equal(spec.collections[0].url,collection.url);assert.equal(spec.stopId,'4');

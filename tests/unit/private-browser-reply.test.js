@@ -24,3 +24,13 @@ for(const cancelled of [false,true])test('native page reply is private and remov
  if(cancelled)await assert.rejects(pending,{code:'JOB_STOPPED'});else assert.deepEqual(await pending,{posts:[]});
  assert.ok(!fs.existsSync(reply));assert.ok(!fs.existsSync(reply+'.tmp'));removePrivateCookieFile(cookieFile);
 });
+test('Dribbble all-format failure retains diagnostics while request/snapshot cleanup still runs',async t=>{
+ const root=fs.mkdtempSync(path.join(os.tmpdir(),'rs-format-failure-')),original=nodeApi.os.homedir;nodeApi.os.homedir=()=>root;
+ t.after(()=>{nodeApi.os.homedir=original;fs.rmSync(root,{recursive:true,force:true});});
+ const cookieFile=createPrivateCookieFile('dribbble'),failures=[{id:'1',url:'https://dribbble.com/shots/1-Public',code:'DRIBBBLE_FORMAT'}];let requestFile;
+ const run=async(script,args)=>{requestFile=args[0];return {code:1,stdout:JSON.stringify({error:'DRIBBBLE_FORMAT',failures})};};
+ await assert.rejects(requestPrivatePython('dribbble',{operation:'discover'},{cookieFile},run,'fixture',code=>Object.assign(Error(code),{code})),error=>{
+  assert.equal(error.code,'DRIBBBLE_FORMAT');assert.deepEqual(error.discoveryFailures,failures);return true;
+ });
+ assert.ok(!fs.existsSync(requestFile));removePrivateCookieFile(cookieFile);
+});

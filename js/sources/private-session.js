@@ -56,7 +56,11 @@ export async function requestPrivatePython(site,spec,options,run,script,failure)
   if(options.control?.isStopped)throw makeStopError();
   verifyPrivateCookieFile(options.cookieFile);
   let data;try{data=JSON.parse(result.stdout.trim().split('\n').pop());}catch{throw failure(site.toUpperCase()+'_RESPONSE');}
-  if(result.code||data.error)throw failure(data.error||site.toUpperCase()+'_RESPONSE');
+  if(result.code||data.error){
+   const error=failure(data.error||site.toUpperCase()+'_RESPONSE');
+   if(site==='dribbble'&&data.error==='DRIBBBLE_FORMAT'&&Array.isArray(data.failures))error.discoveryFailures=data.failures;
+   throw error;
+  }
   return data;
  }finally{clearInterval(timer);controller.abort();await browserTask;options.signal?.removeEventListener('abort',abort);removePrivateCookieFile(browserReply);removePrivateCookieFile(controlFile);removePrivateCookieFile(file);}
 }

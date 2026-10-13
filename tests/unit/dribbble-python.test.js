@@ -29,6 +29,22 @@ function slideshowShot({missing=false,wrongType=false,duplicatePosition=false,fo
  html=html.replace(/<div data-test="content-block-104">.*?<\/div>/,'<div data-test="content-block-104"><div data-test="base-carousel">'+render+'</div><div class="thumbnails-list"><img src="https://cdn.dribbble.com/userupload/1/file/a.png?resize=24x"></div></div>');
  return html.replace(/window\.__INITIAL_STATE__=.*;<\/script>/,'window.__INITIAL_STATE__='+JSON.stringify(state)+';</script>');
 }
+function uploadsShot({slides=false,missing=false,foreign=false,mismatch=false}={}){
+ const html=slides?slideshowShot():modern(1),state=JSON.parse(html.match(/window\.__INITIAL_STATE__=(.*);<\/script>/)[1]);
+ for(const block of state.props.contentBlocks.results){
+  if(block.contentType==='text')continue;
+  const media=block.contentType==='slideshow'?block.content.media:[{id:'media-'+block.id,type:block.contentType,fileExtension:block.contentType==='video'?'mp4':'jpg'}];
+  block.content.media=media;if(block.contentType!=='slideshow')block.content.mediaId=media[0].id;
+  media.forEach(m=>{m.shrineCacheId='cache-'+m.id;});
+  block.userUploadsAttributes=media.map(m=>({shrineCacheId:m.shrineCacheId,
+   originalUrl:`https://${foreign?'evil.test':'cdn.dribbble.com'}/userupload/1/file/${m.id}.${m.fileExtension}`,
+   stillUrl:`https://cdn.dribbble.com/userupload/1/file/${m.id}.png?resize=80x`}));
+ }
+ const block=state.props.contentBlocks.results.find(b=>b.id===104);
+ if(missing)block.userUploadsAttributes.pop();if(mismatch)block.content.media[0].shrineCacheId='foreign';
+ // Lazy/virtualized media has not appeared in the DOM; JSON is authoritative.
+ return nav+'<h1 class="shot-header__title">Shared title</h1><a class="user-sticky-header__avatar" href="/artist"></a><div id="ssr-app"></div><script>window.__INITIAL_STATE__='+JSON.stringify(state)+';</script>';
+}
 const curl=String.raw`
 import json,os,urllib.parse,time,threading
 fixture=json.load(open(os.environ['DRIB_FIXTURE']))
@@ -76,6 +92,7 @@ test('Dribbble 202 public shot can use bounded native HTML without executing sit
  const url='https://dribbble.com/shots/1-Shot',r=fixture(t,{[url]:{status:202,browserHTML:modern(1)}})({operation:'discover',target:{id:'1',type:'POST',name:'Link',url},browserReply:true});
  assert.equal(r.status,0,JSON.stringify(r.data));assert.equal(r.data.posts.length,1);assert.equal(r.data.posts[0].components.length,3);assert.equal(r.data.posts[0].components[0].description,'First\n\nMore');
 });
+
 for(const status of [200,202])test('Dribbble JsConfig shotData keeps ordered media/captions, HTTP '+status,t=>{
  const url='https://dribbble.com/shots/1-Shot',html=configShot(1);
  const r=fixture(t,{[url]:status===202?{status,browserHTML:html}:{html}})({operation:'discover',target:{id:'1',type:'POST',name:'Link',url},browserReply:status===202});
@@ -92,6 +109,34 @@ test('nested slideshow expands complete ordered media and shares its following c
  assert.equal(r.status,0,JSON.stringify(r.data));const media=r.data.posts[0].components;
  assert.deepEqual(media.map(c=>[c.index,c.mediaType,c.description]),[[1,'video','First\n\nMore'],[2,'image','Second'],[3,'video','Second'],[4,'image','Second'],[5,'image','']]);
  assert.ok(media[1].url.endsWith('/a.png'));assert.ok(media[3].url.endsWith('/c.png'));assert.equal(new Set(media.map(c=>c.blockId)).size,5);
+});
+for(const slides of [false,true])test('complete original uploads are ordered without lazy DOM media, slideshow='+slides,t=>{
+ const r=fixture(t,{'https://dribbble.com/shots/1-Shot':{html:uploadsShot({slides})}})({operation:'discover',limit:1});
+ assert.equal(r.status,0,JSON.stringify(r.data));const post=r.data.posts[0];
+ assert.deepEqual(post.components.map(c=>c.description),slides?['First\n\nMore','Second','Second','Second','']:['First\n\nMore','Second','']);
+ if(slides)assert.deepEqual(post.components.slice(1,4).map(c=>c.url.split('/').pop()),['a.png','b.mp4','c.png']);
+ assert.equal(post.introDescription,'Intro');assert.ok(post.components.every(c=>!c.url.includes('resize=')));
+});
+for(const options of [{missing:true},{mismatch:true},{foreign:true}])test('original uploads refuse missing/mismatched media or foreign hosts: '+JSON.stringify(options),t=>{
+ const r=fixture(t,{'https://dribbble.com/shots/1-Shot':{html:uploadsShot({slides:true,...options})}})({operation:'discover',limit:1});
+ assert.equal(r.status,1);assert.equal(r.data.error,options.foreign?'DRIBBBLE_MEDIA_URL':'DRIBBBLE_FORMAT');
+});
+test('one unsupported shot retains complete posts and counts toward recent N without extra metadata',t=>{
+ const r=fixture(t,{'https://dribbble.com/shots/2-Shot':{html:modern(2,{badType:true})}})({operation:'discover',limit:2});
+ assert.equal(r.status,0);assert.deepEqual(r.data.posts.map(p=>p.id),['1']);assert.equal(r.data.checked,2);
+ assert.deepEqual(r.data.failures,[{id:'2',url:'https://dribbble.com/shots/2-Shot',code:'DRIBBBLE_FORMAT'}]);
+ assert.ok(!r.calls.some(c=>c.url.includes('page=2')&&c.url.includes('/collections/10-')||c.url.includes('/shots/3-')||c.url.includes('/collections/20-')));
+});
+test('failed shots are not retried in another collection and remaining complete posts are retained',t=>{
+ const r=fixture(t,{'https://dribbble.com/shots/2-Shot':{html:modern(2,{badType:true})}})({operation:'discover'});
+ assert.equal(r.status,0);assert.deepEqual(r.data.posts.map(p=>p.id),['1','3','4']);assert.equal(r.data.failures.length,1);
+ assert.equal(r.calls.filter(c=>c.url.includes('/shots/2-')).length,1);assert.equal(r.data.checked,4);
+});
+for(const status of [202,401,429,503])test('public access refusal '+status+' stops the queue but retains already complete shots',t=>{
+ const r=fixture(t,{'https://dribbble.com/shots/2-Shot':{status}})({operation:'discover'});
+ assert.equal(r.status,0);assert.deepEqual(r.data.posts.map(p=>p.id),['1']);assert.equal(r.data.checked,2);
+ assert.deepEqual(r.data.interruption,{code:{202:'DRIBBBLE_CHALLENGE',401:'DRIBBBLE_AUTH',429:'DRIBBBLE_RATE_LIMIT',503:'DRIBBBLE_HTTP_503'}[status],url:'https://dribbble.com/shots/2-Shot'});
+ assert.ok(!r.calls.some(c=>c.url.includes('/shots/3-')||c.url===collection(10).url+'?page=2'));
 });
 for(const options of [{missing:true},{wrongType:true},{duplicatePosition:true},{foreignMedia:true}])test('slideshow cannot publish incomplete, mismatched or ambiguous media: '+JSON.stringify(options),t=>{
  const r=fixture(t,{'https://dribbble.com/shots/1-Shot':{html:slideshowShot(options)}})({operation:'discover',limit:1});
@@ -145,6 +190,7 @@ for(const [label,value,code] of [
 });
 for(const settings of [{badType:true},{malformed:true}])test('unsupported or malformed shot cannot silently lose media',t=>{
  const r=fixture(t,{'https://dribbble.com/shots/1-Shot':{html:modern(1,settings)}})({operation:'discover',limit:1});assert.equal(r.data.error,'DRIBBBLE_FORMAT');
+ assert.deepEqual(r.data.failures,[{id:'1',url:'https://dribbble.com/shots/1-Shot',code:'DRIBBBLE_FORMAT'}]);
 });
 test('pagination rejects repeat content and changed host/path',t=>{
  for(const html of [nav+grid([1,2]),nav+grid([3])+next('https://evil.test/a')]){

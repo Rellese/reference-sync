@@ -44,6 +44,38 @@ def shot_blocks(root,source,id):
   if not isinstance(state,dict) or str(state.get('shotId'))!=id:raise Failure('DRIBBBLE_RESPONSE')
   return (state.get('contentBlocks') or {}).get('results')
  raise Failure('DRIBBBLE_FORMAT')
+def uploaded_components(block,start):
+ # Original uploads in the site's JSON also cover slides outside the viewport.
+ uploads=block.get('userUploadsAttributes')
+ if uploads is None:return None
+ content=block.get('content') or {};media=content.get('media');kind=block.get('contentType')
+ if not isinstance(uploads,list) or not uploads or not isinstance(media,list) or not media:raise Failure('DRIBBBLE_FORMAT')
+ if any(not isinstance(v,dict) for v in uploads+media):raise Failure('DRIBBBLE_FORMAT')
+ sources={v.get('id'):v for v in media}
+ if len(sources)!=len(media) or any(not isinstance(id,str) or not id for id in sources):raise Failure('DRIBBBLE_FORMAT')
+ if kind=='slideshow':
+  slides=content.get('slides')
+  if not isinstance(slides,list) or not slides or any(not isinstance(v,dict) for v in slides):raise Failure('DRIBBBLE_FORMAT')
+  positions=[v.get('position') for v in slides]
+  if any(type(v)!=int or v<0 for v in positions) or len(set(positions))!=len(slides):raise Failure('DRIBBBLE_FORMAT')
+  ids=[v.get('mediaId') for v in sorted(slides,key=lambda v:v['position'])]
+ else:ids=[content.get('mediaId')]
+ if any(not isinstance(id,str) for id in ids) or len(set(ids))!=len(ids) or set(ids)!=set(sources):raise Failure('DRIBBBLE_FORMAT')
+ by_cache={v.get('shrineCacheId'):v for v in uploads}
+ if len(by_cache)!=len(uploads) or len(uploads)!=len(ids):raise Failure('DRIBBBLE_FORMAT')
+ result=[];used=set()
+ for id in ids:
+  source=sources[id];cache=source.get('shrineCacheId');upload=by_cache.get(cache);media_type=source.get('type')
+  if not isinstance(cache,str) or not cache or not upload or cache in used or media_type not in {'image','video'}:raise Failure('DRIBBBLE_FORMAT')
+  if kind!='slideshow' and media_type!=kind:raise Failure('DRIBBBLE_FORMAT')
+  used.add(cache);original=media_url(upload.get('originalUrl') or '',original=media_type=='image')
+  ext=urllib.parse.urlsplit(original).path.rsplit('.',1)[-1].lower()
+  if ext!=str(source.get('fileExtension','')).lower():raise Failure('DRIBBBLE_FORMAT')
+  if ext not in ({'mp4','webm','mov'} if media_type=='video' else {'jpg','jpeg','png','gif','webp','avif'}):raise Failure('DRIBBBLE_FORMAT')
+  preview=upload.get('stillUrl') or (original if media_type=='image' else '')
+  result.append({'index':start+len(result),'blockId':str(block['id'])+(':'+id if kind=='slideshow' else ''),
+   'mediaType':media_type,'url':original,'previewUrl':media_url(preview) if preview else '', 'extension':ext,'description':''})
+ return result
 def slideshow(node,content,start,block):
  slides=content.get('slides');media=content.get('media')
  if not isinstance(slides,list) or not slides or not isinstance(media,list):raise Failure('DRIBBBLE_FORMAT')
@@ -86,12 +118,18 @@ def shot(item):
      for media in last_media:media['description']=clean_text(media['description']+'\n\n'+caption)
     else:intro.append(caption)
    elif kind in {'image','video'}:
+    uploaded=uploaded_components(block,len(result)+1)
+    if uploaded is not None:
+     result.extend(uploaded);last_media=uploaded;continue
     node=rendered.get('content-block-'+str(block_id))
     if not node:raise Failure('DRIBBBLE_FORMAT')
     media=component(node,len(result)+1,block_id)
     if media['mediaType']!=kind:raise Failure('DRIBBBLE_FORMAT')
     result.append(media);last_media=[media]
    elif kind=='slideshow':
+    uploaded=uploaded_components(block,len(result)+1)
+    if uploaded is not None:
+     result.extend(uploaded);last_media=uploaded;continue
     node=rendered.get('content-block-'+str(block_id))
     if not node:raise Failure('DRIBBBLE_FORMAT')
     last_media=slideshow(node,content,len(result)+1,block_id);result.extend(last_media)

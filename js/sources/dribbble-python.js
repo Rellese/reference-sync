@@ -21,13 +21,16 @@ def resource(p):
  if match:return ('LIKES',match[1])
  return ('HOME',)
 def read(url,fragment=False):
+ global current_url
+ current_url=url
  expected=resource(safe_url(url))
  for attempt in range(4):
   checkpoint()
   if resource(safe_url(url))!=expected:raise Failure('DRIBBBLE_URL')
   until=time.monotonic()+{'safe':2,'balanced':1}.get(spec.get('speed'),0)
   while time.monotonic()<until:checkpoint();time.sleep(.1)
-  response=session.get(url,headers={'X-Requested-With':'XMLHttpRequest'} if fragment else {},timeout=30,allow_redirects=False)
+  try:response=session.get(url,headers={'X-Requested-With':'XMLHttpRequest'} if fragment else {},timeout=30,allow_redirects=False)
+  except Exception:raise Failure('DRIBBBLE_NETWORK')
   if response.status_code in (301,302,303,307,308):
    url=urllib.parse.urljoin(url,response.headers.get('Location',''))
    if resource(safe_url(url))!=expected:raise Failure('DRIBBBLE_URL')
@@ -103,7 +106,7 @@ try:
   elif direct:raise Failure('DRIBBBLE_URL')
   elif not targets:targets=catalog(profile)
   known=set(spec.get('known',[]));boundary=str(spec.get('stopId') or '');limit=max(0,int(spec.get('limit',0)))
-  per_folder=bool(spec.get('perFolder'));posts={};stopped=False;stop_targets=[];checked=0
+  per_folder=bool(spec.get('perFolder'));posts={};failures=[];attempted=set();stopped=False;stop_targets=[];checked=0
   for target in targets:
    checkpoint();seen=set();count=0;stop=False
    batches=[[target]] if target.get('type')=='POST' else collection_pages(target)
@@ -115,18 +118,30 @@ try:
       if id==boundary:stop_targets.append(str(target['id']))
       break
      if id in seen:continue
-     seen.add(id);count+=1;checked+=1
-     if id not in posts:posts[id]={**shot(item),'collections':[],**({'feed':'liked'} if liked else {})}
-     refs=posts[id]['collections']
-     if not liked and not any(str(ref['id'])==str(target['id']) for ref in refs):refs.append({k:target[k] for k in ('id','name','url')})
+     seen.add(id);count+=1
+     if id not in attempted:
+      attempted.add(id);checked+=1
+      try:posts[id]={**shot(item),'collections':[],**({'feed':'liked'} if liked else {})}
+      except Failure as error:
+       if str(error)!='DRIBBBLE_FORMAT':raise
+       failures.append({'id':id,'url':item['url'],'code':str(error)})
+     if id in posts:
+      refs=posts[id]['collections']
+      if not liked and not any(str(ref['id'])==str(target['id']) for ref in refs):refs.append({k:target[k] for k in ('id','name','url')})
      print(json.dumps({'event':'progress','found':len(posts),'ids':[id]}),flush=True)
-     if limit and (count>=limit if per_folder else len(posts)>=limit):stop=True;break
+     if limit and (count>=limit if per_folder else len(attempted)>=limit):stop=True;break
     if stop:break
-   if not per_folder and (stopped or limit and len(posts)>=limit):break
-  print(json.dumps({'posts':list(posts.values()),'checked':checked,'stoppedEarly':stopped,'stopLinkReached':bool(stop_targets),'stopLinkTargets':stop_targets}))
+   if not per_folder and (stopped or limit and len(attempted)>=limit):break
+  if failures and not posts:raise Failure('DRIBBBLE_FORMAT')
+  print(json.dumps({'posts':list(posts.values()),'failures':failures,'checked':checked,'stoppedEarly':stopped,'stopLinkReached':bool(stop_targets),'stopLinkTargets':stop_targets}))
  else:raise Failure('DRIBBBLE_OPERATION')
 except Failure as error:
- print(json.dumps({'error':str(error)}));sys.exit(1)
+ code=str(error)
+ if globals().get('posts') and code in {'DRIBBBLE_CHALLENGE','DRIBBBLE_AUTH','DRIBBBLE_RATE_LIMIT','DRIBBBLE_NETWORK','DRIBBBLE_HTTP_502','DRIBBBLE_HTTP_503','DRIBBBLE_HTTP_504'}:
+  url=current_url if resource(safe_url(current_url))[0]=='POST' else ''
+  print(json.dumps({'posts':list(posts.values()),'failures':failures,'checked':checked,'stoppedEarly':False,'stopLinkReached':False,'stopLinkTargets':[], 'interruption':{'code':code,'url':url}}))
+ else:
+  print(json.dumps({'error':code,**({'failures':failures} if code=='DRIBBBLE_FORMAT' and 'failures' in globals() else {})}));sys.exit(1)
 except Exception:
  print(json.dumps({'error':'DRIBBBLE_NETWORK'}));sys.exit(1)
 `;
