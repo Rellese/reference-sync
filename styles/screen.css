@@ -1740,7 +1740,7 @@ M1-T09J(a) — дерево коллекций в таблице результ�
 }
 
 .rs-work { grid-template-columns: var(--rs-settings-width, 403px) minmax(0, 1fr); }
-.rs-right { grid-template-rows: auto minmax(100px, 1fr) var(--rs-naming-height, auto); }
+.rs-right { grid-template-rows: max-content minmax(100px, 1fr) var(--rs-naming-height, auto); }
 .rs-footer { left: calc(var(--rs-settings-width, 403px) + 35px); }
 .rs-right[style*="--rs-naming-height"] .rs-naming { max-height: none; min-height: 0; }
 .rs-right[style*="--rs-naming-height"] .rs-naming__body { max-height: 100%; box-sizing: border-box; }

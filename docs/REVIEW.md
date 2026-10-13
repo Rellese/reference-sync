@@ -1,4 +1,4 @@
-# Review notes — ReferenceSync 1.5.2
+# Review notes — ReferenceSync 1.5.3
 
 Window plugin with explicit one-button preparation. No manual Python installation
 is required on supported macOS/Windows systems. Startup never downloads Python.
@@ -11,6 +11,16 @@ ReferenceSync working directories; system Python/PATH/registry are not modified.
 Windows ARM64 uses x64 emulation and requires Windows 11. Read MANAGED-PYTHON.md
 for versions, source, redirects, permissions, cancellation and retention.
 No interpreter or executable archive is bundled in this .eagleplugin.
+
+## Panel sizing (M3-T10, 1.5.3)
+
+The lower separator resizes only results and naming. The progress track uses
+its intrinsic height; naming's limit reserves status height, grid padding/gaps
+and the 100px minimum result area. Status resize updates this limit.
+Isolated Chrome checks used real components/styles at the 1200x760 minimum:
+complete=97px and downloading=141px remained unchanged at both endpoints,
+mouse drag and double-click reset. Stored sizes are clamped on reopening.
+No account, download or Eagle library operations were used for this check.
 
 ## Current acceptance (M6-T20–T26, 1.5.2)
 

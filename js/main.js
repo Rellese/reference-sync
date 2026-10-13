@@ -813,7 +813,7 @@ async function boot() {
   );
 
   document.body.appendChild(app);
-  installPanelResizers({ app, work, right, settings: ui.settings.node, results: ui.results.node, naming: ui.naming.node });
+  installPanelResizers({ app, work, right, settings: ui.settings.node, status: ui.status.node, results: ui.results.node, naming: ui.naming.node });
 
   renderTable();
   bindShortcuts();

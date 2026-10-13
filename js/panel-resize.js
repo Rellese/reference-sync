@@ -1,6 +1,6 @@
 import { L, setLocalizedProperty } from './i18n.js';
 // Handles occupy only the five-pixel gaps between the affected panels.
-export function installPanelResizers({ app, work, right, settings, results, naming }) {
+export function installPanelResizers({ app, work, right, settings, status, results, naming }) {
   const handles = [];
   let width = 403, height = null;
   const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
@@ -13,7 +13,13 @@ export function installPanelResizers({ app, work, right, settings, results, nami
     width = clamp(width, 280, Math.max(280, work.clientWidth - 550));
     app.style.setProperty('--rs-settings-width', `${width}px`);
     if (height !== null) {
-      height = clamp(height, 120, Math.max(120, right.clientHeight - 240));
+      // Only the table and naming panel share the remaining height.
+      // Reserve the status row, the table's 100px minimum and grid spacing.
+      const style = getComputedStyle(right);
+      const reserved = status.getBoundingClientRect().height + 100 +
+        2 * (parseFloat(style.rowGap) || 0) +
+        (parseFloat(style.paddingTop) || 0) + (parseFloat(style.paddingBottom) || 0);
+      height = clamp(height, 120, Math.max(120, right.clientHeight - reserved));
       right.style.setProperty('--rs-naming-height', `${height}px`);
     }
   }
@@ -73,6 +79,6 @@ export function installPanelResizers({ app, work, right, settings, results, nami
   }
   apply();
   const observer = new ResizeObserver(() => { apply(); position(); });
-  for (const node of [work, right, naming, settings]) observer.observe(node);
+  for (const node of [work, right, naming, settings, status]) observer.observe(node);
   position();
 }
