@@ -6,19 +6,24 @@ import { throwIfAborted } from './job-control.js';
 
 export async function runDiscoveryWithStop(run, args, {
   stopLink,
+  knownPostIds = new Set(),
+  stopAtKnown = false,
+  jsonDocument = false,
   recordToPost,
   signal,
   onStdout,
   ...options
 } = {}) {
   throwIfAborted(signal);
-  if (!stopLink?.ok) return run(args, { ...options, signal, onStdout });
+  if (!stopLink?.ok && !(stopAtKnown && knownPostIds.size)) return run(args, { ...options, signal, onStdout,
+    env: { ...options.env, PYTHONUNBUFFERED: '1' } });
 
   const controller = new AbortController();
   const abort = () => controller.abort();
   signal?.addEventListener('abort', abort, { once: true });
   let carry = '';
   let reached = false;
+  let knownPostReached = false;
 
   function accept(value) {
     if (reached) return;
@@ -34,11 +39,16 @@ export async function runDiscoveryWithStop(run, args, {
       ? value.find((item) => item && typeof item === 'object' && !Array.isArray(item))
       : value;
 
-    if (isPublication && record &&
-        postMatchesStopLink(recordToPost(record), stopLink)) {
-      reached = true;
-      controller.abort();
-      return;
+    if (isPublication && record) {
+      const post = recordToPost(record);
+      const matchesLink = postMatchesStopLink(post, stopLink);
+      const matchesKnown = stopAtKnown && post?.postId && knownPostIds.has(post.postId);
+      if (matchesLink || matchesKnown) {
+        reached = true;
+        knownPostReached = Boolean(matchesKnown);
+        controller.abort();
+        return;
+      }
     }
 
     onStdout?.(`${JSON.stringify(value)}\n`);
@@ -67,6 +77,9 @@ export async function runDiscoveryWithStop(run, args, {
       onStdout(chunk) {
         if (reached) return;
         carry += String(chunk);
+        // Recursive DataJob emits one pretty-printed JSON document. Parsing
+        // individual lines loses message boundaries (and therefore stop links).
+        if (jsonDocument) return;
         const lines = carry.split(/\r?\n/);
         carry = lines.pop() || '';
         for (const line of lines) {
@@ -76,8 +89,9 @@ export async function runDiscoveryWithStop(run, args, {
       },
     });
     throwIfAborted(signal); // Ручной Stop всегда имеет приоритет.
-    processLine(carry);
-    return { ...result, stopLinkReached: reached };
+    if (jsonDocument && carry.trim()) accept(JSON.parse(carry));
+    else processLine(carry);
+    return { ...result, stopLinkReached: reached && !knownPostReached, knownPostReached };
   } finally {
     signal?.removeEventListener('abort', abort);
   }

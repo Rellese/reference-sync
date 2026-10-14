@@ -328,3 +328,9 @@ test('first carousel component is not treated as empty selection', () => {
     ],
   );
 });
+
+test('partial carousel files keep original numbers and exclude incomplete files', () => {
+  const entry = { post: makePost(), files: ['/tmp/2.mp4', '/tmp/3.jpg.part'] };
+  assert.deepEqual(selectedDownloadedFiles(entry, [2]), [{ file: '/tmp/2.mp4', componentIndex: 1 }]);
+  assert.deepEqual(selectedDownloadedFiles(entry, [1]), []);
+});
