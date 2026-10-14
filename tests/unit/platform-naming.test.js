@@ -11,6 +11,15 @@ function setup(t) {
   t.after(() => { state.settings = previous; globalThis.localStorage = storage; appHistory.clear(); });
   return values;
 }
+test('obsolete manual account is cleared while browser choice and numbering survive migration',t=>{
+ const values=setup(t);values.set('reference-sync.settings.v1',JSON.stringify({platform:'pinterest',username:'former-owner',browser:'firefox',browserProfile:'chosen-profile',counterOneStart:73}));
+ loadSettings();assert.equal(state.settings.username,'');assert.equal(state.settings.browser,'firefox');assert.equal(state.settings.browserProfile,'chosen-profile');assert.equal(state.settings.counterOneStart,73);
+ assert.equal(JSON.parse(values.get('reference-sync.settings.v1')).username,'');
+});
+test('retiring manual login preserves the old Behance link migration',t=>{
+ const values=setup(t),url='https://www.behance.net/gallery/123/a';values.set('reference-sync.settings.v1',JSON.stringify({platform:'behance',username:url}));
+ loadSettings();assert.equal(state.settings.sourceUrl,url);assert.equal(state.settings.username,'');
+});
 test('legacy naming belongs to the active platform; other platforms get independent defaults', t => {
   const values = setup(t);
   values.set('reference-sync.settings.v1', JSON.stringify({platform:'pinterest',numberingStart:17,extraDescription:'Pinterest only'}));

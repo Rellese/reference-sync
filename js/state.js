@@ -194,6 +194,9 @@ export function loadSettings() {
       state.settings.sourceUrl = state.settings.username;
       state.settings.username = '';
     }
+    // Preserve the legacy Behance link migration above, then retire manual
+    // account selection. Browser identity is resolved per operation only.
+    state.settings.username = '';
 
     /*
     * Пользовательские настройки до M1-T09D

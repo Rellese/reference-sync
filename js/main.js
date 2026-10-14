@@ -6,7 +6,7 @@ import {caseProgressInfo} from './case/progress.js';
 import { isPostImported, caseModes, caseRegistryId, caseImportItem, pendingCase } from './case/download.js';
 import {caseOutputName,caseNamingHistory} from './case/naming.js';
 import { searchSettings,effectiveFolderSearch } from './source-link.js';
-import { sessionErrorTitle } from './session-account.js';
+import { sessionErrorTitle, accountSearchSettings } from './session-account.js';
 import { summarizeImportOutcome } from './download-outcome.js';
 import { pinterestDownloadPlan } from './pinterest-media.js';
 import { pendingEagleWrite, recoverAcknowledgedEagleWrite, retireIntermediateEagleWrite } from './eagle-write-guard.js';
@@ -92,7 +92,7 @@ import {
 } from './instagram.js';
 
 import {
-  requireMatchingPinterestSession,
+  requirePinterestSession,
   removePinterestCookieSnapshot,
 } from './sources/pinterest-containers.js';
 
@@ -1192,7 +1192,7 @@ function refreshProfileSession() {
   if (state.settings.source === 'browser' || ['behance','vimeo','x','dribbble','layers'].includes(state.settings.platform)) profileSession.refresh(state.settings);
 }
 
-async function requireMatchingInstagramSession(settings, signal) {
+async function requireInstagramSession(settings, signal) {
   const browserName = browserDisplayName(settings.browser);
 
   ui.status.set(
@@ -1245,37 +1245,6 @@ async function requireMatchingInstagramSession(settings, signal) {
       );
 
       error.code = 'INSTAGRAM_SESSION_INVALID';
-      throw error;
-    }
-
-    const expected = String(settings.username || '')
-      .trim()
-      .replace(/^@/, '')
-      .toLowerCase();
-
-    const actual = String(session.username || '')
-      .trim()
-      .replace(/^@/, '')
-      .toLowerCase();
-
-    if (expected && actual !== expected) {
-      const profiles = discoverBrowserProfiles(settings.browser);
-      const selected = profiles.find(
-        (profile) => profile.id === settings.browserProfile,
-      );
-
-      const selectedName = selected?.label
-        ? ` «${selected.label}»`
-        : '';
-
-      const error = new Error(
-        `В профиле ${browserName}${selectedName} в Instagram авторизован ` +
-        `@${session.username}, а для поиска указан @${expected}. ` +
-        'Выберите профиль браузера с нужным аккаунтом Instagram ' +
-        'либо войдите в нужный аккаунт и повторите проверку.',
-      );
-
-      error.code = 'INSTAGRAM_ACCOUNT_MISMATCH';
       throw error;
     }
 
@@ -1581,12 +1550,6 @@ async function runSearch() {
     return;
   }
 
-  if (s.downloadMode!=='liked'&&!s.targetUrl && getSource(s.platform).needsAccount && !s.username.trim()) {
-    ui.status.set('Не указан аккаунт', 'Введите имя пользователя');
-    ui.log.add('Поиск невозможен: не заполнено имя аккаунта.', 'err');
-    return;
-  }
-
   if (!nodeApi.available) {
     ui.log.add('Поиск доступен только внутри Eagle.', 'err');
     return;
@@ -1609,7 +1572,7 @@ async function runSearch() {
     `Идёт обращение к ${activeSource.title}`,
     true,
   );
-  ui.log.add(`Поиск: ${getSource(s.platform).needsAccount ? '@' + s.username : getSource(s.platform).title}, режим ${s.searchMode}`);
+  ui.log.add(`Поиск: ${activeSource.title}, режим ${s.searchMode}`);
 
   /* Состояние 6 — «Search for Publications»: бегущая полоса
      из начала в конец, пока идёт обращение к Eagle и браузеру */
@@ -1658,12 +1621,12 @@ async function runSearch() {
 
   try {
     const session = isInstagram && !s.targetUrl
-      ? await requireMatchingInstagramSession(
+      ? await requireInstagramSession(
           s,
           operationController.signal,
         )
       : isPinterest && !s.targetUrl
-        ? await requireMatchingPinterestSession(s, operationController.signal)
+        ? await requirePinterestSession(s, operationController.signal)
         : {
             cookieFile: '',
             username: s.username,
@@ -1676,6 +1639,7 @@ async function runSearch() {
     let discoveryResult;
 
     try {
+      const sourceSettings = accountSearchSettings(s, session);
       if (s.folderSearch) {
         const source =
           getSource(s.platform);
@@ -1705,9 +1669,7 @@ async function runSearch() {
 
         const collections =
           await source.listContainers({
-            username:
-              session.username ||
-              s.username,
+            username: sourceSettings.username,
 
             browser:
               session.browser ||
@@ -1871,7 +1833,7 @@ async function runSearch() {
           await runDiscover({
             downloadMode:s.downloadMode,
             targetUrl: s.targetUrl,
-            username: s.username,
+            username: sourceSettings.username,
             browser: s.browser,
             browserProfile: s.browserProfile,
             cookieFile: session.cookieFile,
@@ -2321,12 +2283,12 @@ async function runImport() {
 
     const session =
       isInstagramImport && s.downloadMode !== 'link'
-        ? await requireMatchingInstagramSession(
+        ? await requireInstagramSession(
             s,
             state.abortController.signal,
           )
         : isPinterestImport && s.downloadMode !== 'link'
-          ? await requireMatchingPinterestSession(s, state.abortController.signal)
+          ? await requirePinterestSession(s, state.abortController.signal)
           : {
               cookieFile: '',
             };

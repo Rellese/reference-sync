@@ -1090,10 +1090,10 @@ export async function verifyPinterestSession({ browser, browserProfile, signal, 
   } finally { if (!retained) removePinterestCookieSnapshot(cookieFile); }
 }
 
-export async function requireMatchingPinterestSession(settings, signal) {
+export async function requirePinterestSession(settings, signal) {
   const session = await verifyPinterestSession({ ...settings, signal, keepCookieFile: true });
   try {
-    assertMatchingAccount(session, { ...settings, platform: 'pinterest', title: 'Pinterest' });
+    assertMatchingAccount(session, { platform: 'pinterest', title: 'Pinterest', browser: settings.browser });
     return { ...session, browser: settings.browser, browserProfile: settings.browserProfile };
   } catch (error) {
     removePinterestCookieSnapshot(session.cookieFile);

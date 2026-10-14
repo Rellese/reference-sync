@@ -1,4 +1,22 @@
-# Review notes — ReferenceSync 1.5.4
+# Review notes — ReferenceSync 1.5.5
+
+## Browser account without manual login (M3-T11, 1.5.5)
+
+Instagram/Pinterest no longer display a manual username field or a replacement
+account row. The existing profile tooltip remains. Saved/collection discovery
+uses the owner freshly verified in the selected browser profile, never a cached
+tooltip or an old typed login. Unverified/signed-out sessions still stop the
+operation; private cookie permissions and cleanup remain enforced. Retired
+settings are cleared after the legacy Behance URL migration. Links/archives
+do not depend on a manually supplied account.
+
+Native Eagle / Chrome Profile 1: Instagram and Pinterest each discovered one
+Saved publication with a deliberately obsolete test username. Instagram returned
+two collections and one Likes publication. Private snapshot files were removed;
+no media or library items were created. Isolated production UI checks covered
+both sources in all five languages, Saved/Link/Archive and Instagram Likes.
+747/747 tests passed. Pinterest boards/sections, other browsers, Windows and
+the final installed package were not retested for this change.
 
 ## Dribbble discovery recovery (M6-T27–T28, 1.5.4)
 

@@ -26,3 +26,12 @@ export function sessionErrorTitle(error) {
   return match[2] === 'ACCOUNT_MISMATCH' ? `Выбран другой ${title}-аккаунт`
     : match[2] === 'SESSION_INVALID' ? `Необходимо войти в ${title}` : `Не удалось проверить аккаунт ${title}`;
 }
+// Account-owned feeds use the freshly verified browser session, never a
+// retired manual username or the asynchronous profile tooltip's result.
+export function accountSearchSettings(settings, session) {
+  if (!['instagram', 'pinterest'].includes(settings.platform)) return settings;
+  if (settings.targetUrl || settings.source === 'meta') return {...settings, username: ''};
+  const title = settings.platform === 'instagram' ? 'Instagram' : 'Pinterest';
+  const owner = assertMatchingAccount(session, {platform: settings.platform, title, browser: settings.browser});
+  return {...settings, username: String(owner.username).trim().replace(/^@+/, '')};
+}

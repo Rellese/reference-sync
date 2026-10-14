@@ -74,9 +74,6 @@ const TIP_SPEED =
   '**Задержки запросов к соцсети:** безопасная — 2–4 с, сбалансированная — 1–2 с, молния — 0 с. ' +
   'Прямые ссылки на файлы загружаются последовательно. При большом объёме выбирайте безопасную скорость.';
 
-const TIP_ACCOUNT =
-  '**Имя владельца сохранённых публикаций**, без @. Оно должно совпадать с аккаунтом выбранной соцсети в профиле браузера.';
-
 const TIP_BROWSER =
   'ReferenceSync читает cookies выбранного браузера. **В нём должен быть ' +
   'выполнен вход в Instagram**. Браузер лучше закрыть перед поиском.';
@@ -156,7 +153,7 @@ export function buildTitlebar({ onClose }) {
 /* ============================================================
    1 блок — шапка
    ============================================================ */
-export function buildHeader({ version = 'v1.5.4', onLanguage }) {
+export function buildHeader({ version = 'v1.5.5', onLanguage }) {
   const root = el('div', 'rs-header');
 
   const left = el('div', 'rs-header__left');
@@ -331,22 +328,6 @@ export function buildSettings({ onChange, onFolderSearch, onArchive, onArchiveRe
   const browserBlock = el('div', 'rs-step');
   browserBlock.style.display = s.source === 'browser' ? '' : 'none';
 
-  /* Instagram-аккаунт */
-  const accountRow = el('div', 'rs-step__row');
-  const accountLabel = createLabelWithInfo(L('Instagram-аккаунт'), L(TIP_ACCOUNT)).node;
-  const accountField = createField({
-    value: s.username,
-    placeholder: L('имя пользователя'),
-    at: true,
-    onCommit: (value) => {
-      const clean = value.trim().replace(/^@/, '');
-      accountField.set(clean);
-      setSetting('username', clean);
-      if (onChange) onChange('username', clean);
-    },
-  });
-  accountRow.append(accountLabel, accountField.node);
-
   /* Браузер */
   const browserRow = el('div', 'rs-step__row');
   const browserLabel = createLabelWithInfo(
@@ -406,7 +387,6 @@ export function buildSettings({ onChange, onFolderSearch, onArchive, onArchiveRe
 
   browserBlock.append(
     linkRow,
-    accountRow,
     browserRow,
     profileRow,
     browserHint,
@@ -743,7 +723,6 @@ export function buildSettings({ onChange, onFolderSearch, onArchive, onArchiveRe
       if (byLink) setText(browserHint, L('Браузер нужен для публикаций, доступных после входа. Никнейм владельца ссылки не требуется.'));
       linkRow.style.display = byLink ? '' : 'none';
       linkField.set(next.sourceUrl || '');
-      accountRow.style.display = byLink || liked || !source.needsAccount ? 'none' : '';
       sourceList.style.display = browserOnly ? 'none' : '';
       step2.style.display = byLink ? 'none' : '';
       searchDivider.style.display = byLink ? 'none' : '';
@@ -761,9 +740,6 @@ export function buildSettings({ onChange, onFolderSearch, onArchive, onArchiveRe
           ? ''
           : 'none';
 
-      accountField.set(next.username);
-      accountField.node.classList.add('has-at');
-      setLocalizedProperty(accountField.input, 'placeholder', L('имя пользователя'));
       browserSelect.set(next.browser);
       profileSelect.set(next.browserProfile);
       speedSelect.set(next.speed);
@@ -826,8 +802,6 @@ export function buildSettings({ onChange, onFolderSearch, onArchive, onArchiveRe
     setProfileHint(text, platform) {
       profileLabel.info?.setText(text);
       bindTextRender(browserHint, 'profile-hint', L(text), (node, value) => { node.textContent = value.replace(/\*\*/g, ''); });
-      const label = accountLabel.querySelector('.rs-field-label__text');
-      if (label) setText(label, L(platform + '-аккаунт'));
       if (state.settings.downloadMode === 'link') setText(browserHint, L('Браузер нужен для публикаций, доступных после входа. Никнейм владельца ссылки не требуется.'));
       else if(state.settings.downloadMode==='liked') bindTextRender(browserHint,'profile-hint',L('Поиск идёт по вашим отметкам «Нравится» в выбранном браузере. Архив и выбор папок для этого сценария не используются.'),(node,value)=>{node.textContent=value;});
       else if (state.settings.platform === 'behance') setText(browserHint, L('Для сохранённых публикаций выберите доски настроения своего аккаунта.'));
@@ -836,10 +810,6 @@ export function buildSettings({ onChange, onFolderSearch, onArchive, onArchiveRe
       else if (state.settings.platform === 'dribbble') bindTextRender(browserHint, 'profile-hint', L('Без поиска по папкам загружаются все сохранённые коллекции Dribbble. Лимит N общий, в порядке коллекций; с выбором папок — N в каждой.'), (node, value) => { node.textContent = value; });
       else if (state.settings.platform === 'x') setText(browserHint, L('Без поиска по папкам загружаются все закладки X. Папки закладок требуют X Premium.'));
     },
-    setUsername(value) {
-      accountField.set(value);
-    },
-
     setBrowserProfiles(profiles, selectedId) {
       const list = Array.isArray(profiles) ? profiles : [];
 
