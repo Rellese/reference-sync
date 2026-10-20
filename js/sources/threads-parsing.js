@@ -57,7 +57,7 @@ def post_media(post,feed):
   preview=candidate((item.get('image_versions2') or {}).get('candidates'))
   url=candidate(item.get('video_versions')) if typ==2 else preview
   extension='mp4' if typ==2 else urllib.parse.urlsplit(url).path.rsplit('.',1)[-1].lower()
-  if extension not in {'jpg','jpeg','png','webp','gif','avif','mp4'}:raise Failure('THREADS_FORMAT')
+  if extension not in {'jpg','jpeg','png','webp','gif','avif','heic','mp4'}:raise Failure('THREADS_FORMAT')
   components.append({'index':i,'mediaType':'video' if typ==2 else 'image','url':url,'previewUrl':preview,'extension':extension})
  return {'id':code,'author':author,'url':'https://www.threads.com/@'+author+'/post/'+code,
   'description':str((post.get('caption') or {}).get('text') or '')[:200000],'takenAt':post.get('taken_at') or 0,'components':components,'feed':feed}

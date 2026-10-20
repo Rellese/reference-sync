@@ -20,16 +20,44 @@ Media downloads use only Meta CDN HTTPS URLs, without browser cookies.
 Photo/video/mixed carousel order and completeness, smart/full/recent, known/Stop
 boundaries, cancellation, private files, link/archive routing, selected-component
 download, recovery and cross-feed IDs have synthetic regression coverage.
-781/781 tests passed. Production Python with the selected Chrome Profile 1
-returned two real Saved posts. Live continuation was independently checked
-with the site's own Saved query. Isolated production UI checks covered the
-eighth icon and all five languages plus Saved/Link/Likes/Archive.
+790/790 tests passed; 127 JS modules parsed in Eagle's Node 16.17.1. Inside
+Native Eagle with Chrome Profile 1, production source calls verified the viewer,
+completed Saved traversal without interruption: 324 checked, 316 with media,
+7 text-only and 1 explicit format failure. The failure was traced to HEIC images
+in a six-component mixed carousel. After adding HEIC to the existing image
+extension allowlists, its direct link returned all six components (five HEIC
+images plus a video); the full 324-post traversal was not repeated after this
+local format fix. It also verified recent=2, known/Stop first=0,
+Liked recent=22 (15 with media and 7 text-only, including pagination) and a single post link. Twenty-seven mixed carousels were found.
+One image and one video (1,322,168 bytes total) downloaded through the production
+adapter; the video passed full decoding. The diagnostic initially omitted the
+normal video preflight: the same two media passed after calling the same
+preflight used by main.js, without a production code change. Private snapshots
+were cleaned; private research JSON and test staging were removed. No Eagle
+library items were created. A live pagination defect was fixed: HTML preloading
+can overlap several API pages. Advancing cursors now continue through those
+duplicates; repeated/missing cursors still interrupt instead of claiming completion.
+Isolated production UI checks covered the eighth icon and all five languages
+plus Saved/Link/Likes/Archive.
 
-Pending: full production discovery/download inside Eagle, a real mixed carousel,
-actual library import for Threads, other browsers/Windows and the installed
-.eagleplugin. Meta's export dialog exists, but no real archive was prepared.
-Synthetic archive reading does not prove that Meta includes Saved/Likes. The current build is
-a review candidate and must not be represented as fully live-tested or approved.
+Pending: download of every component of a real mixed carousel, actual library
+import for Threads, other browsers/Windows and the installed .eagleplugin.
+A real device-only Meta export was prepared with the owner's approval: Threads
+profile, only the Threads activity category, JSON, all time. The ZIP is 17,823,815
+bytes. Its Saved list contains 324 records, matching full browser discovery;
+Likes contains 672 records. In Eagle Node 16.17.1, the production reader extracted
+only threads/saved_threads.json and returned 324 links / zero local posts.
+Likes, own media, profile and other sections were not extracted or mixed into
+Saved. The order was newest first. Parsing the explicitly selected standalone
+Liked JSON also returned 672 links. Two real Saved archive links resolved to
+complete posts through one selected-profile session, without media downloads
+or Eagle additions. There were zero residual cookie files; temporary data was
+removed, and the owner's original ZIP remained byte-for-byte unchanged.
+Text-only links are checkpointed as processed and counted as skipped, as in
+browser discovery. Missing Saved in an identifiable Meta Threads ZIP is an
+explicit error; malformed/incomplete media remains retryable instead of silently
+substituting previews. The build remains a review candidate pending the above
+platform/package/library-import checks.
 
 ## Browser account without manual login (M3-T11, 1.5.5)
 

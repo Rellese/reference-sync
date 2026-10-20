@@ -10,6 +10,7 @@ import url from 'node:url';
 import { nodeApi } from '../../js/node-bridge.js';
 import { listZip, extractZip } from '../../js/archive-zip.js';
 import { parseArchiveMetadata, readArchive } from '../../js/archive-reader.js';
+import { writeCaseZip } from '../../js/case/zip-writer.js';
 function zip(name, data, crc = 0) {
   const bytes = Buffer.from(data), filename = Buffer.from(name);
   let value = 0xffffffff;
@@ -58,6 +59,29 @@ test('local JSON resolves only contained media and stable content IDs', async t 
   assert.equal(first.posts[0].archiveLocal, true);
   fs.writeFileSync(file, JSON.stringify([{ media: [{ uri: '../outside.jpg' }] }]));
   await assert.rejects(readArchive(file), /путь/);
+});
+test('Threads Meta ZIP reads only Saved, without Likes, own media or profile data', async t => {
+  const root = setup(t), file = path.join(root, 'threads.zip');
+  await writeCaseZip(file, [
+    {name:'threads/saved_threads.json',data:JSON.stringify([{timestamp:100,media:[],label_values:[{label:'Link',value:'',href:'https://threads.net/@artist/post/Saved_1'}]}])},
+    {name:'threads/liked_threads.json',data:JSON.stringify({text_post_app_media_likes:[{string_list_data:[{href:'https://threads.net/t/Liked_1'}]}]})},
+    {name:'threads/threads_and_replies.json',data:JSON.stringify([{media:[{uri:'media/own.jpg'}]}])},
+    {name:'threads/personal_information.json',data:JSON.stringify({href:'https://threads.net/t/Private1'})},
+    {name:'media/own.jpg',data:'private own media fixture'},
+  ]);
+  const original = fs.readFileSync(file), result = await readArchive(file,{source:'threads'});
+  assert.equal(result.posts.length,0); assert.deepEqual(result.links.map(link=>link.publicationId),['Saved_1']);
+  assert.equal(fs.existsSync(path.join(result.stagingRoot,'threads/liked_threads.json')),false);
+  assert.equal(fs.existsSync(path.join(result.stagingRoot,'threads/personal_information.json')),false);
+  assert.equal(fs.existsSync(path.join(result.stagingRoot,'media/own.jpg')),false);
+  assert.deepEqual(fs.readFileSync(file),original);
+});
+test('Threads Meta ZIP without Saved is explicit and cleans extracted staging', async t => {
+  const root=setup(t),file=path.join(root,'threads.zip');
+  fs.writeFileSync(file,zip('threads/liked_threads.json',JSON.stringify({href:'https://threads.net/t/Liked_1'})));
+  await assert.rejects(readArchive(file,{source:'threads'}),/не содержит список сохранённых/);
+  assert.deepEqual(fs.readdirSync(path.join(root,'.reference-sync/staging')),[]);
+  assert.ok(fs.existsSync(file));
 });
 
 test('local archive transfer copies only selected components and preserves originals', async t => {

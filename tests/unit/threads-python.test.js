@@ -12,8 +12,14 @@ def media(n,kind=1):
  if settings.get('missingVideo') and kind==2:p['video_versions']=[]
  if settings.get('allBad'):p['media_type']=99
  return p
+page_number=0
 def conn(second=False):
+ global page_number
  items=[media(1,2),media(2,8),media(3,19)] if not second else [media(2,8),media(4)]
+ if settings.get('overlap') and second:
+  page_number+=1
+  items=[media(1,2)] if page_number==1 else [media(2,8)] if page_number==2 else [media(4)]
+  return {'edges':[{'node':{'thread_items':[{'post':p}]}} for p in items],'page_info':{'end_cursor':'overlap'+str(page_number),'has_next_page':page_number<3}}
  if settings.get('repeat') and second:items=[media(1,2)]
  return {'edges':[{'node':{'thread_items':[{'post':p}]}} for p in items],'page_info':{'end_cursor':'p1' if not second else 'p2','has_next_page':not second or bool(settings.get('repeat'))}}
 class Response:
@@ -56,6 +62,7 @@ test('Threads full search reads all pages, keeps carousel order and descriptions
  const carousel=r.data.posts[1];assert.deepEqual(carousel.components.map(c=>c.mediaType),['image','video']);assert.equal(carousel.description,'Caption 2');assert.ok(carousel.components[0].url.endsWith('/b.jpg'));
  const page=r.calls.find(c=>c.method==='POST');assert.equal(page.after,'p1');assert.equal(page.provider,true);assert.ok(r.calls.every(c=>c.redirects===false));assert.equal(r.calls.find(c=>c.host==='static.cdninstagram.com').cookies,false);
 });
+test('Threads preserves HEIC photographs alongside videos in mixed carousels',t=>{const r=fixture(t,{mediaUrl:'https://scontent.cdninstagram.com/photo.heic'})({operation:'discover',feed:'saved'});assert.equal(r.status,0);assert.equal(r.data.interruption,null);assert.equal(r.data.failures.length,0);assert.deepEqual(r.data.posts[1].components.map(c=>c.extension),['heic','mp4']);});
 test('Threads recent N stops before loading pagination assets or a second page',t=>{const r=fixture(t)({operation:'discover',feed:'saved',limit:1});assert.equal(r.data.posts.length,1);assert.equal(r.calls.length,1);});
 for(const field of ['known','stopId'])test('Threads '+field+' stops before the boundary and before pagination',t=>{
  const r=fixture(t)({operation:'discover',feed:'saved',[field]:field==='known'?['Code_1']:'Code_1'});assert.equal(r.data.posts.length,0);assert.equal(r.data.stoppedEarly,true);assert.equal(r.calls.length,1);assert.equal(r.data.stopLinkReached,field==='stopId');
@@ -68,5 +75,8 @@ test('Threads probe requires a verified viewer, never a cookie name alone',t=>{c
 test('Threads retains complete posts and reports a broken carousel instead of dropping the whole search',t=>{const r=fixture(t,{incomplete:true})({operation:'discover',feed:'saved'});assert.equal(r.status,0);assert.deepEqual(r.data.posts.map(p=>p.id),['Code_1','Code_4']);assert.equal(r.data.failures.length,1);assert.equal(r.data.failures[0].code,'THREADS_FORMAT');});
 test('Threads never substitutes a video thumbnail when its video URL is missing',t=>{const r=fixture(t,{missingVideo:true})({operation:'discover',feed:'saved'});assert.equal(r.status,0);assert.deepEqual(r.data.posts.map(p=>p.id),['Code_4']);assert.equal(r.data.failures.length,2);});
 test('Threads repeated page returns complete posts with an explicit interruption',t=>{const r=fixture(t,{repeat:true})({operation:'discover',feed:'saved'});assert.equal(r.status,0);assert.equal(r.data.interruption.code,'THREADS_PAGING');assert.equal(r.data.posts.length,2);});
+test('Threads full search follows advancing cursors through pages already hydrated in HTML',t=>{const r=fixture(t,{overlap:true})({operation:'discover',feed:'saved'});assert.equal(r.status,0);assert.equal(r.data.interruption,null);assert.equal(r.data.checked,4);assert.deepEqual(r.data.posts.map(p=>p.id),['Code_1','Code_2','Code_4']);assert.equal(r.calls.filter(c=>c.method==='POST').length,3);});
+test('Threads recent N ignores duplicate overlap pages when counting checked posts',t=>{const r=fixture(t,{overlap:true})({operation:'discover',feed:'saved',limit:4});assert.equal(r.data.interruption,null);assert.equal(r.data.checked,4);assert.deepEqual(r.data.posts.map(p=>p.id),['Code_1','Code_2','Code_4']);});
+for(const field of ['known','stopId'])test('Threads '+field+' reaches a boundary after overlapping pages',t=>{const r=fixture(t,{overlap:true})({operation:'discover',feed:'saved',[field]:field==='known'?['Code_4']:'Code_4'});assert.equal(r.data.interruption,null);assert.equal(r.data.checked,3);assert.deepEqual(r.data.posts.map(p=>p.id),['Code_1','Code_2']);assert.equal(r.data.stoppedEarly,true);assert.equal(r.data.stopLinkReached,field==='stopId');});
 test('Threads recent N bounds unique checked posts including text and format failures',t=>{const r=fixture(t,{incomplete:true})({operation:'discover',feed:'saved',limit:3});assert.equal(r.status,0);assert.equal(r.data.checked,3);assert.equal(r.data.skippedText,1);assert.equal(r.data.posts.length,1);assert.equal(r.data.failures.length,1);assert.equal(r.calls.length,1);});
 test('Threads all-invalid media reports a search error with safe failed-post URLs',t=>{const r=fixture(t,{allBad:true})({operation:'discover',feed:'saved',limit:2});assert.equal(r.status,1);assert.equal(r.data.error,'THREADS_FORMAT');assert.equal(r.data.failures.length,2);});

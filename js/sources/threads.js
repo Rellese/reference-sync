@@ -4,7 +4,7 @@ import {downloadDirectMedia} from './direct-media.js';
 import {throwIfAborted} from '../job-control.js';
 import {downloadMedia} from '../media-download.js';
 import {nodeApi} from '../node-bridge.js';
-const extensions=['jpg','jpeg','png','webp','gif','avif','mp4'];
+const extensions=['jpg','jpeg','png','webp','gif','avif','heic','mp4'];
 function reportFailures(failures,options){
   if(!Array.isArray(failures))throw threadsFailure('THREADS_RESPONSE');
   return failures.map(item=>{

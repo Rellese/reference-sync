@@ -1,6 +1,6 @@
 import {archiveHttpsUrl} from './authenticated-links.js';
 import { nodeApi, ensureDir, workRoot } from './node-bridge.js';
-import { extractZip, safeArchiveName } from './archive-zip.js';
+import { extractZip, listZip, safeArchiveName } from './archive-zip.js';
 import { parseStopLink } from './stop-link.js';
 import { throwIfAborted } from './job-control.js';
 
@@ -8,6 +8,19 @@ const MEDIA = /\.(jpe?g|png|webp|gif|avif|heic|mp4|mov|m4v|webm)$/i;
 const DATA = /\.(json|html?)$/i;
 const isVideo = name => /\.(mp4|mov|m4v|webm)$/i.test(name);
 const fileUrl = file => nodeApi.url.pathToFileURL(file).href;
+function archiveSelection(file, source) {
+  if (source === 'threads') {
+    // Meta's Threads category also contains Likes, own posts and profile data.
+    // Saved mode reads its explicit list, never those unrelated sections/media.
+    const entries = listZip(file);
+    const saved = new Set(entries.filter(entry => /(?:^|\/)saved_threads\.(?:json|html?)$/i.test(entry.name)).map(entry => entry.name));
+    if (saved.size) return name => saved.has(name);
+    if (entries.some(entry => /(?:^|\/)threads\/(?:liked_threads|threads_and_replies|archived_threads|personal_information)\.(?:json|html?)$/i.test(entry.name))) {
+      throw new Error('Архив Threads не содержит список сохранённых публикаций. Выберите saved_threads.json или экспорт с сохранёнными.');
+    }
+  }
+  return name => (MEDIA.test(name) || DATA.test(name)) && !/(?:^|\/)(?:messages|inbox|security|login_and_account_creation)(?:\/|$)/i.test(name);
+}
 export function parseArchiveMetadata(text, extension, source) {
   const groups = [], links = new Map();
   function link(value) {
@@ -72,7 +85,7 @@ export async function readArchive(file, { source = 'instagram', signal, onProgre
   let entries, base;
   try {
     if (extension === '.zip') {
-      entries = await extractZip(file, stagingRoot, { signal, onProgress, accept: name => (MEDIA.test(name) || DATA.test(name)) && !/(?:^|\/)(?:messages|inbox|security|login_and_account_creation)(?:\/|$)/i.test(name) });
+      entries = await extractZip(file, stagingRoot, { signal, onProgress, accept: archiveSelection(file, source) });
       base = stagingRoot;
     } else { base = path.dirname(file); entries = [{ name: path.basename(file), path: file }]; }
     const media = new Map(entries.filter(entry => MEDIA.test(entry.name)).map(entry => [entry.name, entry]));

@@ -53,10 +53,18 @@ test('Threads archive rate limit halts the queue after prior complete posts were
  let calls=0,resolved=0;const links=[1,2,3].map(n=>({publicationId:'Code_'+n,url:'https://threads.com/t/Code_'+n}));
  await assert.rejects(resolveThreadsArchiveLinks(links,{settings:{},onResolved:()=>resolved++},{session,discover:async()=>{calls++;if(calls===2)throw Object.assign(Error('limited'),{code:'THREADS_RATE_LIMIT'});return {posts:[normalizeThreads(item())]};}}),{code:'THREADS_RATE_LIMIT'});assert.equal(calls,2);assert.equal(resolved,1);
 });
+test('Threads archive marks text-only links processed without treating them as unavailable media',async()=>{
+ const processed=[];const r=await resolveThreadsArchiveLinks([{publicationId:'Text_1',url:'https://threads.com/t/Text_1'}],{settings:{},onResolved:(link,posts)=>processed.push([link.publicationId,posts])},{session,discover:async()=>({posts:[],skippedText:1})});
+ assert.deepEqual(r.posts,[]);assert.deepEqual(r.failed,[]);assert.equal(r.skippedText,1);assert.deepEqual(processed,[['Text_1',[]]]);
+});
 test('Threads selected-component download and recovery preserve existing carousel/import contracts',async t=>{
  home(t);const post={...normalizeThreads(item()),selectedComponents:[2]},downloads=[];
  const r=await downloadThreads({posts:[post]},{download:async(url,file)=>{downloads.push(url);fs.writeFileSync(file,'fixture');},validate:async()=>{}});assert.equal(r.results[0].files.length,1);assert.ok(downloads[0].endsWith('/a.mp4'));
  const {normalizeRecoveryState}=await import('../../js/job-recovery.js');const saved=normalizeRecoveryState({jobId:'fixture',phase:'downloaded',posts:[post]}).posts[0];assert.equal(saved.postId,post.postId);assert.deepEqual(saved.selectedComponents,[2]);
+});
+test('Threads HEIC image components remain downloadable in a mixed carousel',async t=>{
+ home(t);const data=item();Object.assign(data.components[0],{extension:'heic',url:'https://scontent.cdninstagram.com/photo.heic'});const post={...normalizeThreads(data),selectedComponents:[1]};
+ const r=await downloadThreads({posts:[post]},{download:async(_url,file)=>fs.writeFileSync(file,'fixture'),validate:async()=>{}});assert.equal(r.results[0].error,null);assert.equal(r.results[0].files.length,1);assert.ok(r.results[0].files[0].endsWith('/1.heic'));
 });
 test('Threads private cookie export is protected before writing and removed after failed requests',async t=>{
  const root=home(t);let file;

@@ -1481,6 +1481,7 @@ async function resolveSelectedArchive() {
         checkpointRecovery('searching', { stagingRoot: archiveData.stagingRoot, archiveLinks: archiveData.links, archiveCollections: archiveData.collections });
       },
     });
+    if(result.skippedText)ui.log.add(`Пропущено публикаций без фото и видео: ${result.skippedText}.`);
     archiveData.links = result.failed;
     presentArchive();
   } catch (error) {

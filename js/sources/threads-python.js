@@ -95,14 +95,13 @@ def discover():
   return {'posts':[post] if post else [],'checked':1,'skippedText':0 if post else 1,'stoppedEarly':False}
  try:
   for conn in pages(feed):
-   fresh=False
    for edge in conn['edges']:
     checkpoint();items=(edge.get('node') or {}).get('thread_items')
     if not isinstance(items,list) or not items:raise Failure('THREADS_RESPONSE')
     raw=items[0].get('post') or {};code=raw.get('code')
     if not isinstance(code,str) or not re.fullmatch(r'[A-Za-z0-9_-]{5,40}',code):raise Failure('THREADS_RESPONSE')
     if code in seen:continue
-    seen.add(code);fresh=True
+    seen.add(code)
     if code==stop or code in known:return finish(True,code==stop)
     checked+=1
     try:
@@ -113,7 +112,8 @@ def discover():
      if str(error)!='THREADS_FORMAT':raise
      failures.append({'code':'THREADS_FORMAT','url':ORIGIN+'/t/'+code})
     if limit and checked>=limit:return finish()
-   if conn['edges'] and not fresh:raise Failure('THREADS_PAGING')
+   # Hydrated HTML may contain more posts than one API page. Follow advancing
+   # cursors through overlaps; pages() still rejects repeated/missing cursors.
  except Failure as error:
   if not posts or str(error) not in {'THREADS_AUTH','THREADS_RATE_LIMIT','THREADS_HTTP','THREADS_PAGING','THREADS_RESPONSE'}:raise
   return finish(interruption={'code':str(error)})
