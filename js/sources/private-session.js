@@ -36,7 +36,7 @@ export async function requestPrivatePython(site,spec,options,run,script,failure)
   }
   nodeApi.fs.writeFileSync(file,JSON.stringify({...spec,cookies:options.cookieFile,control:controlFile,browserReply,speed:options.speedProfile}));verifyPrivateCookieFile(file);
   let buffer='';
-  const result=await run(script,[file],{signal:controller.signal,timeout:spec.operation==='download'||['dribbble','layers','instagram'].includes(site)&&spec.operation==='discover'?3600000:300000,onStdout:chunk=>{
+  const result=await run(script,[file],{signal:controller.signal,timeout:spec.operation==='download'||['dribbble','layers','instagram','threads'].includes(site)&&spec.operation==='discover'?3600000:300000,onStdout:chunk=>{
    buffer+=chunk;const lines=buffer.split('\n');buffer=lines.pop();
    for(const line of lines)try{const data=JSON.parse(line);if(data.event==='progress')options.onProgress?.(data.found,data.ids);
     if(data.event==='browser-page'&&browserReply&&!browserTask){
@@ -59,6 +59,7 @@ export async function requestPrivatePython(site,spec,options,run,script,failure)
   if(result.code||data.error){
    const error=failure(data.error||site.toUpperCase()+'_RESPONSE');
    if(site==='dribbble'&&data.error==='DRIBBBLE_FORMAT'&&Array.isArray(data.failures))error.discoveryFailures=data.failures;
+   if(site==='threads'&&data.error==='THREADS_FORMAT'&&Array.isArray(data.failures))error.discoveryFailures=data.failures;
    throw error;
   }
   return data;

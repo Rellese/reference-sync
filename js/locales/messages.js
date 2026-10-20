@@ -3,6 +3,7 @@ import { vimeoMessages } from './vimeo.js';
 import { xMessages } from './x.js';
 import { dribbbleMessages } from './dribbble.js';
 import { layersMessages } from './layers.js';
+import { threadsMessages } from './threads.js';
 // Columns: Russian source, English, French, Spanish, Simplified Chinese.
 export const messages = [
   ["Компонент {0}: {1}", "Component {0}: {1}", "Élément {0} : {1}", "Componente {0}: {1}", "组件 {0}：{1}"],
@@ -42,6 +43,7 @@ export const messages = [
   ...xMessages,
   ...dribbbleMessages,
   ...layersMessages,
+  ...threadsMessages,
   ["Скачать кейс целиком", "Download the whole case", "Télécharger le projet complet", "Descargar el proyecto completo", "下载完整项目"],
   ["Скачать каждый блок отдельно", "Download blocks separately", "Télécharger les blocs séparément", "Descargar los bloques por separado", "分别下载各内容块"],
   ["Для просмотра .rscase нужен отдельный плагин Eagle.", "Viewing .rscase requires a separate Eagle plugin.", "Un plugin Eagle distinct est nécessaire pour afficher les fichiers .rscase.", "Para ver .rscase se necesita un complemento de Eagle independiente.", "查看 .rscase 需要单独的 Eagle 插件。"],

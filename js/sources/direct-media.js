@@ -42,9 +42,10 @@ export async function downloadDirectMedia(options,{code,title,target:parseTarget
      throwIfAborted(options.signal);
      if(isDiskFull(error)||error.code==='DISK_SPACE_LOW')throw diskSpaceError();
      if(['JOB_STOPPED','STOPPED'].includes(error.code))throw error;
+     if([code.toUpperCase()+'_RATE_LIMIT',code.toUpperCase()+'_NETWORK',code.toUpperCase()+'_SESSION_INVALID'].includes(error.code))throw error;
      if(/HTTP 429/.test(error.message))throw failure(code.toUpperCase()+'_RATE_LIMIT');
      if(/MEDIA_TIMEOUT|ECONNRESET|ENOTFOUND|EAI_AGAIN|ENETUNREACH|ECONNREFUSED/.test(error.message+' '+error.code))throw failure(code.toUpperCase()+'_NETWORK');
-     const reason=directMediaErrorReason(error,stage);
+     const reason=error.code===code.toUpperCase()+'_FORMAT'?failure(error.code).message:directMediaErrorReason(error,stage);
      options.onLog?.(`Компонент ${component.index}: ${reason}`);
      entry.error=`Не удалось скачать компонент ${title}. ${reason} Повторите загрузку публикации.`;
      entry.issue={unavailable:false,detail:entry.error,label:'Ошибка загрузки — можно повторить'};

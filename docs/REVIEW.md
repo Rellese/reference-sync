@@ -1,4 +1,35 @@
-# Review notes — ReferenceSync 1.5.5
+# Review notes — ReferenceSync 1.6.0
+
+## Threads candidate (M6-T29, 1.6.0)
+
+Eighth source with the owner's SVG from commit 173f352. Saved and Likes use
+separate connections owned by the selected Threads browser session. HTTPS
+post links on threads.com and threads.net resolve a single post, not replies
+or subsequent posts in its conversation. No manual account field, extension,
+API token, separate dependency or invented folder selection is required.
+
+Read-only page JSON supplies posts, the verified viewer and pagination variables.
+Only the matching Saved/Liked RefetchableQuery ID is read from public static
+bundles without cookies or JavaScript execution. API calls are HTTPS and do
+not follow POST redirects. Source cookies are restricted to Threads domains;
+private snapshots reuse the existing protected creation/verification/cleanup.
+Tokens stay inside Python. Selected normalized metadata is returned; responses,
+tokens, cookie contents and signed-URL error messages are not logged.
+Media downloads use only Meta CDN HTTPS URLs, without browser cookies.
+
+Photo/video/mixed carousel order and completeness, smart/full/recent, known/Stop
+boundaries, cancellation, private files, link/archive routing, selected-component
+download, recovery and cross-feed IDs have synthetic regression coverage.
+781/781 tests passed. Production Python with the selected Chrome Profile 1
+returned two real Saved posts. Live continuation was independently checked
+with the site's own Saved query. Isolated production UI checks covered the
+eighth icon and all five languages plus Saved/Link/Likes/Archive.
+
+Pending: full production discovery/download inside Eagle, a real mixed carousel,
+actual library import for Threads, other browsers/Windows and the installed
+.eagleplugin. Meta's export dialog exists, but no real archive was prepared.
+Synthetic archive reading does not prove that Meta includes Saved/Likes. The current build is
+a review candidate and must not be represented as fully live-tested or approved.
 
 ## Browser account without manual login (M3-T11, 1.5.5)
 

@@ -153,7 +153,7 @@ export function buildTitlebar({ onClose }) {
 /* ============================================================
    1 блок — шапка
    ============================================================ */
-export function buildHeader({ version = 'v1.5.5', onLanguage }) {
+export function buildHeader({ version = 'v1.6.0', onLanguage }) {
   const root = el('div', 'rs-header');
 
   const left = el('div', 'rs-header__left');
@@ -273,7 +273,7 @@ export function buildSettings({ onChange, onFolderSearch, onArchive, onArchiveRe
   }});
   const downloadChoices = el('div', 'rs-step__group');
   for (const [value, tip] of [
-    ['saved', 'Скачайте **публикации, которые вы сохранили в своём аккаунте**. Выберите браузер с выполненным входом. Для Instagram и Pinterest также укажите свой никнейм.'],
+    ['saved', 'Скачайте **публикации, которые вы сохранили в своём аккаунте**. Выберите браузер и профиль с выполненным входом.'],
     ['link', 'Скачайте **публикацию или публикации профиля** по ссылке. Выберите соответствующую социальную сеть.'],
     ['liked', 'Скачайте **публикации, которым вы поставили отметку «Нравится»** в выбранной соцсети. В Behance это Appreciations. Используется аккаунт выбранного браузера.'],
   ]) {
@@ -287,7 +287,8 @@ export function buildSettings({ onChange, onFolderSearch, onArchive, onArchiveRe
     setSetting('sourceUrl', value.trim()); linkField.set(value.trim()); onChange?.('sourceUrl', value.trim());
   }});
   linkField.input.id = 'source-link-input';
-  linkRow.append(el('div', 'rs-field-label', L('Ссылка на пост/профиль')), linkField.node);
+  const linkLabel = el('div', 'rs-field-label', L('Ссылка на пост/профиль'));
+  linkRow.append(linkLabel, linkField.node);
 
   /* ---------- Шаг 1: выбор источника ---------- */
   const step1 = el('div', 'rs-step');
@@ -723,10 +724,12 @@ export function buildSettings({ onChange, onFolderSearch, onArchive, onArchiveRe
       if (byLink) setText(browserHint, L('Браузер нужен для публикаций, доступных после входа. Никнейм владельца ссылки не требуется.'));
       linkRow.style.display = byLink ? '' : 'none';
       linkField.set(next.sourceUrl || '');
+      setText(linkLabel,L(next.platform==='threads'?'Ссылка на публикацию Threads':'Ссылка на пост/профиль'));
+      setLocalizedProperty(linkField.input,'placeholder',L(next.platform==='threads'?'https://www.threads.com/@user/post/…':'Ссылка на пост/профиль'));
       sourceList.style.display = browserOnly ? 'none' : '';
       step2.style.display = byLink ? 'none' : '';
       searchDivider.style.display = byLink ? 'none' : '';
-      folderRow.style.display = liked||next.platform === 'behance' ? 'none' : '';
+      folderRow.style.display = liked||next.platform === 'behance'||next.platform === 'threads' ? 'none' : '';
       sourceGroup.set(next.source);
       setUiText(sourceGroup.rowOf('meta').querySelector('.rs-radio-row__label'), 'Из архива');
 
@@ -809,6 +812,7 @@ export function buildSettings({ onChange, onFolderSearch, onArchive, onArchiveRe
       else if (state.settings.platform === 'layers') bindTextRender(browserHint, 'profile-hint', L('Без выбора папок Layers ищет во всех ваших сохранённых коллекциях. Лайки не включаются. Лимит N общий; с выбором папок — N в каждой.'), (node, value) => { node.textContent = value; });
       else if (state.settings.platform === 'dribbble') bindTextRender(browserHint, 'profile-hint', L('Без поиска по папкам загружаются все сохранённые коллекции Dribbble. Лимит N общий, в порядке коллекций; с выбором папок — N в каждой.'), (node, value) => { node.textContent = value; });
       else if (state.settings.platform === 'x') setText(browserHint, L('Без поиска по папкам загружаются все закладки X. Папки закладок требуют X Premium.'));
+      else if (state.settings.platform === 'threads') setText(browserHint, L('Threads ищет в ваших сохранённых публикациях. Лайки доступны отдельно. Папки не используются; текст без фото и видео пропускается.'));
     },
     setBrowserProfiles(profiles, selectedId) {
       const list = Array.isArray(profiles) ? profiles : [];

@@ -6,10 +6,12 @@ import { browserCookieSpec, parseJsonStream, collectPostRecords, buildPostRecord
 import { parseDumpJson } from './sources/gallery-source.js';
 import pinterest from './sources/pinterest.js';
 import { parseStopLink } from './stop-link.js';
+import {resolveThreadsArchiveLinks} from './sources/threads-archive.js';
 
 export async function resolveArchiveLinks(links, { settings, signal, onProgress, onResolved, run = runGallery }) {
   const posts = [], failed = [];
   const unique = [...new Map(links.map(link => [link.publicationId, {...link,url:archiveHttpsUrl(link.url,settings.platform)}])).values()];
+  if(settings.platform==='threads')return resolveThreadsArchiveLinks(unique,{settings,signal,onProgress,onResolved});
   const pause = settings.speed === 'lightning' ? '0' : settings.speed === 'balanced' ? '1-2' : '3-5';
   // Reuse one process/browser session for up to 20 publications. Requests stay
   // sequential and retain the selected pacing; successful batches are checkpointed.

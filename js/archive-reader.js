@@ -11,7 +11,7 @@ const fileUrl = file => nodeApi.url.pathToFileURL(file).href;
 export function parseArchiveMetadata(text, extension, source) {
   const groups = [], links = new Map();
   function link(value) {
-    if (typeof value !== 'string' || !/^(?:https?:\/\/)?(?:[\w-]+\.)*(?:instagram|pinterest)\.com\//i.test(value.trim())) return;
+    if (typeof value !== 'string' || !/^(?:https?:\/\/)?(?:[\w-]+\.)*(?:(?:instagram|pinterest)\.com|threads\.(?:com|net))\//i.test(value.trim())) return;
     let secure;try { secure=archiveHttpsUrl(value,source); } catch { return; }
     const parsed = parseStopLink(secure, source);
     if (parsed.ok) links.set(parsed.publicationId, parsed);
@@ -40,12 +40,17 @@ export function parseArchiveMetadata(text, extension, source) {
       } else if (typeof value.uri === 'string' && MEDIA.test(value.uri)) {
         groups.push({ paths: [value.uri], title: value.title || '', description: value.title || '' });
       }
+      const children=[];
       for (const [key, child] of Object.entries(value)) {
         // Session/password exports and private message transcripts are not publications.
         if (/password|cookie|token|messages|inbox/i.test(key)) continue;
         if (typeof child === 'string') link(child);
-        else if (child && typeof child === 'object') queue.push({ value: child, depth: depth + 1 });
+        else if (child && typeof child === 'object') {
+          const next={ value: child, depth: depth + 1 };
+          if(source==='threads')children.push(next);else queue.push(next);
+        }
       }
+      for(const child of children.reverse())queue.push(child);
     }
   }
   return { groups, links: [...links.values()] };

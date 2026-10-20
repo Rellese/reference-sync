@@ -2,6 +2,7 @@ import {vimeoTarget} from './sources/vimeo-target.js';
 import {xTarget} from './sources/x-target.js';
 import {dribbbleTarget} from './sources/dribbble-target.js';
 import {layersTarget} from './sources/layers-target.js';
+import {threadsTarget} from './sources/threads-target.js';
 import {getSource} from './sources/registry.js';
 // Strict selected-platform routing; never pass arbitrary URLs to the engine.
 const rules = {
@@ -16,6 +17,7 @@ export function validateSourceLink(platform, input) {
   if(platform==='x')return xTarget(input).url;
   if(platform==='dribbble')return dribbbleTarget(input).url;
   if(platform==='layers')return layersTarget(input).url;
+  if(platform==='threads')return threadsTarget(input).url;
   let url;
   try { url = new URL(String(input || '').trim()); } catch { /* rejected below */ }
   const rule = rules[platform];
@@ -33,9 +35,9 @@ export function searchSettings(settings) {
     if(!getSource(settings.platform).discoverLiked)throw Error('Поиск понравившихся публикаций недоступен для этой сети.');
     return {...settings,source:'browser',targetUrl:'',username:'',folderSearch:false};
   }
-  return {...settings, source:['behance','vimeo','x','dribbble','layers'].includes(settings.platform) ? 'browser' : settings.source, folderSearch:settings.platform === 'behance' || settings.folderSearch};
+  return {...settings, source:['behance','vimeo','x','dribbble','layers'].includes(settings.platform) ? 'browser' : settings.source, folderSearch:settings.platform === 'threads'?false:settings.platform === 'behance' || settings.folderSearch};
 }
-export const effectiveFolderSearch=settings=>settings.downloadMode!=='link'&&settings.downloadMode!=='liked'&&(settings.platform==='behance'||settings.folderSearch===true);
+export const effectiveFolderSearch=settings=>settings.platform!=='threads'&&settings.downloadMode!=='link'&&settings.downloadMode!=='liked'&&(settings.platform==='behance'||settings.folderSearch===true);
 
 export function sourceLinkTarget(platform, input) {
   const url = new URL(validateSourceLink(platform, input));

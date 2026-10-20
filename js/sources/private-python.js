@@ -6,7 +6,7 @@ class Silent:
  def __getattr__(self,name):return lambda *args,**kwargs:None
 try:
  site=sys.argv[4] if len(sys.argv)>4 else 'vimeo'
- domains={'vimeo':('vimeo.com',),'x':('x.com','twitter.com'),'dribbble':('dribbble.com',),'layers':('layers.to',),'instagram':('instagram.com',)}[site]
+ domains={'vimeo':('vimeo.com',),'x':('x.com','twitter.com'),'dribbble':('dribbble.com',),'layers':('layers.to',),'instagram':('instagram.com',),'threads':('threads.com','threads.net')}[site]
  browser,sep,profile=sys.argv[2].partition(':')
  if browser=='file':
   source=http.cookiejar.MozillaCookieJar(sys.argv[3]);source.load(ignore_discard=True,ignore_expires=True)

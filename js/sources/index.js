@@ -18,8 +18,9 @@ import dribbble from './dribbble.js';
 import vimeo from './vimeo.js';
 import x from './x.js';
 import layers from './layers.js';
+import threads from './threads.js';
 
-const ALL = [instagram, pinterest, behance, vimeo, x, dribbble, layers];
+const ALL = [instagram, pinterest, behance, vimeo, x, dribbble, layers, threads];
 
 let installed = false;
 

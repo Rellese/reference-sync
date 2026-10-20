@@ -8,6 +8,7 @@ export function directMediaErrorReason(error,stage){
   MEDIA_INVALID_CONTENT:'Вместо медиа сервер вернул страницу или JSON.',
   MEDIA_INCOMPLETE:'Сервер вернул неполный файл.',
   LAYERS_MEDIA_URL:'Сайт вернул неподдерживаемый адрес медиа.',
+  THREADS_MEDIA_URL:'Сайт вернул неподдерживаемый адрес медиа.',
   DRIBBBLE_MEDIA_URL:'Сайт вернул неподдерживаемый адрес медиа.',
   X_MEDIA_URL:'Сайт вернул неподдерживаемый адрес медиа.'};
  if(Object.prototype.hasOwnProperty.call(reasons,error?.message))return reasons[error.message];

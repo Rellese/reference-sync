@@ -1189,7 +1189,7 @@ const profileSession = createProfileSessionController({
 });
 
 function refreshProfileSession() {
-  if (state.settings.source === 'browser' || ['behance','vimeo','x','dribbble','layers'].includes(state.settings.platform)) profileSession.refresh(state.settings);
+  if (state.settings.source === 'browser' || ['behance','vimeo','x','dribbble','layers','threads'].includes(state.settings.platform)) profileSession.refresh(state.settings);
 }
 
 async function requireInstagramSession(settings, signal) {
@@ -1444,7 +1444,7 @@ function presentArchive() {
 async function readSelectedArchive(file) {
   if (phase === 'searching' || phase === 'importing') return;
   const source = state.settings.platform;
-  if (!['instagram', 'pinterest'].includes(source)) { ui.status.set('Архив недоступен', 'Выберите Instagram или Pinterest'); return; }
+  if (!getSource(source).sourceModes.includes('archive')) { ui.status.set('Архив недоступен', getSource(source).title); return; }
   let filePath = file?.path;
   try { if (!filePath) filePath = window.require?.('electron')?.webUtils?.getPathForFile(file); } catch {}
   if (!filePath) { ui.status.set('Не удалось открыть файл', 'Чтение архивов доступно внутри Eagle'); return; }
@@ -2237,7 +2237,7 @@ async function runImport() {
   if (!onlyLocalArchive && !await ensureToolchain()) return;
   const requiresVideoEngine = ['pinterest', 'behance', 'vimeo'].includes(s.platform) && chosen.some(post => !post.archiveLocal &&
     post.components?.some(component => component.mediaType === 'video') && (s.platform !== 'pinterest' || !pinterestDownloadPlan(post).length));
-  const hasVideo = ['pinterest', 'behance', 'vimeo', 'x', 'dribbble', 'layers'].includes(s.platform) && chosen.some(post => !post.archiveLocal && post.components?.some(component => component.mediaType === 'video'));
+  const hasVideo = ['pinterest', 'behance', 'vimeo', 'x', 'dribbble', 'layers', 'threads'].includes(s.platform) && chosen.some(post => !post.archiveLocal && post.components?.some(component => component.mediaType === 'video'));
   if (hasVideo && !await hasVideoDownloader({ requireHls: requiresVideoEngine, requireBrowserCompatibility: s.platform === 'behance' })) {
     ui.results.engine.setState('error', 'Нужно обновить видеокомпонент', { button: 'Скачать', detail: 'Будут загружены gallery-dl, yt-dlp, FFmpeg и компонент совместимости с браузерами из PyPI.' });
     ui.status.set('Нужно обновить видеокомпонент', 'Нажмите «Скачать», затем повторите импорт.');
@@ -2331,7 +2331,7 @@ async function runImport() {
       ...(s.platform==='behance'&&!isArchiveImport ? {
         beforePost:(post,root,signal)=>guardCaseDownload(root,signal),
         beforePack:guardCasePackaging,onPackReady:rememberDownload,
-      } : ['vimeo','x','dribbble','layers'].includes(s.platform)&&!isArchiveImport ? {
+      } : ['vimeo','x','dribbble','layers','threads'].includes(s.platform)&&!isArchiveImport ? {
         beforePost:(post,root,signal)=>guardCaseDownload(root,signal),
       } : {}),
       stagingRoot: recoveryState?.stagingRoot || '',
@@ -2613,7 +2613,7 @@ async function runImport() {
     }
 
     ui.status.set('Импорт в Eagle…', `0 из ${items.length}`, true);
-    if(['behance','vimeo','x','dribbble','layers'].includes(s.platform)&&!isArchiveImport)await guardEagleBatch(items,state.abortController.signal);
+    if(['behance','vimeo','x','dribbble','layers','threads'].includes(s.platform)&&!isArchiveImport)await guardEagleBatch(items,state.abortController.signal);
 
     const knownBeforeImport = new Set(state.knownPostIds);
     const {
