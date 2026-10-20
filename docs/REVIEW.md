@@ -1,4 +1,4 @@
-# Review notes — ReferenceSync 1.6.0
+# Review notes — ReferenceSync 1.6.1
 
 ## Threads candidate (M6-T29, 1.6.0)
 
