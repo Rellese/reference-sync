@@ -1,4 +1,4 @@
-# Managed Python — ReferenceSync 1.0.2
+# Managed Python — ReferenceSync 1.0.0
 
 Only the explicit Prepare engine button may download Python. Startup detection
 never installs it, including through Windows Python Install Manager.

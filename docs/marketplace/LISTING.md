@@ -1,27 +1,32 @@
-# ReferenceSync — store fields
+# ReferenceSync 1.0.0 — store fields
 
-No website changes were made. The English draft inspected on 2026-10-05 still claims Python installation and lists 1.0.0; local candidate is 1.0.2. The Chinese host returned HTTP 520, so its saved draft was not verified.
+Prepared 2026-10-21. These are local submission texts. The live draft could not
+be inspected because the browser redirected to the signed-out homepage.
+Replace both introductions and check both rendered locales before submission.
 
 ## English
 
 Name: ReferenceSync
 
-Description: Import Instagram, Pinterest and Behance references into Eagle with media selection, custom naming, source links and duplicate protection.
+Description: Import saved references from eight social platforms into Eagle with media selection, custom names, source links and duplicate protection.
 
 Introduction: INTRODUCTION-EN.md.
 
-Changelog: Added explicit one-button Python and dependency preparation without system Python or PATH changes, with pinned downloads and cancellation. Added Behance project import and improved embedded video handling. Protected temporary cookies before export, enforced HTTPS for authenticated archive links, and clarified Python setup. Grouped available sources and fixed cancellation during engine preparation.
+Changelog: Initial release. Import saved or liked references and publication links from supported platforms, select media, customize names and descriptions, and prepare Python and download dependencies with one button.
 
 ## 简体中文
 
 名称：ReferenceSync
 
-描述：将 Instagram、Pinterest 和 Behance 参考素材导入 Eagle，支持媒体选择、自定义名称、来源链接和重复导入保护。
+描述：将八个社交平台的已保存参考素材导入 Eagle，支持媒体选择、自定义名称、来源链接和重复导入保护。
 
 介绍：INTRODUCTION-ZH-CN.md。
 
-更新日志：新增一键 Python 与依赖准备，固定下载校验并支持取消，不修改系统 Python 或 PATH。新增 Behance 项目导入并改进内嵌视频处理。导出前保护临时 Cookie，身份验证归档链接强制使用 HTTPS，并明确 Python 安装要求。将可用来源排列在一起，修复下载引擎准备过程的取消处理。
+更新日志：首次发布。导入支持平台的收藏、点赞和帖子链接，选择媒体、自定义名称和描述，并一键准备 Python 与下载依赖。
 
 ## Submission
 
-Upload the actual current Eagle-generated package; replace both introductions and covers. Verify each rendered locale separately. Provide dedicated test credentials only through private review fields, never inside the package. The edit page may require a new package upload before exposing locale fields.
+Upload the Eagle-generated 1.0.0 package. Use current readable localized covers;
+check the selected source and Add to Eagle action at marketplace-card size.
+Supply dedicated test credentials only through private review fields, never in
+the package. See ../RELEASE.md and ../REVIEW.md for verification requirements.
