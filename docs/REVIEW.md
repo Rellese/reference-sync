@@ -1,7 +1,9 @@
-# Review notes — ReferenceSync 1.0.0
+# Review notes — ReferenceSync development 1.6.1
 
-Prepared 2026-10-21. Version 1.0.0 replaces development 1.6.1 for the first public
-submission; implemented features have not been rolled back.
+Updated 2026-10-22: this full development repository keeps version 1.6.1,
+STATUS, tests and development instructions. Only the separate local submission
+folder uses 1.0.0. Preparing it must not renumber or prune the Git project.
+The existing local 1.0.0 folder remains frozen at its verified source commit.
 
 ## Purpose and setup
 
