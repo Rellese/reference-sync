@@ -539,3 +539,20 @@ test('Pinterest keeps equally named sections from different boards', () => {
     ['section-a', 'section-b'],
   );
 });
+
+
+test('Pinterest stories exclude text/audio, deduplicate repeated messages and retain source numbers', async () => {
+  const { selectedDownloadedFiles } = await import('../../js/carousel-selection.js');
+  const record = (num, extension, url) => [3, url, { id: '123', num, extension }];
+  const messages = [
+    record(1, 'txt', 'text:paragraph'), record(2, 'jpg', 'https://cdn.example/2.jpg'),
+    record(3, 'mp3', 'https://cdn.example/3.mp3'), record(4, 'mp4', 'ytdl:https://cdn.example/4.m3u8'),
+    record(2, 'jpg', 'https://cdn.example/2.jpg'),
+  ];
+  const posts = pinterestSource.assemble(parseDumpJson(JSON.stringify(messages)), { target: { id: 'board', name: 'Board' }, accountUsername: 'fixture' });
+  assert.equal(posts.length, 1);
+  assert.equal(posts[0].componentCount, 2);
+  assert.deepEqual(posts[0].selectedComponents, [2, 4]);
+  assert.deepEqual(selectedDownloadedFiles({ post: posts[0], files: ['/tmp/2.jpg', '/tmp/4.mp4'] }).map(item => item.componentIndex), [0, 1]);
+  assert.deepEqual(pinterestSource.assemble(parseDumpJson(JSON.stringify([messages[0], messages[2]])), { target: { id: 'board' } }), []);
+});

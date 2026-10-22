@@ -1,0 +1,30 @@
+import test from 'node:test';import assert from 'node:assert/strict';
+import fs from 'node:fs';import path from 'node:path';import os from 'node:os';import crypto from 'node:crypto';import {createRequire} from 'node:module';
+import {nodeApi} from '../../js/node-bridge.js';import {writeCaseZip} from '../../js/case/zip-writer.js';
+const require=createRequire(import.meta.url),{openCase}=require('../../plugins/reference-canvas/lib/case.js');
+const thumbnail=require('../../plugins/reference-canvas/thumbnail/rscase.js');
+function setup(t){const root=fs.mkdtempSync(path.join(os.tmpdir(),'canvas-test-')),old={...nodeApi};Object.assign(nodeApi,{fs,path,crypto,Buffer});t.after(()=>{Object.assign(nodeApi,old);fs.rmSync(root,{recursive:true,force:true});});return root;}
+const manifest=()=>({format:'reference-sync-case',version:1,canvasWidth:1400,source:{title:'Case'},cover:'assets/1.png',blocks:[{id:'a',position:0,kind:'image',status:'local',asset:'assets/1.png',links:[]},{id:'b',position:1,kind:'text',status:'text',text:'<script>literal</script>',links:[{url:'javascript:bad()'},{url:'https://example.test',text:'Link'}]}]});
+async function archive(root,doc=manifest()){const file=path.join(root,crypto.randomBytes(4).toString('hex')+'.rscase');await writeCaseZip(file,[{name:'manifest.json',data:JSON.stringify(doc)},{name:'assets/1.png',data:fs.readFileSync(new URL('../../plugins/reference-canvas/assets/logo.png',import.meta.url))}]);return file;}
+test('ReferenceCanvas reads producer ZIP, extracts local media and cleans its temporary directory',async t=>{const root=setup(t),file=await archive(root),opened=await openCase(file);assert.equal(opened.manifest.blocks[1].text,'<script>literal</script>');assert.equal(opened.manifest.blocks[1].links.length,1);assert.match(opened.assets.get('assets/1.png').url,/^file:/);assert.ok(fs.existsSync(opened.root));opened.dispose();assert.equal(fs.existsSync(opened.root),false);assert.ok(fs.existsSync(file));});
+test('ReferenceCanvas rejects invalid versions, remote assets and manifest traversal',async t=>{const root=setup(t);for(const mutate of [d=>d.version=9,d=>d.blocks[0].asset='../outside.png',d=>d.blocks[0].asset='https://example.test/1.png',d=>d.blocks[1].id='a',d=>d.blocks[0].kind='text']){const doc=manifest();mutate(doc);await assert.rejects(openCase(await archive(root,doc)));}});
+test('ReferenceCanvas rejects CRC damage and cancellation',async t=>{const root=setup(t),file=await archive(root);const data=fs.readFileSync(file);const index=data.indexOf(Buffer.from('Case'));data[index]=88;fs.writeFileSync(file,data);await assert.rejects(openCase(file),/INVALID_CASE/);const signal=AbortSignal.abort();await assert.rejects(openCase(await archive(root),{signal}),/CANCELLED/);});
+test('thumbnail entry point produces PNG and returns Eagle dimensions',async t=>{const root=setup(t),file=await archive(root),dest=path.join(root,'thumb.png');const item=await thumbnail({src:file,dest,item:{id:'fixture'}});assert.equal(fs.readFileSync(dest).subarray(1,4).toString(),'PNG');assert.ok(item.width>0&&item.height>0);});
+
+test('lazy case opens without extracting assets and deduplicates requested media',async t=>{
+ const root=setup(t),opened=await openCase(await archive(root),{lazy:true});
+ assert.deepEqual(fs.readdirSync(opened.root),[]);assert.equal(opened.assets.size,0);
+ const [a,b]=await Promise.all([opened.loadAsset('assets/1.png'),opened.loadAsset('assets/1.png')]);
+ assert.equal(a.path,b.path);assert.equal(opened.assets.size,1);
+ await assert.rejects(opened.loadAsset('../other'),/INVALID_CASE/);
+ opened.dispose();assert.equal(fs.existsSync(opened.root),false);
+ await assert.rejects(opened.loadAsset('assets/1.png'),/CANCELLED/);
+});
+
+test('lazy case cancels queued extraction and cleans temporary media',async t=>{
+ const root=setup(t),opened=await openCase(await archive(root),{lazy:true});
+ const pending=opened.loadAsset('assets/1.png');opened.dispose();
+ await assert.rejects(pending,/CANCELLED/);
+ await new Promise(resolve=>setImmediate(resolve));
+ assert.equal(fs.existsSync(opened.root),false);
+});

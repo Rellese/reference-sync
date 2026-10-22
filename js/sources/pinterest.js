@@ -9,6 +9,7 @@ import { createGallerySource } from './gallery-source.js';
 
 import {
   listPinterestContainers,
+  verifyPinterestSession,
 } from './pinterest-containers.js';
 
 function clean(value) {
@@ -164,6 +165,7 @@ export function buildPinterestTargets({
 }
 
 const pinterestSource = createGallerySource({
+  sourceModes: ['browser', 'archive'],
   code: 'pinterest',
   title: 'Pinterest',
   icon: 'pinterest',
@@ -217,6 +219,7 @@ const pinterestSource = createGallerySource({
 
 export default {
   ...pinterestSource,
+  probe: options => verifyPinterestSession(options),
 
   listContainers: (options) =>
     listPinterestContainers(options),
