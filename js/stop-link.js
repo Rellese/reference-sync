@@ -10,6 +10,11 @@
    добавляется к введённому значению автоматически.
    ============================================================ */
 
+import {vimeoTarget} from './sources/vimeo-target.js';
+import {xTarget} from './sources/x-target.js';
+import {dribbbleTarget} from './sources/dribbble-target.js';
+import {layersTarget} from './sources/layers-target.js';
+import {threadsTarget} from './sources/threads-target.js';
 function clean(value) {
   return String(value ?? '').trim();
 }
@@ -26,6 +31,8 @@ function isHostOrSubdomain(hostname, domain) {
 }
 
 const SOURCE_RULES = [
+  {code:'threads',placeholderPrefix:'https://www.threads.com/@user/post/',matchesHost:hostname=>['threads.com','www.threads.com','threads.net','www.threads.net'].includes(hostname),extractId:pathname=>pathname.match(/^\/(?:@[A-Za-z0-9_.]{1,80}\/post|t)\/([A-Za-z0-9_-]{5,40})\/?$/)?.[1]||''},
+  {code:'layers',placeholderPrefix:'https://layers.to/layers/',matchesHost:hostname=>['layers.to','www.layers.to'].includes(hostname),extractId:pathname=>pathname.match(/^\/layers\/([a-z0-9]{10,40})(?:-[^/]+)?\/?$/)?.[1]||''},
   {
     code: 'instagram',
     placeholderPrefix: 'https://www.instagram.com/p/',
@@ -56,7 +63,7 @@ const SOURCE_RULES = [
     code: 'dribbble',
     placeholderPrefix: 'https://dribbble.com/shots/',
     matchesHost: (hostname) =>
-      isHostOrSubdomain(hostname, 'dribbble.com'),
+      ['dribbble.com','www.dribbble.com'].includes(hostname),
     extractId: (pathname) => {
       const match = pathname.match(
         /^\/shots\/(\d+)(?:[-/]|$)/i,
@@ -82,27 +89,19 @@ const SOURCE_RULES = [
     code: 'vimeo',
     placeholderPrefix: 'https://vimeo.com/',
     matchesHost: (hostname) =>
-      isHostOrSubdomain(hostname, 'vimeo.com'),
+      ['vimeo.com','www.vimeo.com','player.vimeo.com'].includes(hostname),
     extractId: (pathname) => {
-      const parts = pathname
-        .split('/')
-        .map(normalizeId)
-        .filter(Boolean);
-
-      return [...parts]
-        .reverse()
-        .find((part) => /^\d+$/.test(part)) || '';
+      return pathname.match(/^\/(?:video\/|channels\/[\w-]+\/|groups\/[\w-]+\/videos\/|showcase\/\d+\/video\/)?(\d+)(?:\/[a-f0-9]{10})?\/?$/i)?.[1] || '';
     },
   },
   {
     code: 'x',
     placeholderPrefix: 'https://x.com/user/status/',
     matchesHost: (hostname) =>
-      isHostOrSubdomain(hostname, 'x.com') ||
-      isHostOrSubdomain(hostname, 'twitter.com'),
+      ['x.com','www.x.com','mobile.x.com','twitter.com','www.twitter.com','mobile.twitter.com'].includes(hostname),
     extractId: (pathname) => {
       const match = pathname.match(
-        /^\/[^/]+\/status\/(\d+)(?:\/|$)/i,
+        /^\/(?:[A-Za-z0-9_]{1,15}\/status|i\/web\/status)\/(\d+)\/?$/i,
       );
 
       return match ? match[1] : '';
@@ -178,6 +177,15 @@ export function parseStopLink(
   const expectedCode = clean(
     expectedSourceCode,
   ).toLowerCase();
+
+  if(rule.code==='threads'){
+    try{threadsTarget(originalUrl);}catch{return {ok:false,code:'invalid_publication_url',sourceCode:rule.code,message:'Вставьте ссылку непосредственно на публикацию.'};}
+  }
+
+  if(['vimeo','x','dribbble','layers'].includes(rule.code)){
+    try{if(rule.code==='vimeo'&&vimeoTarget(originalUrl).type!=='VIDEO')throw Error();if(rule.code==='x')xTarget(originalUrl);if(rule.code==='dribbble'&&dribbbleTarget(originalUrl).type!=='POST')throw Error();if(rule.code==='layers'&&layersTarget(originalUrl).type!=='POST')throw Error();}
+    catch{return {ok:false,code:'invalid_publication_url',sourceCode:rule.code,message:'Вставьте ссылку непосредственно на публикацию.'};}
+  }
 
   if (expectedCode && rule.code !== expectedCode) {
     return {

@@ -120,6 +120,8 @@ function validate(descriptor) {
     sourceModes: modes,
     needsAccount: descriptor.needsAccount !== false,
     needsBrowser: descriptor.needsBrowser !== false,
+    videoOnly: descriptor.videoOnly === true,
+    singleMediaOnly: descriptor.singleMediaOnly === true,
     defaultTags: Array.from(new Set(
       (descriptor.defaultTags || [title]).map((v) => String(v).trim())
         .filter(Boolean),
@@ -134,6 +136,7 @@ function validate(descriptor) {
 
     /* Методы */
     discover: descriptor.discover || null,
+    discoverLiked: typeof descriptor.discoverLiked==='function'?descriptor.discoverLiked:null,
     download: descriptor.download || null,
     listContainers: descriptor.listContainers || null,
     probe: descriptor.probe || null,

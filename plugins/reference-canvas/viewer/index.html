@@ -1,0 +1,9 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' file: data:; media-src 'self' file:; connect-src 'none'; object-src 'none'; frame-src 'none'; base-uri 'none'">
+<title>ReferenceCanvas</title><link rel="stylesheet" href="style.css"></head>
+<body><header><span id="title"></span><nav><input id="zoom-range" type="range" min="0" max="100" step="1" aria-label="Zoom"><button id="fit" title="Fit"><output id="zoom">100%</output></button></nav></header>
+<p id="status" role="status"></p><main id="viewport" tabindex="0"><div id="surface"><article id="canvas"></article></div></main>
+<div id="minimap" hidden><canvas width="240" height="240"></canvas><div id="map-view"></div></div>
+<div class="scrollbar vertical" hidden><button tabindex="-1"></button></div><div class="scrollbar horizontal" hidden><button tabindex="-1"></button></div>
+<script src="theme.js"></script><script src="navigation.js"></script><script src="render.js"></script><script src="boot.js"></script></body></html>

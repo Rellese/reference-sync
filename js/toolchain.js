@@ -1,3 +1,7 @@
+import {requireAuthenticatedHttps} from './authenticated-links.js';
+import {findFFmpegPair} from './ffmpeg-tools.js';
+import {throwIfAborted} from './job-control.js';
+import {findManagedPython,installManagedPython} from './managed-python.js';
 /* ============================================================
    ReferenceSync — toolchain: поиск и автоматическая установка
    движка добычи данных (gallery-dl).
@@ -18,9 +22,11 @@
      5. python -m gallery_dl — модуль может быть установлен без
         консольного скрипта в PATH
      6. Установка одной кнопкой: pip install --target в приватную
-        папку плагина. Системный Python не трогается, sudo не нужно.
+        папку плагина. При отсутствии Python явная кнопка подготовки
+        скачивает закреплённый переносимый Python в отдельную папку.
+        При отсутствии pip используется отдельный Python плагина; системный Python не меняется.
 
-   Ничего не требует от пользователя, кроме нажатия кнопки.
+   Проверка ничего не устанавливает. Подготовка требует нажатия кнопки.
    ============================================================ */
 
 import { nodeApi, runCommand, ensureDir, workRoot, readJson, writeJson } from './node-bridge.js';
@@ -35,6 +41,8 @@ const MIN_VERSION = [1, 26, 0];
    ------------------------------------------------------------ */
 export const toolchain = {
   ready: false,
+  ffmpeg: null,
+  ffprobe: null,
   /* 'binary' — исполняемый файл, 'module' — python -m gallery_dl */
   kind: null,
   command: null,
@@ -169,7 +177,7 @@ function candidateBinaries() {
    в терминале. Именно здесь чаще всего и находится gallery-dl,
    установленный командой pip install --user.
    ------------------------------------------------------------ */
-async function askLoginShell(binary = 'gallery-dl') {
+async function askLoginShell(binary = 'gallery-dl', signal) {
   if (!nodeApi.available || isWindows()) return null;
 
   const shell = process.env.SHELL || '/bin/zsh';
@@ -178,8 +186,9 @@ async function askLoginShell(binary = 'gallery-dl') {
   const script = `command -v ${binary} 2>/dev/null || true`;
 
   for (const flags of ['-ilc', '-lc', '-ic']) {
+    throwIfAborted(signal);
     try {
-      const result = await runCommand(shell, [flags, script], { timeout: 15000 });
+      const result = await runCommand(shell, [flags, script], { timeout: 15000, signal });
       const line = result.stdout.split(/\r?\n/).map((s) => s.trim())
         .filter(Boolean).pop();
       if (line && nodeApi.fs.existsSync(line)) return line;
@@ -192,8 +201,11 @@ async function askLoginShell(binary = 'gallery-dl') {
    Поиск интерпретатора Python (нужен для установки и для
    запуска `python -m gallery_dl`)
    ------------------------------------------------------------ */
-export async function findPython() {
+export async function findPython({ minimumMinor = 8, signal } = {}) {
+  throwIfAborted(signal);
   if (!nodeApi.available) return null;
+  const managed=findManagedPython();
+  if(managed&&await pythonWorks(managed,minimumMinor,signal))return managed;
   const { path, os, fs } = nodeApi;
   const home = os.homedir();
 
@@ -203,19 +215,20 @@ export async function findPython() {
 
   /* 1. PATH процесса */
   for (const name of names) {
+    throwIfAborted(signal);
     const probeCmd = isWindows() ? 'where' : 'which';
     try {
-      const result = await runCommand(probeCmd, [name], { timeout: 8000 });
+      const result = await runCommand(probeCmd, [name], { timeout: 8000, signal });
       const first = result.stdout.split(/\r?\n/).map((s) => s.trim())
         .filter(Boolean)[0];
-      if (first && await pythonWorks(first)) return first;
+      if (first && await pythonWorks(first, minimumMinor, signal)) return first;
     } catch (_) { /* дальше */ }
   }
 
   /* 2. Login-shell */
   for (const name of names) {
-    const found = await askLoginShell(name);
-    if (found && await pythonWorks(found)) return found;
+    const found = await askLoginShell(name, signal);
+    if (found && await pythonWorks(found, minimumMinor, signal)) return found;
   }
 
   /* 3. Прямые пути */
@@ -231,9 +244,10 @@ export async function findPython() {
 
   for (const dir of dirs) {
     for (const name of names) {
+      throwIfAborted(signal);
       const file = path.join(dir, name);
       try {
-        if (fs.existsSync(file) && await pythonWorks(file)) return file;
+        if (fs.existsSync(file) && await pythonWorks(file, minimumMinor, signal)) return file;
       } catch (_) { /* дальше */ }
     }
   }
@@ -247,8 +261,9 @@ export async function findPython() {
         `/usr/bin/python${tag}`,
         `/Library/Frameworks/Python.framework/Versions/${tag}/bin/python3`,
       ]) {
+        throwIfAborted(signal);
         try {
-          if (fs.existsSync(file) && await pythonWorks(file)) return file;
+          if (fs.existsSync(file) && await pythonWorks(file, minimumMinor, signal)) return file;
         } catch (_) { /* дальше */ }
       }
     }
@@ -257,16 +272,17 @@ export async function findPython() {
   return null;
 }
 
-async function pythonWorks(file) {
+async function pythonWorks(file, minimumMinor = 8, signal) {
+  throwIfAborted(signal);
   try {
     const result = await runCommand(file, ['-c', 'import sys;print(sys.version_info[:2])'], {
-      timeout: 12000,
+      timeout: 12000, signal,
     });
     if (result.code !== 0) return false;
     /* gallery-dl требует Python 3.8+ */
     const match = result.stdout.match(/\((\d+),\s*(\d+)\)/);
     if (!match) return false;
-    return Number(match[1]) === 3 && Number(match[2]) >= 8;
+    return Number(match[1]) === 3 && Number(match[2]) >= minimumMinor;
   } catch (_) {
     return false;
   }
@@ -395,13 +411,15 @@ function runtimeHasPackage(runtimeDir) {
     || fs.existsSync(path.join(runtimeDir, 'gallery_dl'));
 }
 
-async function probeModule(python, runtimeDir) {
+async function probeModule(python, runtimeDir, signal) {
   if (!runtimeDir) return null;
   try {
     const result = await runCommand(python, ['-m', 'gallery_dl', '--version'], {
       timeout: 20000,
+      signal,
       env: {
         PYTHONPATH: runtimeDir,
+        PYTHONHOME: '',
         PYTHONIOENCODING: 'utf-8',
         PYTHONUTF8: '1',
       },
@@ -433,6 +451,7 @@ function applyFound(kind, command, args, version, pythonPath = null) {
    ------------------------------------------------------------ */
 export function toolchainEnv() {
   const env = { PYTHONIOENCODING: 'utf-8', PYTHONUTF8: '1' };
+  if(toolchain.command&&toolchain.command===findManagedPython())env.PYTHONHOME='';
   if (toolchain.pythonPath) env.PYTHONPATH = toolchain.pythonPath;
   return env;
 }
@@ -443,7 +462,25 @@ export function toolchainEnv() {
    раскладывает пакет в ~/.reference-sync/runtime, откуда
    запуск идёт через PYTHONPATH.
    ------------------------------------------------------------ */
+async function pythonHasPip(python,signal){
+  if(isWindows()){
+    const architecture=await runCommand(python,['-I','-c','import sysconfig;print(sysconfig.get_platform())'],{timeout:15000,signal});
+    throwIfAborted(signal);
+    if(architecture.code!==0||architecture.stdout.trim()==='win-arm64')return false;
+  }
+  const result=await runCommand(python,['-m','pip','--version'],{timeout:30000,signal,env:{PYTHONHOME:''}})
+    .catch(()=>{throwIfAborted(signal);return {code:1};});
+  throwIfAborted(signal);return result.code===0;
+}
+export async function preparePython({signal,onProgress,onLog,find=findPython,install=installManagedPython,check=pythonHasPip}={}){
+  throwIfAborted(signal);let python=await find({minimumMinor:10,signal});throwIfAborted(signal);
+  if(python&&!await check(python,signal))python=null;
+  if(!python){onLog?.('Скачиваем отдельный Python для ReferenceSync…');python=await install({signal,onProgress});}
+  throwIfAborted(signal);return python;
+}
+
 export async function installToolchain({ onLog, onProgress, signal } = {}) {
+  throwIfAborted(signal);
   const log = (message, kind) => { if (onLog) onLog(message, kind); };
   const step = (stage, percent) => { if (onProgress) onProgress({ stage, percent }); };
 
@@ -452,7 +489,8 @@ export async function installToolchain({ onLog, onProgress, signal } = {}) {
   }
 
   step('python', 5);
-  let python = toolchain.python || await findPython();
+  const python = await preparePython({signal,onProgress,onLog});
+  throwIfAborted(signal);
 
   if (!python) {
     throw new Error('NO_PYTHON');
@@ -461,21 +499,7 @@ export async function installToolchain({ onLog, onProgress, signal } = {}) {
   log(`Используется Python: ${python}`);
 
   const runtime = runtimeRoot();
-  step('pip', 15);
-
-  /* pip может отсутствовать (в некоторых сборках Python).
-     ensurepip восстанавливает его без сети. */
-  const pipCheck = await runCommand(python, ['-m', 'pip', '--version'], {
-    timeout: 30000, signal,
-  }).catch(() => ({ code: 1 }));
-
-  if (pipCheck.code !== 0) {
-    log('pip не найден, восстанавливаем через ensurepip…', 'warn');
-    await runCommand(python, ['-m', 'ensurepip', '--upgrade'], {
-      timeout: 180000, signal,
-      onStdout: (chunk) => log(chunk.trim()),
-    }).catch(() => null);
-  }
+  throwIfAborted(signal);
 
   step('download', 30);
   log('Загрузка gallery-dl из репозитория PyPI…');
@@ -489,15 +513,19 @@ export async function installToolchain({ onLog, onProgress, signal } = {}) {
     '--no-input',
     '--disable-pip-version-check',
     '--no-warn-script-location',
+    '--no-cache-dir',
     '--target', runtime,
     'gallery-dl',
+    'yt-dlp[default,curl-cffi]',
+    'pycryptodomex',
+    'imageio-ffmpeg',
   ];
 
   let output = '';
   const result = await runCommand(python, args, {
     timeout: 600000,
     signal,
-    env: { PIP_DISABLE_PIP_VERSION_CHECK: '1', PYTHONIOENCODING: 'utf-8' },
+    env: { PIP_DISABLE_PIP_VERSION_CHECK: '1', PYTHONIOENCODING: 'utf-8', PYTHONHOME:'' },
     onStdout: (chunk) => {
       output += chunk;
       chunk.split(/\r?\n/).forEach((line) => {
@@ -515,6 +543,8 @@ export async function installToolchain({ onLog, onProgress, signal } = {}) {
     },
   });
 
+  throwIfAborted(signal);
+
   if (result.code !== 0) {
     if (/network|timed out|ssl|resolve|proxy/i.test(output)) {
       throw new Error('NETWORK');
@@ -525,13 +555,19 @@ export async function installToolchain({ onLog, onProgress, signal } = {}) {
   step('verify', 90);
 
   /* Проверяем, что установленное действительно запускается */
-  const version = await probeModule(python, runtime);
+  const version = await probeModule(python, runtime, signal);
+  throwIfAborted(signal);
   if (!version) {
     throw new Error('VERIFY_FAILED');
   }
   if (!versionAtLeast(version, MIN_VERSION)) {
     throw new Error(`TOO_OLD:${versionString(version)}`);
   }
+
+  const components=await runCommand(python,['-c',
+    'import os,yt_dlp,curl_cffi,imageio_ffmpeg;from Cryptodome.Cipher import AES;curl_cffi.Curl().close();assert os.path.isfile(imageio_ffmpeg.get_ffmpeg_exe())'],
+    {timeout:30000,signal,env:{PYTHONPATH:runtime,PYTHONHOME:'',PYTHONIOENCODING:'utf-8'}});
+  throwIfAborted(signal);if(components.code!==0)throw Error('VERIFY_FAILED');
 
   applyFound('module', python, ['-m', 'gallery_dl'], version, runtime);
   step('done', 100);
@@ -567,11 +603,27 @@ export function requireToolchain() {
    аргументы модуля и переменные окружения (PYTHONPATH).
    Все места плагина обращаются к gallery-dl только так. */
 export function runGallery(extra = [], options = {}) {
+  requireAuthenticatedHttps(extra);
   requireToolchain();
-  return runCommand(toolchain.command, galleryArgs(extra), {
+  const location=toolchain.ffprobe ? nodeApi.path.dirname(toolchain.ffmpeg) : toolchain.ffmpeg;
+  const videoArgs = location ? ['-o', `downloader.ytdl.raw-options=${JSON.stringify({ ffmpeg_location: location, merge_output_format: 'mp4' })}`] : [];
+  // A loaded snapshot is read-only. gallery-dl otherwise rewrites it via a new
+  // .tmp file on every job, losing the permissions of the precreated export.
+  // Only our explicit export operation may write the reserved private paths.
+  const cookieArgs=extra.some(arg=>/^--cookies-export(?:=|$)/.test(arg))
+    ? [] : ['-o','extractor.cookies-update=false'];
+  return runCommand(toolchain.command, galleryArgs([...videoArgs, ...cookieArgs, ...extra]), {
     ...options,
     env: { ...toolchainEnv(), ...(options.env || {}) },
   });
+}
+
+// Fixed local helpers use the same installed Python/dependencies as the engine.
+export async function runEnginePython(script,args=[],options={}) {
+  requireToolchain();
+  const python=toolchain.kind==='module' ? toolchain.command : toolchain.python || await findPython({minimumMinor:10});
+  if(!python)throw new Error('NO_PYTHON');
+  return runCommand(python,['-c',script,...args],{...options,env:toolchainEnv()});
 }
 
 /* ------------------------------------------------------------
@@ -595,13 +647,23 @@ export function describeToolchainError(error) {
     case 'NO_PYTHON':
       return {
         title: 'Не найден Python',
-        text: isWindows()
-          ? 'Установите Python с python.org (при установке отметьте '
-            + '«Add python.exe to PATH») и нажмите «Подготовить движок» снова.'
-          : 'Установите Python 3 (на macOS — команда «xcode-select --install» '
-            + 'или пакет с python.org) и повторите подготовку.',
+        text: 'Нажмите «Подготовить движок», чтобы установить необходимые компоненты автоматически.',
         action: 'retry',
       };
+    case 'PYTHON_DOWNLOAD':
+      return {title:'Нет доступа к интернету',text:'Не удалось скачать Python из GitHub Astral. Проверьте подключение, VPN или прокси и повторите.',action:'retry'};
+    case 'PYTHON_CHECKSUM':
+    case 'PYTHON_SIZE':
+      return {title:'Установка не завершилась',text:'Проверка скачанного Python не прошла. Файл не будет запущен; повторите подготовку.',action:'retry'};
+    case 'PYTHON_PLATFORM':
+      return {title:'Не найден Python',text:'Автоматическая установка Python поддерживает macOS и Windows на Intel и ARM64. На других платформах нужен готовый Python 3.10 или новее.',action:'retry'};
+    case 'PYTHON_DIRECTORY':
+      return {title:'Установка не завершилась',text:'Не удалось подготовить отдельную папку Python. Проверьте доступ к рабочей папке ReferenceSync.',action:'retry'};
+    case 'PYTHON_VERIFY':
+    case 'PYTHON_ARCHIVE':
+    case 'PYTHON_INSTALL':
+    case 'PYTHON_PIP':
+      return {title:'Установка не завершилась',text:'Не удалось установить отдельный Python. Незавершённые файлы удалены; повторите подготовку.',action:'retry'};
     case 'NETWORK':
       return {
         title: 'Нет доступа к интернету',
@@ -637,4 +699,40 @@ export function describeToolchainError(error) {
         action: 'retry',
       };
   }
+}
+
+// Check in the exact Python environment used by gallery-dl, without installing anything.
+export async function hasVideoDownloader({ requireHls = true, requireBrowserCompatibility = false } = {}) {
+  if (!await findFFmpeg()) return false;
+  if (!requireHls) return true;
+  if (toolchain.kind !== 'module') return !requireBrowserCompatibility;
+  const probe = requireBrowserCompatibility
+    ? 'import sys, yt_dlp, curl_cffi; from Cryptodome.Cipher import AES; assert sys.version_info >= (3, 10); curl_cffi.Curl().close()'
+    : 'import yt_dlp';
+  const result = await runCommand(toolchain.command, ['-c', probe], {
+    env: toolchainEnv(), timeout: 15000,
+  }).catch(() => null);
+  return result?.code === 0;
+}
+export async function findFFmpeg() {
+  if (toolchain.ffmpeg && toolchain.ffprobe) return toolchain.ffmpeg;
+  if (!nodeApi.available) return null;
+  const { path, fs } = nodeApi;
+  const executable = process.platform === 'win32' ? 'ffmpeg.exe' : 'ffmpeg';
+  const directories = [...(process.env.PATH || '').split(path.delimiter), '/usr/local/bin', '/opt/homebrew/bin'];
+  const candidates = [toolchain.ffmpeg,...directories.filter(Boolean).map(dir => path.join(dir, executable))].filter(Boolean);
+  const pair=await findFFmpegPair(candidates);
+  if(pair){Object.assign(toolchain,pair);return pair.ffmpeg;}
+  if(toolchain.ffmpeg)return toolchain.ffmpeg;
+  if (toolchain.kind === 'module') {
+    const probe = await runCommand(toolchain.command, ['-c', 'import imageio_ffmpeg; print(imageio_ffmpeg.get_ffmpeg_exe())'],
+      { env: toolchainEnv(), timeout: 15000 }).catch(() => null);
+    if (probe?.code === 0) candidates.unshift(probe.stdout.trim());
+  }
+  for (const candidate of new Set(candidates)) {
+    if (!fs.existsSync(candidate)) continue;
+    const check = await runCommand(candidate, ['-version'], { timeout: 5000 }).catch(() => null);
+    if (check?.code === 0) { toolchain.ffmpeg = candidate; return candidate; }
+  }
+  return null;
 }

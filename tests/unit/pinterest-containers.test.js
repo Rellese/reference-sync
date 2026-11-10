@@ -121,14 +121,14 @@ test('Pinterest exports cookies from selected browser profile', () => {
     });
 
   assert.deepEqual(args, [
+    '--config-ignore',
+    '--no-input',
     '--cookies-from-browser',
     'chrome:Profile 2',
     '--cookies-export',
     '/tmp/pinterest-cookies.txt',
-    '--simulate',
-    '--range',
-    '1',
-    'https://www.pinterest.com/designer/pins/',
+    '--no-download',
+    'https://0/file.jpg',
   ]);
 });
 
@@ -194,4 +194,26 @@ test('Pinterest ignores object values as text', () => {
     board.id,
     'board-123',
   );
+});
+
+test('Pinterest board requests ignore unrelated, expired and differently scoped cookies', async () => {
+  const { nodeApi } = await import('../../js/node-bridge.js');
+  const { readPinterestCookies } = await import('../../js/sources/pinterest-containers.js');
+  const original = { available: nodeApi.available, fs: nodeApi.fs };
+  const line = (domain, name, value, expires = '0', scope = '/') =>
+    [domain, 'TRUE', scope, 'TRUE', expires, name, value].join('\t');
+  const text = [
+    line('.pinterest.com', '_pinterest_sess', 'fixture=value'),
+    line('.notpinterest.com', '_pinterest_sess', 'wrong'),
+    line('.pinterest.com', 'expired', 'old', '1'),
+    line('.other.pinterest.com', 'other', 'wrong'),
+    line('.pinterest.com', 'path', 'wrong', '0', '/elsewhere'),
+    line('#HttpOnly_.pinterest.com', 'csrftoken', 'fixture-csrf'),
+  ].join('\n');
+  Object.assign(nodeApi, { available: true, fs: { existsSync: () => true, readFileSync: () => text } });
+  try {
+    assert.deepEqual([...readPinterestCookies('/fixture/cookies')], [
+      ['_pinterest_sess', 'fixture=value'], ['csrftoken', 'fixture-csrf'],
+    ]);
+  } finally { Object.assign(nodeApi, original); }
 });
