@@ -17,6 +17,9 @@ const allowed = file => ['manifest.json', 'index.html', 'README.md', 'CHANGELOG.
   || ['docs/PRIVACY.md', 'docs/REVIEW.md', 'docs/RELEASE.md', 'docs/MANAGED-PYTHON.md'].includes(file);
 const files = tracked.filter(allowed);
 const manifest = JSON.parse(await fs.readFile(path.join(root, 'manifest.json'), 'utf8'));
+// The store requires a UUID and updates must retain the original listing ID.
+if(!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(manifest.id||'') ||
+  manifest.id!=='659051af-6657-4df6-9b46-ac64ccaae260')throw new Error('INVALID_PLUGIN_ID: ReferenceSync must keep its existing marketplace UUID');
 const versionIndex=process.argv.indexOf('--version');
 const version=versionIndex<0?manifest.version:process.argv[versionIndex+1];
 if(!/^\d+\.\d+\.\d+$/.test(version||''))throw new Error('Invalid submission version');
